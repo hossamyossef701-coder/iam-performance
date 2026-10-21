@@ -1,0 +1,6 @@
+# The back-record in the clear. Never commit this - the repository is public.
+history-private.json
+node_modules/
+
+# Your own setup notes - no need to publish them.
+SETUP.md

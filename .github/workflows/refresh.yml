@@ -1,0 +1,48 @@
+name: Refresh data
+
+on:
+  schedule:
+    - cron: "20 */3 * * *"      # every 3 hours (UTC)
+  workflow_dispatch:             # the Refresh button in the dashboard triggers this
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Pull coach sheets and encrypt
+        env:
+          SHARE_URL: ${{ secrets.SHARE_URL }}
+          DATA_PASSPHRASE: ${{ secrets.DATA_PASSPHRASE }}
+          HISTORY_JSON: ${{ secrets.HISTORY_JSON }}
+        run: node scripts/refresh.mjs
+
+      - name: Save changes
+        run: |
+          git config user.name "iam-refresh-bot"
+          git config user.email "iam-refresh-bot@users.noreply.github.com"
+          git add live.enc.json
+          [ -f history.enc.json ] && git add history.enc.json || true
+          if git diff --cached --quiet; then
+            echo "Nothing new to save."
+          else
+            git commit -m "Data refresh"
+            git pull --rebase
+            git push
+          fi
