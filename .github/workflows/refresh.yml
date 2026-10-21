@@ -14,8 +14,8 @@ concurrency:
 
 jobs:
   refresh:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    runs-on: ubuntu-24.04      # pinned: the browser fallback needs a known OS
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -25,6 +25,16 @@ jobs:
           cache: npm
 
       - run: npm ci --no-audit --no-fund
+
+      # Only the last-resort fetch uses this, but it has to be here before the job starts.
+      - name: Cache the browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install the browser
+        run: npx playwright install --with-deps chromium
 
       - name: Pull coach sheets and encrypt
         env:

@@ -1,7 +1,7 @@
 // Pulls every coach workbook from the shared OneDrive folder, parses the monthly sheets,
 // encrypts the result and writes live.enc.json (+ history.enc.json when HISTORY_JSON is set).
 // Env: SHARE_URL, DATA_PASSPHRASE (required) · HISTORY_JSON · LIVE_FROM (default 2026-08)
-//      FETCH_STRATEGIES (default "api,zip,rest") · OUT_DIR (default ".") · MIN_AGE_HOURS (default 12)
+//      FETCH_STRATEGIES (default "od,odkey,spshares,zip,rest,browser") · OUT_DIR (default ".") · MIN_AGE_HOURS (default 12)
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -16,10 +16,11 @@ const PASS = (env.DATA_PASSPHRASE || "").trim();
 const OUT = env.OUT_DIR || ".";
 const LIVE_FROM = env.LIVE_FROM || "2026-08";
 const MIN_AGE_H = Number(env.MIN_AGE_HOURS || 12);
-const ORDER = (env.FETCH_STRATEGIES || "api,zip,rest").split(",").map((s) => s.trim());
+const ORDER = (env.FETCH_STRATEGIES || "od,odkey,spshares,zip,rest,browser").split(",").map((s) => s.trim());
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
+console.log("refresh build 2026-10-21d (browser fallback)");  // proves which version the job is running
 
 function dubaiPeriod() {
   const p = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dubai", year: "numeric", month: "2-digit" }).format(new Date());
