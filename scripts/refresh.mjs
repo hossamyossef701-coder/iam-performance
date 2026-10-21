@@ -1,7 +1,7 @@
 // Pulls every coach workbook from the shared OneDrive folder, parses the monthly sheets,
 // encrypts the result and writes live.enc.json (+ history.enc.json when HISTORY_JSON is set).
 // Env: SHARE_URL, DATA_PASSPHRASE (required) · HISTORY_JSON · LIVE_FROM (default 2026-08)
-//      FETCH_STRATEGIES (default "od,odkey,spshares,zip,rest,browser") · OUT_DIR (default ".") · MIN_AGE_HOURS (default 12)
+//      COACH_FILE_PATTERN (default "performance sheet") · FETCH_STRATEGIES (default "od,odkey,spshares,zip,rest,browser") · OUT_DIR (default ".") · MIN_AGE_HOURS (default 12)
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -20,7 +20,7 @@ const ORDER = (env.FETCH_STRATEGIES || "od,odkey,spshares,zip,rest,browser").spl
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
-console.log("refresh build 2026-10-21d (browser fallback)");  // proves which version the job is running
+console.log("refresh build 2026-10-21e (tolerant parser)");  // proves which version the job is running
 
 function dubaiPeriod() {
   const p = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dubai", year: "numeric", month: "2-digit" }).format(new Date());
@@ -46,7 +46,12 @@ async function main() {
   const { strategy, files } = await fetchWorkbooks(SHARE_URL, ORDER, L);
   const now = dubaiPeriod();
   const periods = {}, report = [];
-  for (const f of files) {
+  // Only the per-coach performance workbooks. Anything else in the folder (consolidated
+  // finance files and so on) is listed as skipped rather than reported as broken.
+  const COACH_FILE = new RegExp(env.COACH_FILE_PATTERN || "performance sheet", "i");
+  const skipped = files.filter((f) => !COACH_FILE.test(f.name));
+  if (skipped.length) L.log(`Skipped ${skipped.length} file(s) that are not coach performance sheets.`);
+  for (const f of files.filter((x) => COACH_FILE.test(x.name))) {
     const coach = coachFromFilename(f.name);
     const entry = { file: f.name, coach, months: [], empty: [], errors: [], warnings: [] };
     report.push(entry);

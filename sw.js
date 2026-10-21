@@ -1,7 +1,7 @@
 // Network-first: the dashboard must never show yesterday's numbers from a cache. The cache
 // exists only so the app still opens when the phone is offline.
 const CACHE = "iam-perf-v1";
-const SHELL = ["./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
+const SHELL = ["./index.html", "./report.html", "./manifest.webmanifest", "./report.webmanifest", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()).catch(() => self.skipWaiting()));
