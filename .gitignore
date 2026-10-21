@@ -4,3 +4,4 @@ node_modules/
 
 # Your own setup notes - no need to publish them.
 SETUP.md
+.DS_Store
