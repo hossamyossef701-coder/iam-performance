@@ -98,24 +98,50 @@ async function download(files, L, headers) {
   return out;
 }
 
-/* ---- "od": consumer OneDrive shares API. The documented anonymous route for a personal
-   account's "anyone with the link" share: the link itself, base64url-encoded, is the key. ---- */
+/* ---- "od": consumer OneDrive shares API.
+   A modern share link arrives as an onedrive.live.com page whose "redeem" parameter holds
+   the real sharing URL (a 1drv.ms address), base64url-encoded. The shares API keys off THAT
+   url, not off the page address - encoding the page is what produced the earlier 401s. Both
+   are tried, against both consumer hosts, with and without the redeem hint header. ---- */
+function decodeRedeem(shareUrl, L) {
+  let v;
+  try { v = new URL(shareUrl).searchParams.get("redeem"); } catch { return null; }
+  if (!v) return null;
+  try {
+    const b = v.replace(/-/g, "+").replace(/_/g, "/");
+    const txt = Buffer.from(b + "=".repeat((4 - (b.length % 4)) % 4), "base64").toString("utf8");
+    if (/^https?:\/\//i.test(txt)) {
+      L.log(`  the redeem parameter decodes to a ${new URL(txt).host} link`);
+      return txt;
+    }
+    L.log("  the redeem parameter did not decode to a web address");
+  } catch { L.log("  the redeem parameter could not be decoded"); }
+  return null;
+}
 async function viaOdShares(shareUrl, L) {
-  const key = encodeShare(shareUrl);
-  const bases = [
-    `https://api.onedrive.com/v1.0/shares/${key}`,
-    `https://my.microsoftpersonalcontent.com/_api/v2.0/shares/${key}`,
-  ];
+  const redeemed = decodeRedeem(shareUrl, L);
+  const urls = [...new Set([redeemed, shareUrl].filter(Boolean))];
+  const bases = ["https://api.onedrive.com/v1.0", "https://my.microsoftpersonalcontent.com/_api/v2.0"];
+  const paths = ["/root?expand=children", "/driveItem?$expand=children", "/driveItem/children"];
+  const headerSets = [{}, { Prefer: "redeemSharingLink" }];
+  const seen = new Set();
   let lastErr = "no endpoint answered";
-  for (const base of bases) {
-    for (const path of ["/root?expand=children(expand=thumbnails)", "/root?expand=children", "/driveItem?expand=children"]) {
-      const res = await get(base + path, { headers: { Accept: "application/json" } }, L, "list");
-      if (!res.ok) { lastErr = `listing failed (${res.status})`; if (res.status === 404 || res.status === 400) continue; else { lastErr += " " + (await res.text()).slice(0, 160); continue; } }
-      const j = await res.json();
-      const children = j.children || j.value || (j.folder ? [] : null);
+  for (const url of urls) {
+    // A 1drv.ms/f/c/<cid>/<token> address also answers to the older s!<token> share key.
+    const keys = [encodeShare(url)];
+    const m = url.match(/1drv\.ms\/[a-z]\/(?:c\/[^/]+\/)?([A-Za-z0-9_!-]{10,})/i);
+    if (m) keys.push(m[1].startsWith("s!") ? m[1] : "s!" + m[1].replace(/^[a-z]!/i, ""));
+    for (const key of keys) for (const base of bases) for (const path of paths) for (const headers of headerSets) {
+      const full = `${base}/shares/${key}${path}`;
+      const tag = full.slice(0, 60) + JSON.stringify(headers);
+      if (seen.has(tag)) continue; seen.add(tag);
+      const res = await get(full, { headers: { Accept: "application/json", ...headers } }, L, "list");
+      if (!res.ok) { lastErr = `listing failed (${res.status})`; continue; }
+      let j; try { j = await res.json(); } catch { lastErr = "the answer was not readable as data"; continue; }
+      const children = j.children || j.value || null;
       const files = pickFiles(children);
       if (files.length) return download(files, L);
-      lastErr = "the folder answered but held no spreadsheets";
+      lastErr = children ? "the folder answered but held no spreadsheets" : "the answer held no file list";
     }
   }
   throw new Error(lastErr);
