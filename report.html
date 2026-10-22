@@ -68,7 +68,7 @@ button:hover,select:hover{border-color:var(--ink-faint);}
 
 .card{background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r);overflow:hidden;}
 .scroll{overflow-x:auto;}
-table{width:100%;border-collapse:collapse;min-width:660px;}
+table{width:100%;border-collapse:collapse;min-width:780px;}
 th,td{text-align:right;padding:11px 12px;border-bottom:1px solid var(--line-soft);white-space:nowrap;}
 th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:var(--panel);}
 th{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-faint);font-weight:500;cursor:pointer;user-select:none;background:var(--panel);position:sticky;top:0;z-index:1;}
@@ -284,6 +284,7 @@ function currentPeriod(){
 function monthDays(p){ var a=p.split("-"); return new Date(+a[0],+a[1],0).getDate(); }
 function dayOfMonth(){ return +new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Dubai",day:"numeric"}).format(new Date()); }
 // Only a month still running is part-complete; a finished month counts whole.
+function daysUsed(p){ return p===currentPeriod()? dayOfMonth() : monthDays(p); }
 function progress(p){ return p===currentPeriod()? Math.max(0.03,Math.min(1,dayOfMonth()/monthDays(p))) : 1; }
 function prevPeriods(p,n){ var i=PERIODS.indexOf(p); return i<0?[]:PERIODS.slice(Math.max(0,i-n),i); }
 // Every month on record from an anchor up to, but not including, the month being viewed.
@@ -331,7 +332,9 @@ function metrics(p,coach){
   if(!d) return null;
   // Cancelled as a share of everything booked: conducted plus cancelled.
   var booked=(d.s!=null&&d.x!=null)?(d.s+d.x):null;
-  return { s:d.s, r:d.r, x:d.x, rate:(d.r!=null&&d.s)?d.r/d.s:null, cpc:booked?d.x/booked*100:null };
+  var days=daysUsed(p);
+  return { s:d.s, r:d.r, x:d.x, rate:(d.r!=null&&d.s)?d.r/d.s:null, cpc:booked?d.x/booked*100:null,
+           spd:(d.s!=null&&days)?d.s/days:null };
 }
 // The comparison figure for one coach. "pace" scales the earlier month down to the share of
 // the month that has run, so a month-to-date column is not measured against a whole month.
@@ -339,10 +342,10 @@ function basis(p,coach){
   if(ui.compare==="none") return null;
   var list=basisPeriods(p);
   if(!list.length) return null;
-  var acc={s:[],r:[],x:[],rate:[],cpc:[]}, any=false;
+  var acc={s:[],r:[],x:[],rate:[],cpc:[],spd:[]}, any=false;
   list.forEach(function(q){
     var m=metrics(q,coach); if(!m) return;
-    ["s","r","x","rate","cpc"].forEach(function(k){ if(m[k]!=null) acc[k].push(m[k]); });
+    ["s","r","x","rate","cpc","spd"].forEach(function(k){ if(m[k]!=null) acc[k].push(m[k]); });
     any=true;
   });
   if(!any) return null;
@@ -352,16 +355,18 @@ function basis(p,coach){
   // of it that has run so far.
   var k=(ui.compare==="prev"||ui.compare==="yoyfull")?1:progress(p);
   var out={};
-  ["s","r","x","rate","cpc"].forEach(function(key){
+  ["s","r","x","rate","cpc","spd"].forEach(function(key){
     var vals=acc[key];
     var mean=vals.length?vals.reduce(function(a,b){return a+b;},0)/vals.length:null;
     // A price per session and a cancellation rate are ratios, not running totals, so
     // neither is scaled down for a part-finished month.
-    out[key]=(mean==null)?null:((key==="rate"||key==="cpc")?mean:mean*k);
+    // Rate, cancellation share and sessions a day are all per-unit figures already, so none
+    // of them is scaled down for a part-finished month.
+    out[key]=(mean==null)?null:((key==="rate"||key==="cpc"||key==="spd")?mean:mean*k);
   });
   return out;
 }
-function teamTotals(p,useBasis){
+function teamTotals(p,useBasis){   // p is needed for the day count
   var t={s:0,r:0,x:null,n:0}, anyX=false;
   coachesIn(p).forEach(function(c){
     var m=useBasis?basis(p,c):metrics(p,c);
@@ -374,6 +379,7 @@ function teamTotals(p,useBasis){
   t.rate=t.s?t.r/t.s:null;
   if(!anyX) t.x=null;
   t.cpc=(t.x!=null&&(t.s+t.x))?t.x/(t.s+t.x)*100:null;
+  t.spd=daysUsed(p)?t.s/daysUsed(p):null;
   return t;
 }
 
@@ -396,7 +402,8 @@ function renderTiles(p){
   var now=teamTotals(p,false), was=(ui.compare==="none")?null:teamTotals(p,true);
   var cmp=function(a,b,inv){ return was&&was.n?delta(a,b,inv):""; };
   var tiles=[
-    {k:"Team sessions", v:fmtInt(now.s), d:cmp(now.s,was&&was.s,false)},
+    {k:"Team sessions", v:fmtInt(now.s),
+     d:cmp(now.s,was&&was.s,false)+(now.spd==null?"":'<span class="d flat">'+now.spd.toFixed(1)+" a day over "+daysUsed(p)+" days</span>")},
     {k:"Team revenue AED", v:fmtInt(now.r), d:cmp(now.r,was&&was.r,false), lead:true},
     {k:"Rate / session", v:fmtRate(now.rate), d:cmp(now.rate,was&&was.rate,false)},
     {k:"Cancelled", v:now.x==null?"—":fmtInt(now.x),
@@ -419,7 +426,7 @@ function attCell(att){
     '<span class="att-pct '+(over?"over":"under")+'">'+att.toFixed(0)+"%</span></span>";
 }
 
-var COLS=[{k:"coach",t:"Coach"},{k:"sessions",t:"Sessions"},{k:"rate",t:"Rate / session"},
+var COLS=[{k:"coach",t:"Coach"},{k:"sessions",t:"Sessions"},{k:"spd",t:"Sessions / day"},{k:"rate",t:"Rate / session"},
           {k:"revenue",t:"Revenue AED"},{k:"cancelled",t:"Cancelled"},{k:"cpc",t:"Cancelled %"},{k:"attain",t:"Even share"}];
 function render(){
   var p=ui.month, tbl=document.getElementById("tbl"), empty=document.getElementById("empty");
@@ -440,7 +447,7 @@ function render(){
   var evenShare=evenList.length?evenRevenue/evenList.length:0;
   var rows=list.map(function(c){
     var m=metrics(p,c);
-    return {coach:c, sessions:m.s, rate:m.rate, revenue:m.r, cancelled:m.x, cpc:m.cpc,
+    return {coach:c, sessions:m.s, spd:m.spd, rate:m.rate, revenue:m.r, cancelled:m.x, cpc:m.cpc,
             attain:(evenShare&&m.r!=null&&inEven(c))?m.r/evenShare*100:null, b:basis(p,c)};
   });
 
@@ -463,6 +470,7 @@ function render(){
     return '<tr class="'+(r.coach===DIRECTOR?"me":"")+'">'+
       "<td>"+r.coach+"</td>"+
       "<td>"+fmtInt(r.sessions)+delta(r.sessions,b.s,false)+"</td>"+
+      "<td>"+(r.spd==null?'<span class="dim">\u2014</span>':r.spd.toFixed(1)+delta(r.spd,b.spd,false))+"</td>"+
       "<td>"+fmtRate(r.rate)+delta(r.rate,b.rate,false)+"</td>"+
       "<td>"+fmtInt(r.revenue)+delta(r.revenue,b.r,false)+"</td>"+
       "<td>"+(r.cancelled==null?'<span class="dim">—</span>':fmtInt(r.cancelled)+delta(r.cancelled,b.x,true))+"</td>"+
@@ -474,6 +482,7 @@ function render(){
   var tcmp=function(a,b,inv){ return was&&was.n?delta(a,b,inv):""; };
   var foot="<tfoot><tr><td>"+(ui.scope==="all"?"Team":"Team excl. "+DIRECTOR)+" · "+rows.length+" coaches</td>"+
     "<td>"+fmtInt(team.s)+tcmp(team.s,was&&was.s,false)+"</td>"+
+    "<td>"+(team.spd==null?'<span class="dim">\u2014</span>':team.spd.toFixed(1)+tcmp(team.spd,was&&was.spd,false))+"</td>"+
     "<td>"+fmtRate(team.rate)+tcmp(team.rate,was&&was.rate,false)+"</td>"+
     "<td>"+fmtInt(team.r)+tcmp(team.r,was&&was.r,false)+"</td>"+
     "<td>"+(team.x==null?'<span class="dim">—</span>':fmtInt(team.x)+tcmp(team.x,was&&was.x,true))+"</td>"+
