@@ -18,70 +18,87 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 :root{
-  --ground:#050505; --panel:#0e0e10; --panel-2:#17171a;
+  --ground:#050505; --panel:#0e0e10; --panel-2:#17171a; --panel-3:#1f1f22;
   --line:#2a2a2d; --line-soft:#1c1c1f;
   --ink:#f2ede6; --ink-soft:#b0a89e; --ink-faint:#6e6862;
   --up:#5eb87a; --down:#e14b4b; --flat:#6e6862;
-  --accent:#ef691d;
+  --accent:#ef691d; --accent-2:#ff8340;
   --f-display:'Alata',system-ui,sans-serif; --f-mono:'IBM Plex Mono',ui-monospace,monospace;
   --r:12px;
 }
+html{scroll-behavior:smooth;}
 body{background:var(--ground);color:var(--ink);font-family:var(--f-display);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;
-  background-image:radial-gradient(ellipse 80% 50% at 50% -10%,rgba(239,105,29,.06),transparent 60%);}
-.wrap{max-width:1100px;margin:0 auto;padding:26px 20px 70px;}
+  background-image:radial-gradient(ellipse 90% 46% at 50% -8%,rgba(239,105,29,.085),transparent 62%);}
+.wrap{max-width:1180px;margin:0 auto;padding:26px 20px 70px;}
 @media(max-width:640px){.wrap{padding:18px 14px 50px;}}
+::selection{background:rgba(239,105,29,.3);}
 
-/* head */
 .head{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;justify-content:space-between;padding-bottom:16px;margin-bottom:18px;position:relative;}
-.head::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:linear-gradient(90deg,var(--accent),transparent 70%);opacity:.5;}
+.head::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:linear-gradient(90deg,var(--accent),transparent 68%);opacity:.6;}
 .eyebrow{font-family:var(--f-mono);font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--accent);display:flex;align-items:center;gap:8px;}
 .eyebrow::before{content:"";width:20px;height:1.5px;background:var(--accent);}
-h1{font-size:30px;line-height:1.05;letter-spacing:-.01em;margin-top:7px;}
-@media(max-width:640px){h1{font-size:23px;}}
-.stamp{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-faint);text-align:right;line-height:1.8;}
+h1{font-size:31px;line-height:1.04;letter-spacing:-.012em;margin-top:7px;}
+@media(max-width:640px){h1{font-size:24px;}}
+.stamp{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-faint);text-align:right;line-height:1.85;}
 @media(max-width:640px){.stamp{text-align:left;}}
 
-/* controls */
-.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:16px;}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:18px;}
 select,button{font-family:var(--f-display);font-size:13px;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:8px 11px;cursor:pointer;}
-select:focus,button:focus{outline:none;border-color:var(--accent);}
-button:hover{border-color:var(--ink-faint);}
-button.primary{background:var(--accent);border-color:var(--accent);color:#120800;font-weight:600;}
-.mtd{font-family:var(--f-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);border:1px solid rgba(239,105,29,.35);border-radius:999px;padding:4px 9px;}
+select:focus,button:focus-visible{outline:none;border-color:var(--accent);}
+button:hover,select:hover{border-color:var(--ink-faint);}
+.seg{display:inline-flex;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;overflow:hidden;}
+.seg button{border:none;border-radius:0;background:transparent;padding:8px 13px;color:var(--ink-soft);}
+.seg button+button{border-left:1px solid var(--line);}
+.seg button.on{background:var(--accent);color:#120800;font-weight:600;}
+.chip{font-family:var(--f-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);border:1px solid rgba(239,105,29,.4);border-radius:999px;padding:5px 10px;white-space:nowrap;}
 .note{font-family:var(--f-mono);font-size:11px;color:var(--ink-faint);margin-left:auto;}
-@media(max-width:640px){.note{margin-left:0;width:100%;}}
+@media(max-width:700px){.note{margin-left:0;width:100%;}}
 
-/* table */
+/* team tiles */
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;}
+@media(max-width:860px){.tiles{grid-template-columns:repeat(2,1fr);}}
+.tile{background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r);padding:14px 15px;position:relative;overflow:hidden;}
+.tile::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--line);}
+.tile.lead::before{background:linear-gradient(180deg,var(--accent),var(--accent-2));}
+.tile .k{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.17em;text-transform:uppercase;color:var(--ink-faint);}
+.tile .v{font-family:var(--f-mono);font-size:27px;font-weight:600;letter-spacing:-.02em;margin-top:5px;line-height:1.1;}
+@media(max-width:640px){.tile .v{font-size:22px;}}
+.tile.lead .v{color:var(--accent-2);}
+.tile .sub{font-family:var(--f-mono);font-size:10.5px;margin-top:3px;}
+
 .card{background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r);overflow:hidden;}
 .scroll{overflow-x:auto;}
-table{width:100%;border-collapse:collapse;min-width:620px;}
+table{width:100%;border-collapse:collapse;min-width:660px;}
 th,td{text-align:right;padding:11px 12px;border-bottom:1px solid var(--line-soft);white-space:nowrap;}
 th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:var(--panel);}
-th{font-family:var(--f-mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-faint);font-weight:500;cursor:pointer;user-select:none;background:var(--panel);position:sticky;top:0;}
+th{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-faint);font-weight:500;cursor:pointer;user-select:none;background:var(--panel);position:sticky;top:0;z-index:1;}
 th:first-child{z-index:2;}
 th.on{color:var(--accent);}
-th .ar{opacity:.75;}
 td{font-family:var(--f-mono);font-size:13.5px;}
 td:first-child{font-family:var(--f-display);font-size:14px;}
-tbody tr:hover td{background:var(--panel-2);}
-tbody tr:hover td:first-child{background:var(--panel-2);}
-tfoot td{border-bottom:none;border-top:1px solid var(--line);font-weight:600;background:var(--panel);}
-.d{display:block;font-size:10.5px;margin-top:2px;letter-spacing:.01em;}
+tbody tr:hover td,tbody tr:hover td:first-child{background:var(--panel-2);}
+tbody tr.me td,tbody tr.me td:first-child{background:rgba(239,105,29,.055);}
+tfoot td{border-bottom:none;border-top:1px solid var(--line);font-weight:600;background:var(--panel-2);}
+tfoot td:first-child{background:var(--panel-2);}
+.d{display:block;font-size:10.5px;margin-top:2px;}
 .d.up{color:var(--up);} .d.down{color:var(--down);} .d.flat{color:var(--flat);}
 .dim{color:var(--ink-faint);}
-.spark{display:block;margin-left:auto;}
+.share{display:flex;align-items:center;gap:8px;justify-content:flex-end;}
+.share-track{width:84px;height:5px;border-radius:3px;background:var(--panel-3);overflow:hidden;}
+.share-fill{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--accent-2));}
+.share-pct{min-width:38px;font-size:12px;}
 .empty{padding:40px 16px;text-align:center;color:var(--ink-faint);font-family:var(--f-mono);font-size:12px;}
 .status{font-family:var(--f-mono);font-size:11.5px;margin-top:12px;color:var(--ink-faint);min-height:17px;}
 .status.err{color:var(--down);} .status.ok{color:var(--up);}
 
-/* gate */
 .gate{position:fixed;inset:0;z-index:99;background:var(--ground);display:flex;align-items:center;justify-content:center;padding:24px;
-  background-image:radial-gradient(ellipse 80% 50% at 50% -10%,rgba(239,105,29,.09),transparent 60%);}
+  background-image:radial-gradient(ellipse 80% 50% at 50% -10%,rgba(239,105,29,.1),transparent 60%);}
 .gate-box{width:100%;max-width:370px;}
-.gate h1{margin:9px 0 10px;}
-#gateForm{display:flex;flex-direction:column;gap:11px;margin-top:16px;}
+.gate h1{margin:9px 0 2px;}
+#gateForm{display:flex;flex-direction:column;gap:11px;margin-top:18px;}
 #gatePass{width:100%;padding:12px 14px;font-size:16px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);color:var(--ink);font-family:var(--f-mono);}
 #gatePass:focus{outline:none;border-color:var(--accent);}
+#gateBtn{background:var(--accent);border-color:var(--accent);color:#120800;font-weight:600;padding:12px;}
 .rem{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-soft);cursor:pointer;}
 body.locked{overflow:hidden;}
 </style>
@@ -95,7 +112,7 @@ body.locked{overflow:hidden;}
     <form id="gateForm" autocomplete="off">
       <input type="password" id="gatePass" placeholder="Passphrase" autocomplete="current-password" spellcheck="false">
       <label class="rem"><input type="checkbox" id="gateRemember" checked> Remember on this device</label>
-      <button type="submit" class="primary" id="gateBtn">Unlock</button>
+      <button type="submit" id="gateBtn">Unlock</button>
     </form>
     <p class="status" id="gateStatus"></p>
   </div>
@@ -112,16 +129,23 @@ body.locked{overflow:hidden;}
 
   <div class="bar">
     <select id="selMonth"></select>
-    <span class="mtd" id="mtdTag" style="display:none">Month to date</span>
+    <span class="chip" id="chipMtd" style="display:none"></span>
+    <span class="seg" id="segScope">
+      <button data-v="all" class="on">With Hossam</button>
+      <button data-v="team">Team only</button>
+    </span>
     <select id="selCompare">
-      <option value="prev">vs previous month</option>
-      <option value="avg3">vs 3-month average</option>
+      <option value="pace">vs last month, same point</option>
+      <option value="prev">vs last month, full</option>
+      <option value="avg3">vs 3-month average, same point</option>
       <option value="none">no comparison</option>
     </select>
     <button id="btnReload">Reload</button>
     <button id="btnRefresh">Refresh now</button>
     <span class="note" id="note"></span>
   </div>
+
+  <div class="tiles" id="tiles"></div>
 
   <div class="card">
     <div class="scroll"><table id="tbl"></table></div>
@@ -138,11 +162,15 @@ window.addEventListener("unhandledrejection",function(e){console.error("[report]
 
 var GH_OWNER="hossamyossef701-coder", GH_REPO="iam-performance", GH_BRANCH="main", GH_WORKFLOW="refresh.yml";
 var PASS_KEY="iamlive:pass", CFG_KEY="iamlive:cfg", UI_KEY="iamreport:ui";
+var DIRECTOR="Hossam";
 var MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-var PASS=null, LIVE=null, DATA={}, PERIODS=[];
-var ui={month:null, compare:"prev", sort:"revenue", dir:-1};
-try{ var sv=JSON.parse(localStorage.getItem(UI_KEY)||"{}"); if(sv.compare) ui.compare=sv.compare; if(sv.sort) ui.sort=sv.sort; if(sv.dir) ui.dir=sv.dir; }catch(e){}
-function saveUi(){ try{ localStorage.setItem(UI_KEY,JSON.stringify({compare:ui.compare,sort:ui.sort,dir:ui.dir})); }catch(e){} }
+var PASS=null, LIVE=null, HIST=null, DATA={}, PERIODS=[];
+var ui={month:null, compare:"pace", scope:"all", sort:"revenue", dir:-1};
+try{ var sv=JSON.parse(localStorage.getItem(UI_KEY)||"{}");
+  ["compare","scope","sort"].forEach(function(k){ if(sv[k]) ui[k]=sv[k]; });
+  if(sv.dir) ui.dir=sv.dir;
+}catch(e){}
+function saveUi(){ try{ localStorage.setItem(UI_KEY,JSON.stringify({compare:ui.compare,scope:ui.scope,sort:ui.sort,dir:ui.dir})); }catch(e){} }
 function cfg(){ try{ return JSON.parse(localStorage.getItem(CFG_KEY)||"{}"); }catch(e){ return {}; } }
 function setStat(id,t,c){ var e=document.getElementById(id); if(e){ e.className="status "+(c||""); e.textContent=t; } }
 
@@ -163,7 +191,7 @@ function getJson(url,headers){
     return r.json();
   });
 }
-// The GitHub API always serves the committed file; the Pages CDN can lag a few minutes.
+// The GitHub API always serves the committed file; the Pages cache can lag a few minutes.
 function loadEnc(name,viaApi){
   var rel="./"+name+"?t="+Date.now();
   if(!viaApi) return getJson(rel);
@@ -171,10 +199,13 @@ function loadEnc(name,viaApi){
     {Accept:"application/vnd.github.raw"}).catch(function(){ return getJson(rel); });
 }
 
-/* ---------- data ---------- */
-function build(hist){
+/* ---------- data ----------
+   Whatever coaches appear in the files are the coaches shown: nothing here is a fixed list,
+   so a coach added to the folder turns up on their own, and one who leaves simply stops
+   appearing in new months while their past months stay in place. */
+function build(){
   DATA={};
-  var H=(hist&&hist.HIST)||{};
+  var H=(HIST&&HIST.HIST)||{};
   Object.keys(H).forEach(function(p){
     DATA[p]={};
     Object.keys(H[p]).forEach(function(c){ DATA[p][c]={s:H[p][c][0], r:H[p][c][1], x:null}; });
@@ -182,44 +213,40 @@ function build(hist){
   if(LIVE&&LIVE.periods) Object.keys(LIVE.periods).forEach(function(p){
     DATA[p]=DATA[p]||{};
     Object.keys(LIVE.periods[p]).forEach(function(c){
-      var v=LIVE.periods[p][c], prev=DATA[p][c]||{};
+      var v=LIVE.periods[p][c]||{}, prev=DATA[p][c]||{};
       DATA[p][c]={ s:(v.s!=null?v.s:prev.s), r:(v.r!=null?v.r:prev.r), x:(v.x!=null?v.x:(prev.x!=null?prev.x:null)) };
     });
   });
   PERIODS=Object.keys(DATA).filter(function(p){
-    return Object.keys(DATA[p]).some(function(c){ var d=DATA[p][c]; return d.s!=null||d.r!=null; });
+    return Object.keys(DATA[p]).some(function(c){ var d=DATA[p][c]; return d&&(d.s!=null||d.r!=null); });
   }).sort();
 }
 function label(p){ var a=p.split("-"); return MONTHS[+a[1]-1]+" "+a[0]; }
 function currentPeriod(){
-  var now=new Date();
-  var s=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Dubai",year:"numeric",month:"2-digit"}).format(now);
-  return s.slice(0,7);
-}
-// How far through the month we are. A month-to-date figure is compared against the same
-// share of the earlier month, otherwise every coach looks down by whatever is left to run.
-function monthProgress(p){
-  if(p!==currentPeriod()) return 1;
-  var a=p.split("-"), days=new Date(+a[0],+a[1],0).getDate();
-  var today=+new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Dubai",day:"numeric"}).format(new Date());
-  return Math.max(0.03,Math.min(1,today/days));
+  return new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Dubai",year:"numeric",month:"2-digit"}).format(new Date()).slice(0,7);
 }
 function monthDays(p){ var a=p.split("-"); return new Date(+a[0],+a[1],0).getDate(); }
 function dayOfMonth(){ return +new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Dubai",day:"numeric"}).format(new Date()); }
-function prevPeriods(p,n){
-  var i=PERIODS.indexOf(p); if(i<0) return [];
-  return PERIODS.slice(Math.max(0,i-n),i);
+// Only a month still running is part-complete; a finished month counts whole.
+function progress(p){ return p===currentPeriod()? Math.max(0.03,Math.min(1,dayOfMonth()/monthDays(p))) : 1; }
+function prevPeriods(p,n){ var i=PERIODS.indexOf(p); return i<0?[]:PERIODS.slice(Math.max(0,i-n),i); }
+function inScope(c){ return ui.scope==="all" || c!==DIRECTOR; }
+function coachesIn(p){
+  return Object.keys(DATA[p]||{}).filter(function(c){
+    var d=DATA[p][c]; return inScope(c) && d && (d.s!=null||d.r!=null);
+  });
 }
 function metrics(p,coach){
   var d=(DATA[p]||{})[coach];
   if(!d) return null;
-  var s=d.s, r=d.r;
-  return { s:s, r:r, x:d.x, rate:(r!=null&&s)?r/s:null };
+  return { s:d.s, r:d.r, x:d.x, rate:(d.r!=null&&d.s)?d.r/d.s:null };
 }
-// The comparison basis: the previous month, or the mean of the three before it.
+// The comparison figure for one coach. "pace" scales the earlier month down to the share of
+// the month that has run, so a month-to-date column is not measured against a whole month.
 function basis(p,coach){
   if(ui.compare==="none") return null;
-  var list=ui.compare==="prev"?prevPeriods(p,1):prevPeriods(p,3);
+  var list=ui.compare==="avg3"?prevPeriods(p,3):prevPeriods(p,1);
+  if(!list.length) return null;
   var acc={s:[],r:[],x:[],rate:[]}, any=false;
   list.forEach(function(q){
     var m=metrics(q,coach); if(!m) return;
@@ -227,74 +254,85 @@ function basis(p,coach){
     any=true;
   });
   if(!any) return null;
-  var prog=monthProgress(p);         // 1 for a finished month
+  // "full" measures against the whole earlier month; the others against the same share
+  // of it that has run so far, so a part-month is not judged against a complete one.
+  var k=(ui.compare==="prev")?1:progress(p);
   var out={};
-  ["s","r","x","rate"].forEach(function(k){
-    var mean=acc[k].length?acc[k].reduce(function(a,b){return a+b;},0)/acc[k].length:null;
-    // Rate per session is an average, not a running total, so it is never scaled.
-    out[k]=(mean==null)?null:(k==="rate"?mean:mean*prog);
+  ["s","r","x","rate"].forEach(function(key){
+    var vals=acc[key];
+    var mean=vals.length?vals.reduce(function(a,b){return a+b;},0)/vals.length:null;
+    // A price per session is an average, never a running total, so it is never scaled.
+    out[key]=(mean==null)?null:(key==="rate"?mean:mean*k);
   });
   return out;
 }
+function teamTotals(p,useBasis){
+  var t={s:0,r:0,x:null,n:0}, anyX=false;
+  coachesIn(p).forEach(function(c){
+    var m=useBasis?basis(p,c):metrics(p,c);
+    if(!m) return;
+    t.n++;
+    if(m.s!=null) t.s+=m.s;
+    if(m.r!=null) t.r+=m.r;
+    if(m.x!=null){ t.x=(t.x||0)+m.x; anyX=true; }
+  });
+  t.rate=t.s?t.r/t.s:null;
+  if(!anyX) t.x=null;
+  return t;
+}
 
-/* ---------- rendering ---------- */
+/* ---------- formatting ---------- */
 function fmtInt(v){ return v==null?"—":Math.round(v).toLocaleString("en-US"); }
-function fmtMoney(v){ return v==null?"—":Math.round(v).toLocaleString("en-US"); }
-function fmtRate(v){ return v==null?"—":v.toFixed(0); }
-// A lower cancelled count is the good direction, so that column inverts the colour.
+function fmtRate(v){ return v==null?"—":Math.round(v).toLocaleString("en-US"); }
+// Fewer cancellations is the good direction, so that column inverts the colour.
 function delta(now,was,invert){
   if(now==null||was==null||!isFinite(was)) return "";
-  if(was===0&&now===0) return '<span class="d flat">—</span>';
+  if(was===0&&(now===0||now==null)) return '<span class="d flat">—</span>';
   if(was===0) return '<span class="d '+(invert?"down":"up")+'">new</span>';
   var pct=(now-was)/Math.abs(was)*100;
-  if(Math.abs(pct)<0.5) return '<span class="d flat">\u2014</span>';
+  if(Math.abs(pct)<0.5) return '<span class="d flat">—</span>';
   var cls=(pct>0)!==!!invert?"up":"down";
-  return '<span class="d '+cls+'">'+(pct>0?"+":"")+pct.toFixed(0)+'%</span>';
-}
-function sparkline(coach,p){
-  var list=prevPeriods(p,5).concat([p]);
-  var vals=list.map(function(q){ var m=metrics(q,coach); return m&&m.r!=null?m.r:null; });
-  if(vals.filter(function(v){return v!=null;}).length<2) return "";
-  var w=58,h=16,max=Math.max.apply(null,vals.filter(function(v){return v!=null;})),min=0;
-  var step=w/(vals.length-1);
-  var pts=[],last=null;
-  vals.forEach(function(v,i){
-    if(v==null) return;
-    var y=h-((v-min)/((max-min)||1))*(h-2)-1;
-    pts.push((i*step).toFixed(1)+","+y.toFixed(1)); last=v;
-  });
-  var col=(vals[vals.length-1]!=null&&vals[0]!=null&&vals[vals.length-1]>=vals[0])?"var(--up)":"var(--down)";
-  return '<svg class="spark" width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'" aria-hidden="true">'+
-    '<polyline fill="none" stroke="'+col+'" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" points="'+pts.join(" ")+'"/></svg>';
+  return '<span class="d '+cls+'">'+(pct>0?"+":"")+pct.toFixed(0)+"%</span>";
 }
 
-var COLS=[
-  {k:"coach", t:"Coach"},
-  {k:"sessions", t:"Sessions"},
-  {k:"rate", t:"Rate / session"},
-  {k:"revenue", t:"Revenue AED"},
-  {k:"cancelled", t:"Cancelled"},
-  {k:"trend", t:"6 mo"}
-];
+/* ---------- rendering ---------- */
+function renderTiles(p){
+  var now=teamTotals(p,false), was=(ui.compare==="none")?null:teamTotals(p,true);
+  var cmp=function(a,b,inv){ return was&&was.n?delta(a,b,inv):""; };
+  var tiles=[
+    {k:"Team sessions", v:fmtInt(now.s), d:cmp(now.s,was&&was.s,false)},
+    {k:"Team revenue AED", v:fmtInt(now.r), d:cmp(now.r,was&&was.r,false), lead:true},
+    {k:"Rate / session", v:fmtRate(now.rate), d:cmp(now.rate,was&&was.rate,false)},
+    {k:"Cancelled", v:now.x==null?"—":fmtInt(now.x), d:now.x==null?"":cmp(now.x,was&&was.x,true)}
+  ];
+  document.getElementById("tiles").innerHTML=tiles.map(function(t){
+    return '<div class="tile'+(t.lead?" lead":"")+'"><div class="k">'+t.k+'</div><div class="v">'+t.v+"</div>"+
+      '<div class="sub">'+(t.d||'<span class="d flat">&nbsp;</span>')+"</div></div>";
+  }).join("");
+}
+
+var COLS=[{k:"coach",t:"Coach"},{k:"sessions",t:"Sessions"},{k:"rate",t:"Rate / session"},
+          {k:"revenue",t:"Revenue AED"},{k:"cancelled",t:"Cancelled"},{k:"share",t:"Share of team"}];
 function render(){
-  var p=ui.month;
-  var tbl=document.getElementById("tbl"), empty=document.getElementById("empty");
-  var coaches=Object.keys(DATA[p]||{}).filter(function(c){
-    var m=metrics(p,c); return m&&(m.s!=null||m.r!=null);
-  });
-  var tag=document.getElementById("mtdTag"), isNow=(p===currentPeriod());
-  tag.style.display=isNow?"":"none";
-  if(isNow) tag.textContent="Day "+dayOfMonth()+" of "+monthDays(p)+(ui.compare==="none"?"":" \u00b7 like for like");
+  var p=ui.month, tbl=document.getElementById("tbl"), empty=document.getElementById("empty");
+  var isNow=(p===currentPeriod()), chip=document.getElementById("chipMtd");
+  chip.style.display=isNow?"":"none";
+  if(isNow) chip.textContent="Day "+dayOfMonth()+" of "+monthDays(p);
 
-  if(!coaches.length){ tbl.innerHTML=""; empty.style.display=""; return; }
+  var list=coachesIn(p);
+  if(!list.length){ tbl.innerHTML=""; empty.style.display=""; renderTiles(p); return; }
   empty.style.display="none";
 
-  var rows=coaches.map(function(c){
-    var m=metrics(p,c), b=basis(p,c);
-    return {coach:c, sessions:m.s, rate:m.rate, revenue:m.r, cancelled:m.x, b:b};
+  var team=teamTotals(p,false);
+  var rows=list.map(function(c){
+    var m=metrics(p,c);
+    return {coach:c, sessions:m.s, rate:m.rate, revenue:m.r, cancelled:m.x,
+            share:(team.r&&m.r!=null)?m.r/team.r*100:null, b:basis(p,c)};
   });
+  var maxShare=Math.max.apply(null,rows.map(function(r){ return r.share||0; }))||1;
+
   rows.sort(function(a,b){
-    if(ui.sort==="coach") return a.coach.localeCompare(b.coach)*ui.dir*-1;
+    if(ui.sort==="coach") return a.coach.localeCompare(b.coach)*(ui.dir<0?1:-1);
     var av=a[ui.sort], bv=b[ui.sort];
     if(av==null&&bv==null) return 0;
     if(av==null) return 1;
@@ -302,58 +340,46 @@ function render(){
     return (av-bv)*ui.dir;
   });
 
-  var head="<thead><tr>"+COLS.map(function(col){
-    var on=ui.sort===col.k?" on":"";
-    var ar=ui.sort===col.k?('<span class="ar">'+(ui.dir<0?"↓":"↑")+"</span>"):"";
-    return '<th class="'+on.trim()+'" data-k="'+col.k+'">'+col.t+" "+ar+"</th>";
+  var head="<thead><tr>"+COLS.map(function(c){
+    return '<th class="'+(ui.sort===c.k?"on":"")+'" data-k="'+c.k+'">'+c.t+" "+(ui.sort===c.k?(ui.dir<0?"↓":"↑"):"")+"</th>";
   }).join("")+"</tr></thead>";
 
   var body="<tbody>"+rows.map(function(r){
     var b=r.b||{};
-    return "<tr>"+
+    var bar=r.share==null?'<span class="dim">—</span>':
+      '<span class="share"><span class="share-track"><span class="share-fill" style="width:'+(r.share/maxShare*100).toFixed(0)+'%"></span></span>'+
+      '<span class="share-pct">'+r.share.toFixed(1)+"%</span></span>";
+    return '<tr class="'+(r.coach===DIRECTOR?"me":"")+'">'+
       "<td>"+r.coach+"</td>"+
       "<td>"+fmtInt(r.sessions)+delta(r.sessions,b.s,false)+"</td>"+
       "<td>"+fmtRate(r.rate)+delta(r.rate,b.rate,false)+"</td>"+
-      "<td>"+fmtMoney(r.revenue)+delta(r.revenue,b.r,false)+"</td>"+
+      "<td>"+fmtInt(r.revenue)+delta(r.revenue,b.r,false)+"</td>"+
       "<td>"+(r.cancelled==null?'<span class="dim">—</span>':fmtInt(r.cancelled)+delta(r.cancelled,b.x,true))+"</td>"+
-      "<td>"+(sparkline(r.coach,p)||'<span class="dim">—</span>')+"</td>"+
-    "</tr>";
+      "<td>"+bar+"</td></tr>";
   }).join("")+"</tbody>";
 
-  var tS=0,tR=0,tX=null,anyX=false;
-  rows.forEach(function(r){
-    if(r.sessions!=null) tS+=r.sessions;
-    if(r.revenue!=null) tR+=r.revenue;
-    if(r.cancelled!=null){ tX=(tX||0)+r.cancelled; anyX=true; }
-  });
-  var bS=0,bR=0,bX=null,anyB=false;
-  rows.forEach(function(r){
-    if(!r.b) return; anyB=true;
-    if(r.b.s!=null) bS+=r.b.s;
-    if(r.b.r!=null) bR+=r.b.r;
-    if(r.b.x!=null) bX=(bX||0)+r.b.x;
-  });
-  var foot="<tfoot><tr><td>Team · "+rows.length+" coaches</td>"+
-    "<td>"+fmtInt(tS)+(anyB?delta(tS,bS,false):"")+"</td>"+
-    "<td>"+fmtRate(tS?tR/tS:null)+(anyB&&bS?delta(tR/tS,bR/bS,false):"")+"</td>"+
-    "<td>"+fmtMoney(tR)+(anyB?delta(tR,bR,false):"")+"</td>"+
-    "<td>"+(anyX?fmtInt(tX)+(anyB&&bX!=null?delta(tX,bX,true):""):'<span class="dim">—</span>')+"</td>"+
-    "<td></td></tr></tfoot>";
+  var was=(ui.compare==="none")?null:teamTotals(p,true);
+  var tcmp=function(a,b,inv){ return was&&was.n?delta(a,b,inv):""; };
+  var foot="<tfoot><tr><td>"+(ui.scope==="all"?"Team":"Team excl. "+DIRECTOR)+" · "+rows.length+" coaches</td>"+
+    "<td>"+fmtInt(team.s)+tcmp(team.s,was&&was.s,false)+"</td>"+
+    "<td>"+fmtRate(team.rate)+tcmp(team.rate,was&&was.rate,false)+"</td>"+
+    "<td>"+fmtInt(team.r)+tcmp(team.r,was&&was.r,false)+"</td>"+
+    "<td>"+(team.x==null?'<span class="dim">—</span>':fmtInt(team.x)+tcmp(team.x,was&&was.x,true))+"</td>"+
+    "<td>100%</td></tr></tfoot>";
 
   tbl.innerHTML=head+body+foot;
   Array.prototype.forEach.call(tbl.querySelectorAll("th"),function(th){
     th.addEventListener("click",function(){
       var k=th.getAttribute("data-k");
-      if(ui.sort===k) ui.dir=-ui.dir; else { ui.sort=k; ui.dir=k==="coach"?-1:-1; }
+      if(ui.sort===k) ui.dir=-ui.dir; else { ui.sort=k; ui.dir=-1; }
       saveUi(); render();
     });
   });
+  renderTiles(p);
 }
 function fillMonths(){
   var sel=document.getElementById("selMonth");
-  sel.innerHTML=PERIODS.slice().reverse().map(function(p){
-    return '<option value="'+p+'">'+label(p)+"</option>";
-  }).join("");
+  sel.innerHTML=PERIODS.slice().reverse().map(function(p){ return '<option value="'+p+'">'+label(p)+"</option>"; }).join("");
   if(!ui.month||PERIODS.indexOf(ui.month)<0) ui.month=PERIODS[PERIODS.length-1]||null;
   sel.value=ui.month;
 }
@@ -367,8 +393,11 @@ function paint(){
   fillMonths();
   document.getElementById("stamp").innerHTML=stampText();
   document.getElementById("selCompare").value=ui.compare;
-  var issues=LIVE&&LIVE.files?LIVE.files.filter(function(f){ return f.errors&&f.errors.length; }).length:0;
-  document.getElementById("note").textContent=issues?(issues+" sheet(s) could not be read"):"";
+  Array.prototype.forEach.call(document.querySelectorAll("#segScope button"),function(b){
+    b.classList.toggle("on",b.getAttribute("data-v")===ui.scope);
+  });
+  var bad=(LIVE&&LIVE.files)?LIVE.files.filter(function(f){ return f.errors&&f.errors.length; }):[];
+  document.getElementById("note").textContent=bad.length?(bad.length+" sheet(s) could not be read: "+bad.map(function(f){return f.coach;}).join(", ")):"";
   render();
 }
 
@@ -377,23 +406,24 @@ function loadAll(pass){
   return loadEnc("history.enc.json",false)
     .then(function(env){ return decrypt(env,pass); })
     .then(function(h){
+      HIST=h;
       return loadEnc("live.enc.json",true)
         .then(function(env){ return decrypt(env,pass); })
         .then(function(l){ LIVE=l; }, function(){ LIVE=null; })
-        .then(function(){ build(h); window.__hist=h; });
+        .then(build);
     });
 }
 function reload(){
   setStat("status","Reading the latest figures…","");
   return loadEnc("live.enc.json",true)
     .then(function(env){ return decrypt(env,PASS); })
-    .then(function(l){ LIVE=l; build(window.__hist); paint(); setStat("status","Up to date.","ok"); })
+    .then(function(l){ LIVE=l; build(); paint(); setStat("status","Up to date.","ok"); })
     .catch(function(e){ setStat("status","Could not read the latest figures: "+e.message,"err"); });
 }
 function ghHeaders(t){ return {Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28",Authorization:"Bearer "+t}; }
 function refreshNow(){
   var c=cfg();
-  if(!c.pat){ setStat("status","Refresh access isn’t set on this device. The scheduled refresh runs every three hours regardless — use Reload to pick it up.","err"); return; }
+  if(!c.pat){ setStat("status","Refresh access isn’t set on this device. The scheduled read runs every three hours — use Reload to pick it up.","err"); return; }
   var t0=new Date(Date.now()-60000).toISOString(), tries=0;
   setStat("status","Asking for a fresh read of the folder…","");
   fetch("https://api.github.com/repos/"+GH_OWNER+"/"+GH_REPO+"/actions/workflows/"+GH_WORKFLOW+"/dispatches",
@@ -407,13 +437,13 @@ function refreshNow(){
   .then(function(){
     return new Promise(function(res,rej){
       (function poll(){
-        if(++tries>60) return rej(new Error("the job is taking longer than five minutes — try Reload shortly"));
+        if(++tries>60) return rej(new Error("the read is taking longer than five minutes — try Reload shortly"));
         setStat("status","Reading the coach sheets… ("+(tries*5)+"s)","");
         getJson("https://api.github.com/repos/"+GH_OWNER+"/"+GH_REPO+"/actions/workflows/"+GH_WORKFLOW+"/runs?per_page=1&created=%3E"+encodeURIComponent(t0),ghHeaders(c.pat))
           .then(function(j){
             var run=(j.workflow_runs||[])[0];
             if(run&&run.status==="completed"){
-              if(run.conclusion!=="success") return rej(new Error("the job finished with “"+run.conclusion+"”"));
+              if(run.conclusion!=="success") return rej(new Error("the read finished with “"+run.conclusion+"”"));
               return res();
             }
             setTimeout(poll,5000);
@@ -440,6 +470,7 @@ function unlock(){
         gate.style.display="none";
         document.body.classList.remove("locked");
         document.getElementById("app").style.display="";
+        setStat("gateStatus","","");
         resolve();
       }).catch(function(e){
         btn.disabled=false;
@@ -463,6 +494,13 @@ unlock().then(function(){
   paint();
   document.getElementById("selMonth").addEventListener("change",function(e){ ui.month=e.target.value; render(); });
   document.getElementById("selCompare").addEventListener("change",function(e){ ui.compare=e.target.value; saveUi(); render(); });
+  Array.prototype.forEach.call(document.querySelectorAll("#segScope button"),function(b){
+    b.addEventListener("click",function(){
+      ui.scope=b.getAttribute("data-v"); saveUi();
+      Array.prototype.forEach.call(document.querySelectorAll("#segScope button"),function(o){ o.classList.toggle("on",o===b); });
+      render();
+    });
+  });
   document.getElementById("btnReload").addEventListener("click",reload);
   document.getElementById("btnRefresh").addEventListener("click",refreshNow);
   if(!LIVE) setStat("status","No live figures have been written yet — run the refresh job once.","err");

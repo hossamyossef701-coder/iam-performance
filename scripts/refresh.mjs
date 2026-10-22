@@ -20,7 +20,7 @@ const ORDER = (env.FETCH_STRATEGIES || "od,odkey,spshares,zip,rest,browser").spl
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
-console.log("refresh build 2026-10-22a (derived totals + fuller probe)");  // proves which version the job is running
+console.log("refresh build 2026-10-22b (all layouts)");  // proves which version the job is running
 
 function dubaiPeriod() {
   const p = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dubai", year: "numeric", month: "2-digit" }).format(new Date());

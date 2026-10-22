@@ -93,18 +93,46 @@ export function probeSheet(arr) {
   return { rows: arr.length, headerRows, headerRowFull, labelled: labelled.slice(0, 30) };
 }
 
-const NAME_HEADERS = ["client name", "clients", "client", "client names", "name"];
-const GROUP_ROW = /^group\s*(training|class|classes)/;
+const NAME_HEADERS = ["client name", "clients", "client", "client names", "name", "names", "customer", "customers"];
+const NOT_A_CLIENT = /(conduct|cancell?ed|^total|sessions? ?\/ ?day|first session|last session|charged session|penultimate|rewarding|brought forward|assessment|^cover$|^notes?$|^legend$|salary|basic|petrol|salik)/;
+const GROUP_ROW = /^group\s*(training|class|classes|session|sessions)/;
+
+// Spelling drifts: a stray space, a plural, a typo. Labels are compared with the spaces and
+// punctuation stripped, and one typed character of difference is forgiven.
+const squash = (s) => norm(s).replace(/[^a-z0-9]/g, "");
+function within1(a, b) {
+  if (a === b) return true;
+  if (Math.abs(a.length - b.length) > 1) return false;
+  // Two letters typed the wrong way round ("Clinet Name") counts as one slip.
+  if (a.length === b.length) {
+    for (let k = 0; k < a.length - 1; k++) {
+      if (a[k] !== b[k]) {
+        return a[k] === b[k + 1] && a[k + 1] === b[k] && a.slice(k + 2) === b.slice(k + 2);
+      }
+    }
+  }
+  let i = 0, j = 0, slips = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { i++; j++; continue; }
+    if (++slips > 1) return false;
+    if (a.length > b.length) i++;
+    else if (a.length < b.length) j++;
+    else { i++; j++; }
+  }
+  return slips + (a.length - i) + (b.length - j) <= 1;
+}
+const matchesAny = (text, options) => { const t = squash(text); return !!t && options.some((o) => within1(t, o)); };
 
 export function parseCoachSheet(arr) {
   // 1. The header row is the one carrying the client-name column; its position and spelling
   //    both vary, so search the opening rows across the opening columns.
+  const NAME_KEYS = NAME_HEADERS.map(squash);
   let headerRowIdx = -1, nameCol = -1;
   outer:
   for (let r = 0; r < Math.min(arr.length, 12); r++) {
     const row = arr[r]; if (!row) continue;
     for (let c = 0; c < Math.min(row.length, 8); c++) {
-      if (NAME_HEADERS.includes(norm(row[c]))) { headerRowIdx = r; nameCol = c; break outer; }
+      if (matchesAny(row[c], NAME_KEYS)) { headerRowIdx = r; nameCol = c; break outer; }
     }
   }
   if (headerRowIdx < 0) return { error: "no client-name column was found in the opening rows — the sheet layout may have changed." };
@@ -114,12 +142,16 @@ export function parseCoachSheet(arr) {
     for (let i = 0; i < headers.length; i++) if (test(norm(headers[i]))) return i;
     return -1;
   };
-  const ppsCol = findCol((h) => h === "pps");
-  const taCol = findCol((h) => h === "ta");
-  // "Cancelled Sessions" is sometimes wrapped across two lines in the cell.
-  const cancelledCol = findCol((h) => /^cancell?ed sessions$/.test(h));
-  if (ppsCol < 0 || taCol < 0) return { error: "the PPS or TA column was not found — the sheet layout may have changed." };
-  const sessionsCol = ppsCol + 1;   // the session count sits right after PPS, under a blank header
+  // The per-session price column is "PPS" in most files and "VALUE" in at least one.
+  const ppsCol = findCol((h) => matchesAny(h, ["pps", "value", "rate", "price", "ppc", "sessionvalue"]));
+  // The money column is "TA" in most files; in some it carries no header at all, in which
+  // case it sits two columns right of the price (price, session count, money).
+  const taCol = findCol((h) => matchesAny(h, ["ta", "totalamount", "amount", "revenue", "total"]));
+  // "Cancelled Sessions" is sometimes wrapped across two lines inside the cell.
+  const cancelledCol = findCol((h) => matchesAny(h, ["cancelledsessions", "canceledsessions", "cancelled", "cancelledsession"]));
+  if (ppsCol < 0) return { error: "no per-session price column (PPS / VALUE / Rate) was found — the sheet layout may have changed." };
+  const sessionsCol = ppsCol + 1;            // the session count sits right after the price
+  const moneyCol = taCol >= 0 ? taCol : ppsCol + 2;   // and the money right after that
 
   // 2. The totals row: "Conducted Sessions", with or without "/ Day", in or near the name column.
   let conductedRow = -1;
@@ -127,7 +159,7 @@ export function parseCoachSheet(arr) {
     const row = arr[r]; if (!row) continue;
     for (let c = 0; c <= nameCol + 2 && c < row.length; c++) {
       const t = norm(row[c]);
-      if (t.startsWith("conducted session")) { conductedRow = r; break; }
+      if (squash(t).startsWith("conducted")) { conductedRow = r; break; }
     }
     if (conductedRow >= 0) break;
   }
@@ -156,16 +188,19 @@ export function parseCoachSheet(arr) {
     const nm = norm(row[nameCol]);
     if (GROUP_ROW.test(nm)) break;
     if (!nm) continue;                       // a blank line inside the client block is not the end of it
+    // A summary or legend line is not a client. Without this guard a totals row whose label
+    // the parser did not recognise would be added on top of the clients it already totals.
+    if (NOT_A_CLIENT.test(nm)) continue;
     clients++;
     const s = num(row[sessionsCol]); if (s != null) sumS += s;
-    const rv = num(row[taCol]); if (rv != null) sumR += rv;
+    const rv = num(row[moneyCol]); if (rv != null) sumR += rv;
     const cc = cancelledCol >= 0 ? num(row[cancelledCol]) : null; if (cc != null) sumC += cc;
   }
 
   const cancelled = (cancelledCol >= 0) ? sumC : null;
   const derived = conductedRow < 0;
   const sessions = derived ? sumS : num(arr[conductedRow][sessionsCol]);
-  const revenue = derived ? Math.round(sumR * 100) / 100 : num(arr[conductedRow][taCol]);
+  const revenue = derived ? Math.round(sumR * 100) / 100 : num(arr[conductedRow][moneyCol]);
   const rate = (revenue != null && sessions) ? Math.round((revenue / sessions) * 100) / 100 : null;
 
   const warnings = [];
