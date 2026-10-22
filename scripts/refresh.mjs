@@ -22,7 +22,7 @@ const ORDER = (env.FETCH_STRATEGIES || "od,odkey,spshares,zip,rest,browser").spl
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
-console.log("refresh build 2026-10-22c (full history)");  // proves which version the job is running
+console.log("refresh build 2026-10-22e (subfolders + duplicates)");  // proves which version the job is running
 
 function dubaiPeriod() {
   const p = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dubai", year: "numeric", month: "2-digit" }).format(new Date());
@@ -59,9 +59,22 @@ async function main() {
   const COACH_FILE = new RegExp(env.COACH_FILE_PATTERN || "performance sheet", "i");
   const skipped = files.filter((f) => !COACH_FILE.test(f.name));
   if (skipped.length) L.log(`Skipped ${skipped.length} file(s) that are not coach performance sheets.`);
-  for (const f of files.filter((x) => COACH_FILE.test(x.name))) {
+  // Files in the main folder are read first, so that where the same coach also has a file in
+  // a subfolder ("Inactive"), the main one wins for any month they both hold. The subfolder
+  // copy still fills in months the main file does not cover.
+  const coachFiles = files.filter((x) => COACH_FILE.test(x.name))
+    .sort((a, b) => (a.folder ? 1 : 0) - (b.folder ? 1 : 0));
+  // A coach with a file in the main folder is read from there and nowhere else: their
+  // subfolder copy is ignored outright, not merged. Only coaches who exist solely in a
+  // subfolder - the ones who have left - are read from it.
+  const mainCoaches = new Set(coachFiles.filter((f) => !f.folder).map((f) => coachFromFilename(f.name)));
+  for (const f of coachFiles) {
     const coach = coachFromFilename(f.name);
-    const entry = { file: f.name, coach, months: [], empty: [], errors: [], warnings: [] };
+    if (f.folder && mainCoaches.has(coach)) {
+      report.push({ file: f.name, coach, folder: f.folder, months: [], empty: [], errors: [], warnings: [], superseded: [], ignoredDuplicate: true });
+      continue;
+    }
+    const entry = { file: f.name, coach, folder: f.folder || null, months: [], empty: [], errors: [], warnings: [], superseded: [] };
     report.push(entry);
     let wb;
     try { wb = XLSX.read(f.buf, { type: "buffer", cellDates: true }); }
@@ -88,10 +101,16 @@ async function main() {
       }
       r.warnings.forEach((w) => entry.warnings.push(`${t.p}: ${w}`));
       if (!(r.sessions || r.revenue || r.cancelled)) { entry.empty.push(t.p); continue; } // month sheet exists but nothing entered yet
-      (periods[t.p] = periods[t.p] || {})[coach] = { s: r.sessions, r: r.revenue, x: r.cancelled };
+      const bucket = (periods[t.p] = periods[t.p] || {});
+      if (bucket[coach]) { entry.superseded.push(t.p); continue; }   // already taken from the main folder
+      bucket[coach] = { s: r.sessions, r: r.revenue, x: r.cancelled };
       entry.months.push(t.p);
     }
   }
+  const fromSub = report.filter((r) => r.folder && r.months.length);
+  if (fromSub.length) L.log(`${fromSub.length} file(s) in subfolders contributed months: ${fromSub.map((r) => r.coach + " (" + r.months.length + ")").join(", ")}`);
+  const dupes = report.filter((r) => r.ignoredDuplicate);
+  if (dupes.length) L.log(`${dupes.length} subfolder file(s) ignored because that coach already has a file in the main folder: ${dupes.map((r) => r.coach).join(", ")}`);
   const okCount = report.filter((r) => r.months.length).length;
   L.log(`Parsed ${files.length} workbook(s): ${okCount} with data, ${report.filter((r) => r.errors.length).length} with problems, ${Object.keys(periods).length} month(s).`);
   if (!okCount) { console.error("No coach data could be parsed from any workbook - not overwriting live data."); process.exit(1); }

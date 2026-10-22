@@ -92,6 +92,17 @@ tfoot td:first-child{background:var(--panel-2);}
 .att-mark{position:absolute;top:-3px;bottom:-3px;width:1px;left:50%;background:var(--ink-faint);opacity:.9;}
 .att-pct{min-width:46px;font-size:12.5px;}
 .att-pct.over{color:var(--up);} .att-pct.under{color:var(--down);}
+details.coaches{margin-bottom:16px;background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r);padding:11px 14px;}
+details.coaches summary{cursor:pointer;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-faint);list-style:none;}
+details.coaches summary::-webkit-details-marker{display:none;}
+details.coaches summary::before{content:"\25B8 ";color:var(--accent);}
+details.coaches[open] summary::before{content:"\25BE ";}
+.coach-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:4px 20px;margin-top:11px;}
+.coach-row{display:flex;align-items:center;gap:10px;padding:4px 0;border-bottom:1px solid var(--line-soft);}
+.coach-row span.nm{flex:1;font-size:13px;}
+.coach-row label{display:flex;align-items:center;gap:5px;white-space:nowrap;font-family:var(--f-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);cursor:pointer;}
+.coach-row input{accent-color:var(--accent);}
+.coach-hint{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-faint);margin-top:9px;}
 .even-note{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-faint);margin-top:2px;display:block;font-weight:400;}
 .empty{padding:40px 16px;text-align:center;color:var(--ink-faint);font-family:var(--f-mono);font-size:12px;}
 .status{font-family:var(--f-mono);font-size:11.5px;margin-top:12px;color:var(--ink-faint);min-height:17px;}
@@ -155,6 +166,12 @@ body.locked{overflow:hidden;}
     <span class="note" id="note"></span>
   </div>
 
+  <details class="coaches" id="coachPanel">
+    <summary id="coachSummary">Coaches</summary>
+    <div class="coach-grid" id="coachGrid"></div>
+    <p class="coach-hint">Show takes a coach out of the table and every total. Even share keeps them in the totals but leaves them out of the equal-split figure.</p>
+  </details>
+
   <div class="tiles" id="tiles"></div>
 
   <div class="card">
@@ -176,6 +193,21 @@ var DIRECTOR="Hossam";
 var MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 var PASS=null, LIVE=null, HIST=null, DATA={}, PERIODS=[];
 var ui={month:null, compare:"pace", scope:"all", sort:"revenue", dir:-1};
+// Per-coach switches. Ivan starts outside the even-share figure because his sessions are
+// counted differently; everyone else is in by default.
+var COACH_KEY="iamreport:coaches";
+var PREFS=(function(){
+  try{ var v=JSON.parse(localStorage.getItem(COACH_KEY)||"null"); if(v&&typeof v==="object") return v; }catch(e){}
+  return { Ivan:{ noEven:true } };
+})();
+function pref(c){ return PREFS[c]||{}; }
+function savePrefs(){ try{ localStorage.setItem(COACH_KEY,JSON.stringify(PREFS)); }catch(e){} }
+function setPref(c,k,v){
+  PREFS[c]=PREFS[c]||{};
+  if(v) PREFS[c][k]=true; else delete PREFS[c][k];
+  if(!Object.keys(PREFS[c]).length) delete PREFS[c];
+  savePrefs();
+}
 try{ var sv=JSON.parse(localStorage.getItem(UI_KEY)||"{}");
   ["compare","scope","sort"].forEach(function(k){ if(sv[k]) ui[k]=sv[k]; });
   if(sv.dir) ui.dir=sv.dir;
@@ -255,7 +287,20 @@ function basisPeriods(p){
   if(m.indexOf("since")===0) return periodsSince(m.slice(5),p);
   return [];
 }
-function inScope(c){ return ui.scope==="all" || c!==DIRECTOR; }
+function inScope(c){ return (ui.scope==="all" || c!==DIRECTOR) && !pref(c).off; }
+function inEven(c){ return !pref(c).noEven; }
+function allCoaches(){
+  var set={};
+  Object.keys(DATA).forEach(function(p){ Object.keys(DATA[p]).forEach(function(c){ set[c]=1; }); });
+  return Object.keys(set).sort();
+}
+// Only coaches seen in the last year, so the panel does not fill with people long gone.
+function recentCoaches(){
+  var cut=PERIODS.slice(-13), set={};
+  cut.forEach(function(p){ Object.keys(DATA[p]||{}).forEach(function(c){ set[c]=1; }); });
+  var list=Object.keys(set).sort();
+  return list.length?list:allCoaches();
+}
 function coachesIn(p){
   return Object.keys(DATA[p]||{}).filter(function(c){
     var d=DATA[p][c]; return inScope(c) && d && (d.s!=null||d.r!=null);
@@ -363,11 +408,13 @@ function render(){
   // An equal split of this month's team revenue. A coach at 100% is carrying exactly their
   // share of it. It describes how evenly revenue has fallen across the coaches counted,
   // nothing more - a coach can sit below it on a month of leave.
-  var evenShare=list.length?team.r/list.length:0;
+  var evenList=list.filter(inEven);
+  var evenRevenue=evenList.reduce(function(t,c){ var m=metrics(p,c); return t+((m&&m.r)||0); },0);
+  var evenShare=evenList.length?evenRevenue/evenList.length:0;
   var rows=list.map(function(c){
     var m=metrics(p,c);
     return {coach:c, sessions:m.s, rate:m.rate, revenue:m.r, cancelled:m.x,
-            attain:(evenShare&&m.r!=null)?m.r/evenShare*100:null, b:basis(p,c)};
+            attain:(evenShare&&m.r!=null&&inEven(c))?m.r/evenShare*100:null, b:basis(p,c)};
   });
 
   rows.sort(function(a,b){
@@ -422,6 +469,35 @@ function evenSummary(rows){
   var at=withRev.filter(function(r){ return r.attain>=99.5; }).length;
   return Math.round(at/withRev.length*100)+'%<span class="even-note">'+at+" of "+withRev.length+" at or above even</span>";
 }
+function renderCoachPanel(){
+  var grid=document.getElementById("coachGrid");
+  var list=recentCoaches();
+  grid.innerHTML=list.map(function(c){
+    var p=pref(c);
+    return '<div class="coach-row"><span class="nm">'+c+"</span>"+
+      '<label><input type="checkbox" data-c="'+c+'" data-k="off"'+(p.off?"":" checked")+"> Show</label>"+
+      '<label><input type="checkbox" data-c="'+c+'" data-k="noEven"'+(p.noEven?"":" checked")+"> Even share</label></div>";
+  }).join("");
+  Array.prototype.forEach.call(grid.querySelectorAll("input"),function(inp){
+    inp.addEventListener("change",function(){
+      // Both boxes read as "include", so an unticked box is what gets stored.
+      setPref(inp.getAttribute("data-c"), inp.getAttribute("data-k"), !inp.checked);
+      render(); updateCoachSummary();
+    });
+  });
+  updateCoachSummary();
+}
+function updateCoachSummary(){
+  var hidden=[], outOfEven=[];
+  recentCoaches().forEach(function(c){
+    if(pref(c).off) hidden.push(c);
+    else if(pref(c).noEven) outOfEven.push(c);
+  });
+  var bits=[];
+  if(hidden.length) bits.push(hidden.length+" hidden");
+  if(outOfEven.length) bits.push(outOfEven.join(", ")+" out of even share");
+  document.getElementById("coachSummary").textContent="Coaches"+(bits.length?" \u00b7 "+bits.join(" \u00b7 "):"");
+}
 function fillMonths(){
   var sel=document.getElementById("selMonth");
   sel.innerHTML=PERIODS.slice().reverse().map(function(p){ return '<option value="'+p+'">'+label(p)+"</option>"; }).join("");
@@ -442,6 +518,7 @@ function paint(){
     b.classList.toggle("on",b.getAttribute("data-v")===ui.scope);
   });
   var bad=(LIVE&&LIVE.files)?LIVE.files.filter(function(f){ return f.errors&&f.errors.length; }):[];
+  renderCoachPanel();
   document.getElementById("note").textContent=bad.length?(bad.length+" sheet(s) could not be read: "+bad.map(function(f){return f.coach;}).join(", ")):"";
   render();
 }
