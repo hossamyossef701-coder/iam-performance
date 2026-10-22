@@ -172,6 +172,14 @@ body.locked{overflow:hidden;}
 
   <p class="status" id="status"></p>
 
+
+  <div class="tiles" id="tiles"></div>
+
+  <div class="card">
+    <div class="scroll"><table id="tbl"></table></div>
+    <div class="empty" id="empty" style="display:none">No coach has figures for this month yet.</div>
+  </div>
+
   <details class="coaches" id="tokenPanel">
     <summary id="tokenSummary">Refresh access</summary>
     <div class="token-row">
@@ -186,13 +194,6 @@ body.locked{overflow:hidden;}
     <summary id="coachSummary">Coaches</summary>
     <div class="coach-grid" id="coachGrid"></div>
   </details>
-
-  <div class="tiles" id="tiles"></div>
-
-  <div class="card">
-    <div class="scroll"><table id="tbl"></table></div>
-    <div class="empty" id="empty" style="display:none">No coach has figures for this month yet.</div>
-  </div>
 </div>
 
 <script>
@@ -555,7 +556,12 @@ function paint(){
   Array.prototype.forEach.call(document.querySelectorAll("#segScope button"),function(b){
     b.classList.toggle("on",b.getAttribute("data-v")===ui.scope);
   });
-  var bad=(LIVE&&LIVE.files)?LIVE.files.filter(function(f){ return f.errors&&f.errors.length; }):[];
+  // A file counts as unread only when it yielded no month at all. A coach whose current
+  // months are fine but whose oldest tabs use a layout the parser will not guess at is not
+  // a problem to flag on a page someone else reads.
+  var bad=(LIVE&&LIVE.files)?LIVE.files.filter(function(f){
+    return f.errors&&f.errors.length&&!(f.months&&f.months.length);
+  }):[];
   renderCoachPanel();
   document.getElementById("note").textContent=bad.length?(bad.length+" sheet(s) could not be read: "+bad.map(function(f){return f.coach;}).join(", ")):"";
   render();
