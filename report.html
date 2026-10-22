@@ -156,6 +156,8 @@ body.locked{overflow:hidden;}
     <select id="selCompare">
       <option value="pace">vs last month, same point</option>
       <option value="prev">vs last month, full</option>
+      <option value="yoy">vs same month last year, same point</option>
+      <option value="yoyfull">vs same month last year, full</option>
       <option value="avg3">vs 3-month average</option>
       <option value="avg6">vs 6-month average</option>
       <option value="avg12">vs 12-month average</option>
@@ -290,9 +292,15 @@ function periodsSince(anchor,p){
   return PERIODS.slice(0,i).filter(function(q){ return q>=anchor; });
 }
 // Which earlier months this comparison averages over.
+// The same month a year earlier, if it is on record.
+function sameMonthLastYear(p){
+  var a=p.split("-"), q=(+a[0]-1)+"-"+a[1];
+  return PERIODS.indexOf(q)<0?[]:[q];
+}
 function basisPeriods(p){
   var m=ui.compare;
   if(m==="prev"||m==="pace") return prevPeriods(p,1);
+  if(m==="yoy"||m==="yoyfull") return sameMonthLastYear(p);
   if(m==="avg3") return prevPeriods(p,3);
   if(m==="avg6") return prevPeriods(p,6);
   if(m==="avg12") return prevPeriods(p,12);
@@ -340,7 +348,9 @@ function basis(p,coach){
   if(!any) return null;
   // "full" measures against the whole earlier month; the others against the same share
   // of it that has run so far, so a part-month is not judged against a complete one.
-  var k=(ui.compare==="prev")?1:progress(p);
+  // "full" variants weigh against the whole earlier month; the rest against the same share
+  // of it that has run so far.
+  var k=(ui.compare==="prev"||ui.compare==="yoyfull")?1:progress(p);
   var out={};
   ["s","r","x","rate","cpc"].forEach(function(key){
     var vals=acc[key];
