@@ -7,7 +7,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import XLSX from "xlsx";
 import { fetchWorkbooks, makeLogger } from "./fetch.mjs";
-import { parseCoachSheet, sheetNameToPeriod, coachFromFilename } from "./parse.mjs";
+import { parseCoachSheet, probeSheet, sheetNameToPeriod, coachFromFilename } from "./parse.mjs";
 import { encryptJSON, decryptJSON } from "./crypto.mjs";
 
 const env = process.env;
@@ -20,7 +20,7 @@ const ORDER = (env.FETCH_STRATEGIES || "od,odkey,spshares,zip,rest,browser").spl
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
-console.log("refresh build 2026-10-21e (tolerant parser)");  // proves which version the job is running
+console.log("refresh build 2026-10-21f (layout probe)");  // proves which version the job is running
 
 function dubaiPeriod() {
   const p = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dubai", year: "numeric", month: "2-digit" }).format(new Date());
@@ -45,6 +45,7 @@ async function main() {
   // 2. Fetch + parse.
   const { strategy, files } = await fetchWorkbooks(SHARE_URL, ORDER, L);
   const now = dubaiPeriod();
+  let probesLeft = Number(env.PROBE_LIMIT || 6);   // describes the first few unreadable sheets
   const periods = {}, report = [];
   // Only the per-coach performance workbooks. Anything else in the folder (consolidated
   // finance files and so on) is listed as skipped rather than reported as broken.
@@ -63,7 +64,19 @@ async function main() {
     for (const t of targets) {
       const arr = XLSX.utils.sheet_to_json(wb.Sheets[t.n], { header: 1, raw: true, defval: null });
       const r = parseCoachSheet(arr);
-      if (r.error) { entry.errors.push(`${t.p}: ${r.error}`); continue; }
+      if (r.error) {
+        entry.errors.push(`${t.p}: ${r.error}`);
+        // Describe the layout so it can be taught to the parser. Column headers and rows
+        // labelled like totals only - a client row can never appear here.
+        if (probesLeft > 0) {
+          probesLeft--;
+          const pr = probeSheet(arr);
+          L.log(`  layout of ${coach} / ${t.n} (${pr.rows} rows):`);
+          pr.headerRows.forEach((h) => L.log("    " + h));
+          L.log("    labelled rows: " + (pr.labelled.join(" ; ") || "(none)"));
+        }
+        continue;
+      }
       r.warnings.forEach((w) => entry.warnings.push(`${t.p}: ${w}`));
       if (!(r.sessions || r.revenue || r.cancelled)) { entry.empty.push(t.p); continue; } // month sheet exists but nothing entered yet
       (periods[t.p] = periods[t.p] || {})[coach] = { s: r.sessions, r: r.revenue, x: r.cancelled };
