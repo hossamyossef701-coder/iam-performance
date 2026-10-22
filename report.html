@@ -102,7 +102,9 @@ details.coaches[open] summary::before{content:"\25BE ";}
 .coach-row span.nm{flex:1;font-size:13px;}
 .coach-row label{display:flex;align-items:center;gap:5px;white-space:nowrap;font-family:var(--f-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);cursor:pointer;}
 .coach-row input{accent-color:var(--accent);}
-.coach-hint{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-faint);margin-top:9px;}
+.token-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px;}
+.token-row input{flex:1;min-width:230px;padding:8px 11px;font-size:13px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;color:var(--ink);font-family:var(--f-mono);}
+.token-row input:focus{outline:none;border-color:var(--accent);}
 .even-note{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-faint);margin-top:2px;display:block;font-weight:400;}
 .empty{padding:40px 16px;text-align:center;color:var(--ink-faint);font-family:var(--f-mono);font-size:12px;}
 .status{font-family:var(--f-mono);font-size:11.5px;margin-top:12px;color:var(--ink-faint);min-height:17px;}
@@ -166,10 +168,21 @@ body.locked{overflow:hidden;}
     <span class="note" id="note"></span>
   </div>
 
+  <p class="status" id="status"></p>
+
+  <details class="coaches" id="tokenPanel">
+    <summary id="tokenSummary">Refresh access</summary>
+    <div class="token-row">
+      <input type="password" id="liveToken" placeholder="github_pat_..." autocomplete="off" spellcheck="false">
+      <button id="btnSaveToken">Save</button>
+      <button id="btnClearToken">Remove</button>
+    </div>
+    <p class="status" id="tokenStatus"></p>
+  </details>
+
   <details class="coaches" id="coachPanel">
     <summary id="coachSummary">Coaches</summary>
     <div class="coach-grid" id="coachGrid"></div>
-    <p class="coach-hint">Show takes a coach out of the table and every total. Even share keeps them in the totals but leaves them out of the equal-split figure.</p>
   </details>
 
   <div class="tiles" id="tiles"></div>
@@ -178,7 +191,6 @@ body.locked{overflow:hidden;}
     <div class="scroll"><table id="tbl"></table></div>
     <div class="empty" id="empty" style="display:none">No coach has figures for this month yet.</div>
   </div>
-  <p class="status" id="status"></p>
 </div>
 
 <script>
@@ -309,7 +321,9 @@ function coachesIn(p){
 function metrics(p,coach){
   var d=(DATA[p]||{})[coach];
   if(!d) return null;
-  return { s:d.s, r:d.r, x:d.x, rate:(d.r!=null&&d.s)?d.r/d.s:null };
+  // Cancelled as a share of everything booked: conducted plus cancelled.
+  var booked=(d.s!=null&&d.x!=null)?(d.s+d.x):null;
+  return { s:d.s, r:d.r, x:d.x, rate:(d.r!=null&&d.s)?d.r/d.s:null, cpc:booked?d.x/booked*100:null };
 }
 // The comparison figure for one coach. "pace" scales the earlier month down to the share of
 // the month that has run, so a month-to-date column is not measured against a whole month.
@@ -317,10 +331,10 @@ function basis(p,coach){
   if(ui.compare==="none") return null;
   var list=basisPeriods(p);
   if(!list.length) return null;
-  var acc={s:[],r:[],x:[],rate:[]}, any=false;
+  var acc={s:[],r:[],x:[],rate:[],cpc:[]}, any=false;
   list.forEach(function(q){
     var m=metrics(q,coach); if(!m) return;
-    ["s","r","x","rate"].forEach(function(k){ if(m[k]!=null) acc[k].push(m[k]); });
+    ["s","r","x","rate","cpc"].forEach(function(k){ if(m[k]!=null) acc[k].push(m[k]); });
     any=true;
   });
   if(!any) return null;
@@ -328,11 +342,12 @@ function basis(p,coach){
   // of it that has run so far, so a part-month is not judged against a complete one.
   var k=(ui.compare==="prev")?1:progress(p);
   var out={};
-  ["s","r","x","rate"].forEach(function(key){
+  ["s","r","x","rate","cpc"].forEach(function(key){
     var vals=acc[key];
     var mean=vals.length?vals.reduce(function(a,b){return a+b;},0)/vals.length:null;
-    // A price per session is an average, never a running total, so it is never scaled.
-    out[key]=(mean==null)?null:(key==="rate"?mean:mean*k);
+    // A price per session and a cancellation rate are ratios, not running totals, so
+    // neither is scaled down for a part-finished month.
+    out[key]=(mean==null)?null:((key==="rate"||key==="cpc")?mean:mean*k);
   });
   return out;
 }
@@ -348,6 +363,7 @@ function teamTotals(p,useBasis){
   });
   t.rate=t.s?t.r/t.s:null;
   if(!anyX) t.x=null;
+  t.cpc=(t.x!=null&&(t.s+t.x))?t.x/(t.s+t.x)*100:null;
   return t;
 }
 
@@ -373,7 +389,8 @@ function renderTiles(p){
     {k:"Team sessions", v:fmtInt(now.s), d:cmp(now.s,was&&was.s,false)},
     {k:"Team revenue AED", v:fmtInt(now.r), d:cmp(now.r,was&&was.r,false), lead:true},
     {k:"Rate / session", v:fmtRate(now.rate), d:cmp(now.rate,was&&was.rate,false)},
-    {k:"Cancelled", v:now.x==null?"—":fmtInt(now.x), d:now.x==null?"":cmp(now.x,was&&was.x,true)}
+    {k:"Cancelled", v:now.x==null?"—":fmtInt(now.x),
+     d:(now.cpc==null?"":'<span class="d '+(was&&was.cpc!=null?(now.cpc<=was.cpc?"up":"down"):"flat")+'">'+now.cpc.toFixed(1)+"% of booked</span>")}
   ];
   document.getElementById("tiles").innerHTML=tiles.map(function(t){
     return '<div class="tile'+(t.lead?" lead":"")+'"><div class="k">'+t.k+'</div><div class="v">'+t.v+"</div>"+
@@ -393,7 +410,7 @@ function attCell(att){
 }
 
 var COLS=[{k:"coach",t:"Coach"},{k:"sessions",t:"Sessions"},{k:"rate",t:"Rate / session"},
-          {k:"revenue",t:"Revenue AED"},{k:"cancelled",t:"Cancelled"},{k:"attain",t:"Even share"}];
+          {k:"revenue",t:"Revenue AED"},{k:"cancelled",t:"Cancelled"},{k:"cpc",t:"Cancelled %"},{k:"attain",t:"Even share"}];
 function render(){
   var p=ui.month, tbl=document.getElementById("tbl"), empty=document.getElementById("empty");
   var isNow=(p===currentPeriod()), chip=document.getElementById("chipMtd");
@@ -413,7 +430,7 @@ function render(){
   var evenShare=evenList.length?evenRevenue/evenList.length:0;
   var rows=list.map(function(c){
     var m=metrics(p,c);
-    return {coach:c, sessions:m.s, rate:m.rate, revenue:m.r, cancelled:m.x,
+    return {coach:c, sessions:m.s, rate:m.rate, revenue:m.r, cancelled:m.x, cpc:m.cpc,
             attain:(evenShare&&m.r!=null&&inEven(c))?m.r/evenShare*100:null, b:basis(p,c)};
   });
 
@@ -439,6 +456,7 @@ function render(){
       "<td>"+fmtRate(r.rate)+delta(r.rate,b.rate,false)+"</td>"+
       "<td>"+fmtInt(r.revenue)+delta(r.revenue,b.r,false)+"</td>"+
       "<td>"+(r.cancelled==null?'<span class="dim">—</span>':fmtInt(r.cancelled)+delta(r.cancelled,b.x,true))+"</td>"+
+      "<td>"+(r.cpc==null?'<span class="dim">—</span>':r.cpc.toFixed(1)+"%"+delta(r.cpc,b.cpc,true))+"</td>"+
       "<td>"+bar+"</td></tr>";
   }).join("")+"</tbody>";
 
@@ -449,6 +467,7 @@ function render(){
     "<td>"+fmtRate(team.rate)+tcmp(team.rate,was&&was.rate,false)+"</td>"+
     "<td>"+fmtInt(team.r)+tcmp(team.r,was&&was.r,false)+"</td>"+
     "<td>"+(team.x==null?'<span class="dim">—</span>':fmtInt(team.x)+tcmp(team.x,was&&was.x,true))+"</td>"+
+    "<td>"+(team.cpc==null?'<span class="dim">—</span>':team.cpc.toFixed(1)+"%"+tcmp(team.cpc,was&&was.cpc,true))+"</td>"+
     "<td>"+evenSummary(rows)+"</td></tr></tfoot>";
 
   tbl.innerHTML=head+body+foot;
@@ -495,7 +514,7 @@ function updateCoachSummary(){
   });
   var bits=[];
   if(hidden.length) bits.push(hidden.length+" hidden");
-  if(outOfEven.length) bits.push(outOfEven.join(", ")+" out of even share");
+  if(outOfEven.length) bits.push(outOfEven.length+" out of even share");
   document.getElementById("coachSummary").textContent="Coaches"+(bits.length?" \u00b7 "+bits.join(" \u00b7 "):"");
 }
 function fillMonths(){
@@ -535,17 +554,33 @@ function loadAll(pass){
         .then(build);
     });
 }
+// Shows progress on the button itself, so a slow read never looks like a dead click.
+function busy(id,on,text){
+  var b=document.getElementById(id); if(!b) return;
+  if(on){ b.dataset.label=b.dataset.label||b.textContent; b.textContent=text; b.disabled=true; }
+  else { b.textContent=b.dataset.label||b.textContent; b.disabled=false; }
+}
 function reload(){
+  busy("btnReload",true,"Reading…");
   setStat("status","Reading the latest figures…","");
   return loadEnc("live.enc.json",true)
     .then(function(env){ return decrypt(env,PASS); })
-    .then(function(l){ LIVE=l; build(); paint(); setStat("status","Up to date.","ok"); })
-    .catch(function(e){ setStat("status","Could not read the latest figures: "+e.message,"err"); });
+    .then(function(l){
+      LIVE=l; build(); paint();
+      setStat("status","Up to date — last read "+(LIVE.generated?new Date(LIVE.generated).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"}):"unknown"),"ok");
+    })
+    .catch(function(e){ setStat("status","Could not read the latest figures: "+e.message,"err"); })
+    .then(function(){ busy("btnReload",false); });
 }
 function ghHeaders(t){ return {Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28",Authorization:"Bearer "+t}; }
 function refreshNow(){
   var c=cfg();
-  if(!c.pat){ setStat("status","Refresh access isn’t set on this device. The scheduled read runs every three hours — use Reload to pick it up.","err"); return; }
+  if(!c.pat){
+    setStat("status","Refresh access isn’t set on this device — open Refresh access below and save a token. The scheduled read still runs every three hours.","err");
+    var tp=document.getElementById("tokenPanel"); if(tp) tp.open=true;
+    return;
+  }
+  busy("btnRefresh",true,"Reading…");
   var t0=new Date(Date.now()-60000).toISOString(), tries=0;
   setStat("status","Asking for a fresh read of the folder…","");
   fetch("https://api.github.com/repos/"+GH_OWNER+"/"+GH_REPO+"/actions/workflows/"+GH_WORKFLOW+"/dispatches",
@@ -574,10 +609,32 @@ function refreshNow(){
     });
   })
   .then(reload)
-  .catch(function(e){ setStat("status","Refresh failed — "+e.message,"err"); });
+  .catch(function(e){ setStat("status","Refresh failed — "+e.message,"err"); })
+  .then(function(){ busy("btnRefresh",false); });
 }
 
 /* ---------- gate ---------- */
+function wireToken(){
+  var input=document.getElementById("liveToken");
+  function show(){
+    var has=!!cfg().pat;
+    document.getElementById("tokenSummary").textContent="Refresh access"+(has?" \u00b7 saved on this device":" \u00b7 not set");
+    setStat("tokenStatus",has?"Refresh now will work on this device.":"Without a token, Refresh now cannot start a read. Reload still works.",has?"ok":"");
+  }
+  document.getElementById("btnSaveToken").addEventListener("click",function(){
+    var v=(input.value||"").trim();
+    if(!v){ setStat("tokenStatus","Paste the token first.","err"); return; }
+    var c=cfg(); c.pat=v;
+    try{ localStorage.setItem(CFG_KEY,JSON.stringify(c)); }catch(e){}
+    input.value=""; show();
+  });
+  document.getElementById("btnClearToken").addEventListener("click",function(){
+    var c=cfg(); delete c.pat;
+    try{ localStorage.setItem(CFG_KEY,JSON.stringify(c)); }catch(e){}
+    show();
+  });
+  show();
+}
 function unlock(){
   var gate=document.getElementById("gate"), form=document.getElementById("gateForm"),
       input=document.getElementById("gatePass"), rem=document.getElementById("gateRemember"),
@@ -625,6 +682,7 @@ unlock().then(function(){
   });
   document.getElementById("btnReload").addEventListener("click",reload);
   document.getElementById("btnRefresh").addEventListener("click",refreshNow);
+  wireToken();
   if(!LIVE) setStat("status","No live figures have been written yet — run the refresh job once.","err");
 });
 })();
