@@ -152,6 +152,7 @@ export function parseCoachSheet(arr) {
   if (ppsCol < 0) return { error: "no per-session price column (PPS / VALUE / Rate) was found — the sheet layout may have changed." };
   const sessionsCol = ppsCol + 1;            // the session count sits right after the price
   const moneyCol = taCol >= 0 ? taCol : ppsCol + 2;   // and the money right after that
+  const moneyGuessed = taCol < 0;
 
   // 2. The totals row: "Conducted Sessions", with or without "/ Day", in or near the name column.
   let conductedRow = -1;
@@ -197,6 +198,29 @@ export function parseCoachSheet(arr) {
     const cc = cancelledCol >= 0 ? num(row[cancelledCol]) : null; if (cc != null) sumC += cc;
   }
 
+  // When the money column had no header and its position was inferred, prove it: on a
+  // client row, price x sessions should come out at the money figure. Older sheets are laid
+  // out more simply than today's, and a wrong column would otherwise pass silently.
+  if (moneyGuessed) {
+    let checked = 0, agreed = 0;
+    for (let r = headerRowIdx + 1; r < clientEnd && checked < 12; r++) {
+      const row = arr[r]; if (!row) continue;
+      const nm = norm(row[nameCol]);
+      if (GROUP_ROW.test(nm)) break;
+      if (!nm || NOT_A_CLIENT.test(nm)) continue;
+      const price = num(row[ppsCol]), sess = num(row[sessionsCol]), money = num(row[moneyCol]);
+      if (price == null || !sess || money == null) continue;
+      checked++;
+      if (Math.abs(price * sess - money) <= Math.max(5, money * 0.1)) agreed++;
+    }
+    // No verifiable row either: refuse rather than report a revenue of zero for a month
+    // that plainly has sessions in it.
+    const unproven = checked === 0 ? sumS > 0 : agreed < Math.ceil(checked * 0.6);
+    if (unproven) {
+      return { error: "the revenue column could not be identified with confidence — this sheet is laid out differently." };
+    }
+  }
+
   const cancelled = (cancelledCol >= 0) ? sumC : null;
   const derived = conductedRow < 0;
   const sessions = derived ? sumS : num(arr[conductedRow][sessionsCol]);
@@ -206,6 +230,8 @@ export function parseCoachSheet(arr) {
   const warnings = [];
   if (!derived && sessions != null && Math.abs(sumS - sessions) > 0.5) warnings.push(`sessions: sheet total ${sessions}, client rows add to ${sumS}`);
   if (!derived && revenue != null && Math.abs(sumR - revenue) > 5) warnings.push(`revenue: sheet total ${revenue}, client rows add to ${Math.round(sumR)}`);
+  // A rate far outside anything the business charges means a column was misread.
+  if (rate != null && (rate < 20 || rate > 5000)) warnings.push(`rate per session works out at ${Math.round(rate)} — check this sheet's columns`);
   if (sheetCancelled != null && cancelled != null && Math.abs(sheetCancelled - cancelled) > 0.5)
     warnings.push(`cancelled: client rows add to ${cancelled}, the sheet's own total row says ${sheetCancelled}`);
 

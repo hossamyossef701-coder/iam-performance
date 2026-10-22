@@ -1,7 +1,7 @@
 // Pulls every coach workbook from the shared OneDrive folder, parses the monthly sheets,
 // encrypts the result and writes live.enc.json (+ history.enc.json when HISTORY_JSON is set).
-// Env: SHARE_URL, DATA_PASSPHRASE (required) · HISTORY_JSON · LIVE_FROM (default 2026-08)
-//      COACH_FILE_PATTERN (default "performance sheet") · FETCH_STRATEGIES (default "od,odkey,spshares,zip,rest,browser") · OUT_DIR (default ".") · MIN_AGE_HOURS (default 12)
+// Env: SHARE_URL, DATA_PASSPHRASE (required) · HISTORY_JSON
+//      LIVE_FROM (default "1900-01": every month the files hold) · COACH_FILE_PATTERN (default "performance sheet") · FETCH_STRATEGIES (default "od,odkey,spshares,zip,rest,browser") · OUT_DIR (default ".") · MIN_AGE_HOURS (default 12)
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -14,13 +14,15 @@ const env = process.env;
 const SHARE_URL = (env.SHARE_URL || "").trim();
 const PASS = (env.DATA_PASSPHRASE || "").trim();
 const OUT = env.OUT_DIR || ".";
-const LIVE_FROM = env.LIVE_FROM || "2026-08";
+// Every month tab in every workbook, as far back as each file goes. Set a LIVE_FROM
+// secret ("2026-08") to read only from a given month instead.
+const LIVE_FROM = env.LIVE_FROM || "1900-01";
 const MIN_AGE_H = Number(env.MIN_AGE_HOURS || 12);
 const ORDER = (env.FETCH_STRATEGIES || "od,odkey,spshares,zip,rest,browser").split(",").map((s) => s.trim());
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
-console.log("refresh build 2026-10-22b (all layouts)");  // proves which version the job is running
+console.log("refresh build 2026-10-22c (full history)");  // proves which version the job is running
 
 function dubaiPeriod() {
   const p = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dubai", year: "numeric", month: "2-digit" }).format(new Date());
@@ -46,6 +48,11 @@ async function main() {
   const { strategy, files } = await fetchWorkbooks(SHARE_URL, ORDER, L);
   const now = dubaiPeriod();
   let probesLeft = Number(env.PROBE_LIMIT || 20);   // describes the first few unreadable sheets
+  const recentFrom = (function () {              // two months back, for probe reporting only
+    const [y, m] = now.split("-").map(Number);
+    const d = new Date(Date.UTC(y, m - 3, 1));
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+  })();
   const periods = {}, report = [];
   // Only the per-coach performance workbooks. Anything else in the folder (consolidated
   // finance files and so on) is listed as skipped rather than reported as broken.
@@ -68,7 +75,8 @@ async function main() {
         entry.errors.push(`${t.p}: ${r.error}`);
         // Describe the layout so it can be taught to the parser. Column headers and rows
         // labelled like totals only - a client row can never appear here.
-        if (probesLeft > 0) {
+        // Only recent months are described; an old tab that will never be revisited is noise.
+        if (probesLeft > 0 && t.p >= recentFrom) {
           probesLeft--;
           const pr = probeSheet(arr);
           L.log(`  layout of ${coach} / ${t.n} (${pr.rows} rows):`);

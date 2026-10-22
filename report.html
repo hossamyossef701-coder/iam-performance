@@ -83,10 +83,16 @@ tfoot td:first-child{background:var(--panel-2);}
 .d{display:block;font-size:10.5px;margin-top:2px;}
 .d.up{color:var(--up);} .d.down{color:var(--down);} .d.flat{color:var(--flat);}
 .dim{color:var(--ink-faint);}
-.share{display:flex;align-items:center;gap:8px;justify-content:flex-end;}
-.share-track{width:84px;height:5px;border-radius:3px;background:var(--panel-3);overflow:hidden;}
-.share-fill{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--accent-2));}
-.share-pct{min-width:38px;font-size:12px;}
+.att{display:flex;align-items:center;gap:9px;justify-content:flex-end;}
+.att-track{position:relative;width:92px;height:6px;border-radius:3px;background:var(--panel-3);}
+.att-fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px;}
+.att-fill.over{background:linear-gradient(90deg,rgba(94,184,122,.5),var(--up));}
+.att-fill.under{background:linear-gradient(90deg,rgba(225,75,75,.45),var(--down));}
+/* the even line: a coach on exactly their equal share reaches this mark */
+.att-mark{position:absolute;top:-3px;bottom:-3px;width:1px;left:50%;background:var(--ink-faint);opacity:.9;}
+.att-pct{min-width:46px;font-size:12.5px;}
+.att-pct.over{color:var(--up);} .att-pct.under{color:var(--down);}
+.even-note{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-faint);margin-top:2px;display:block;font-weight:400;}
 .empty{padding:40px 16px;text-align:center;color:var(--ink-faint);font-family:var(--f-mono);font-size:12px;}
 .status{font-family:var(--f-mono);font-size:11.5px;margin-top:12px;color:var(--ink-faint);min-height:17px;}
 .status.err{color:var(--down);} .status.ok{color:var(--up);}
@@ -137,7 +143,11 @@ body.locked{overflow:hidden;}
     <select id="selCompare">
       <option value="pace">vs last month, same point</option>
       <option value="prev">vs last month, full</option>
-      <option value="avg3">vs 3-month average, same point</option>
+      <option value="avg3">vs 3-month average</option>
+      <option value="avg6">vs 6-month average</option>
+      <option value="avg12">vs 12-month average</option>
+      <option value="since2025-10">vs average since Oct 2025</option>
+      <option value="since2024-06">vs average since Jun 2024</option>
       <option value="none">no comparison</option>
     </select>
     <button id="btnReload">Reload</button>
@@ -230,6 +240,21 @@ function dayOfMonth(){ return +new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/D
 // Only a month still running is part-complete; a finished month counts whole.
 function progress(p){ return p===currentPeriod()? Math.max(0.03,Math.min(1,dayOfMonth()/monthDays(p))) : 1; }
 function prevPeriods(p,n){ var i=PERIODS.indexOf(p); return i<0?[]:PERIODS.slice(Math.max(0,i-n),i); }
+// Every month on record from an anchor up to, but not including, the month being viewed.
+function periodsSince(anchor,p){
+  var i=PERIODS.indexOf(p); if(i<0) return [];
+  return PERIODS.slice(0,i).filter(function(q){ return q>=anchor; });
+}
+// Which earlier months this comparison averages over.
+function basisPeriods(p){
+  var m=ui.compare;
+  if(m==="prev"||m==="pace") return prevPeriods(p,1);
+  if(m==="avg3") return prevPeriods(p,3);
+  if(m==="avg6") return prevPeriods(p,6);
+  if(m==="avg12") return prevPeriods(p,12);
+  if(m.indexOf("since")===0) return periodsSince(m.slice(5),p);
+  return [];
+}
 function inScope(c){ return ui.scope==="all" || c!==DIRECTOR; }
 function coachesIn(p){
   return Object.keys(DATA[p]||{}).filter(function(c){
@@ -245,7 +270,7 @@ function metrics(p,coach){
 // the month that has run, so a month-to-date column is not measured against a whole month.
 function basis(p,coach){
   if(ui.compare==="none") return null;
-  var list=ui.compare==="avg3"?prevPeriods(p,3):prevPeriods(p,1);
+  var list=basisPeriods(p);
   if(!list.length) return null;
   var acc={s:[],r:[],x:[],rate:[]}, any=false;
   list.forEach(function(q){
@@ -311,8 +336,19 @@ function renderTiles(p){
   }).join("");
 }
 
+// 100% is an equal share. The bar runs to a 200% scale so the even line sits in the middle
+// and both sides of it are readable.
+function attCell(att){
+  if(att==null) return '<span class="dim">\u2014</span>';
+  var over=att>=99.5, w=Math.max(2,Math.min(100,att/200*100));
+  return '<span class="att"><span class="att-track">'+
+    '<span class="att-fill '+(over?"over":"under")+'" style="width:'+w.toFixed(0)+'%"></span>'+
+    '<span class="att-mark"></span></span>'+
+    '<span class="att-pct '+(over?"over":"under")+'">'+att.toFixed(0)+"%</span></span>";
+}
+
 var COLS=[{k:"coach",t:"Coach"},{k:"sessions",t:"Sessions"},{k:"rate",t:"Rate / session"},
-          {k:"revenue",t:"Revenue AED"},{k:"cancelled",t:"Cancelled"},{k:"share",t:"Share of team"}];
+          {k:"revenue",t:"Revenue AED"},{k:"cancelled",t:"Cancelled"},{k:"attain",t:"Even share"}];
 function render(){
   var p=ui.month, tbl=document.getElementById("tbl"), empty=document.getElementById("empty");
   var isNow=(p===currentPeriod()), chip=document.getElementById("chipMtd");
@@ -324,12 +360,15 @@ function render(){
   empty.style.display="none";
 
   var team=teamTotals(p,false);
+  // An equal split of this month's team revenue. A coach at 100% is carrying exactly their
+  // share of it. It describes how evenly revenue has fallen across the coaches counted,
+  // nothing more - a coach can sit below it on a month of leave.
+  var evenShare=list.length?team.r/list.length:0;
   var rows=list.map(function(c){
     var m=metrics(p,c);
     return {coach:c, sessions:m.s, rate:m.rate, revenue:m.r, cancelled:m.x,
-            share:(team.r&&m.r!=null)?m.r/team.r*100:null, b:basis(p,c)};
+            attain:(evenShare&&m.r!=null)?m.r/evenShare*100:null, b:basis(p,c)};
   });
-  var maxShare=Math.max.apply(null,rows.map(function(r){ return r.share||0; }))||1;
 
   rows.sort(function(a,b){
     if(ui.sort==="coach") return a.coach.localeCompare(b.coach)*(ui.dir<0?1:-1);
@@ -346,9 +385,7 @@ function render(){
 
   var body="<tbody>"+rows.map(function(r){
     var b=r.b||{};
-    var bar=r.share==null?'<span class="dim">—</span>':
-      '<span class="share"><span class="share-track"><span class="share-fill" style="width:'+(r.share/maxShare*100).toFixed(0)+'%"></span></span>'+
-      '<span class="share-pct">'+r.share.toFixed(1)+"%</span></span>";
+    var bar=attCell(r.attain);
     return '<tr class="'+(r.coach===DIRECTOR?"me":"")+'">'+
       "<td>"+r.coach+"</td>"+
       "<td>"+fmtInt(r.sessions)+delta(r.sessions,b.s,false)+"</td>"+
@@ -365,7 +402,7 @@ function render(){
     "<td>"+fmtRate(team.rate)+tcmp(team.rate,was&&was.rate,false)+"</td>"+
     "<td>"+fmtInt(team.r)+tcmp(team.r,was&&was.r,false)+"</td>"+
     "<td>"+(team.x==null?'<span class="dim">—</span>':fmtInt(team.x)+tcmp(team.x,was&&was.x,true))+"</td>"+
-    "<td>100%</td></tr></tfoot>";
+    "<td>"+evenSummary(rows)+"</td></tr></tfoot>";
 
   tbl.innerHTML=head+body+foot;
   Array.prototype.forEach.call(tbl.querySelectorAll("th"),function(th){
@@ -376,6 +413,14 @@ function render(){
     });
   });
   renderTiles(p);
+}
+// How much of the team is carrying its equal share: how many coaches sit at or above 100%,
+// as a percentage of those with revenue this month.
+function evenSummary(rows){
+  var withRev=rows.filter(function(r){ return r.attain!=null; });
+  if(!withRev.length) return '<span class="dim">\u2014</span>';
+  var at=withRev.filter(function(r){ return r.attain>=99.5; }).length;
+  return Math.round(at/withRev.length*100)+'%<span class="even-note">'+at+" of "+withRev.length+" at or above even</span>";
 }
 function fillMonths(){
   var sel=document.getElementById("selMonth");
