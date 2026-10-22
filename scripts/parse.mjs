@@ -71,7 +71,26 @@ export function probeSheet(arr) {
       if (safe && /(session|total|cancel|conduct|group)/i.test(safe)) { labelled.push(`r${r}c${c}: ${safe}`); break; }
     }
   }
-  return { rows: arr.length, headerRows, labelled: labelled.slice(0, 30) };
+  // The row carrying the client-name header holds COLUMN headings, never client rows, so it
+  // is reported in full apart from the name column itself — that is how an unexpected set of
+  // columns gets diagnosed.
+  let headerRowFull = null;
+  for (let r = 0; r < Math.min(arr.length, 12) && !headerRowFull; r++) {
+    const row = arr[r]; if (!row) continue;
+    let nameCol = -1;
+    for (let c = 0; c < Math.min(row.length, 8); c++) {
+      if (NAME_HEADERS.includes(norm(row[c]))) { nameCol = c; break; }
+    }
+    if (nameCol < 0) continue;
+    const cells = [];
+    for (let c = 0; c < row.length; c++) {
+      if (c === nameCol) continue;
+      const t = row[c] == null ? "" : String(row[c]).replace(/\s+/g, " ").trim();
+      if (t) cells.push(c + ":" + t.slice(0, 38));
+    }
+    headerRowFull = `row ${r} (name col ${nameCol}): ${cells.join(" | ")}`;
+  }
+  return { rows: arr.length, headerRows, headerRowFull, labelled: labelled.slice(0, 30) };
 }
 
 const NAME_HEADERS = ["client name", "clients", "client", "client names", "name"];
@@ -112,10 +131,9 @@ export function parseCoachSheet(arr) {
     }
     if (conductedRow >= 0) break;
   }
-  if (conductedRow < 0) return { error: "no “Conducted Sessions” row was found — the sheet layout may have changed." };
-
-  const sessions = num(arr[conductedRow][sessionsCol]);
-  const revenue = num(arr[conductedRow][taCol]);
+  // Some sheets carry no totals row at all - every August file, and a few coaches in every
+  // month. There the client rows ARE the total, so they are added up rather than failing.
+  const clientEnd = conductedRow >= 0 ? conductedRow : arr.length;
 
   // 3. Cancelled sessions. The sheets disagree about where the total goes - an unnamed row
   //    in one file, the Group Training row in another, and in some files no total at all -
@@ -123,18 +141,17 @@ export function parseCoachSheet(arr) {
   //    to cross-check it below.
   let sheetCancelled = null;
   if (cancelledCol >= 0) {
-    for (let r = headerRowIdx + 1; r < conductedRow; r++) {
+    for (let r = headerRowIdx + 1; r < clientEnd; r++) {
       const v = arr[r] ? num(arr[r][cancelledCol]) : null;
       if (v != null) sheetCancelled = v;
     }
   }
 
-  const rate = (revenue != null && sessions) ? Math.round((revenue / sessions) * 100) / 100 : null;
-
-  // 4. Cross-check: re-add the individual client rows and compare with the sheet's own total.
-  //    Group training is counted separately by the sheet, so it ends the client block.
+  // 4. Add up the individual client rows: the cross-check when the sheet has its own total,
+  //    and the figure itself when it has not. Group training is counted separately by the
+  //    sheet, so it ends the client block.
   let sumS = 0, sumR = 0, sumC = 0, clients = 0;
-  for (let r = headerRowIdx + 1; r < conductedRow; r++) {
+  for (let r = headerRowIdx + 1; r < clientEnd; r++) {
     const row = arr[r]; if (!row) continue;
     const nm = norm(row[nameCol]);
     if (GROUP_ROW.test(nm)) break;
@@ -146,12 +163,16 @@ export function parseCoachSheet(arr) {
   }
 
   const cancelled = (cancelledCol >= 0) ? sumC : null;
+  const derived = conductedRow < 0;
+  const sessions = derived ? sumS : num(arr[conductedRow][sessionsCol]);
+  const revenue = derived ? Math.round(sumR * 100) / 100 : num(arr[conductedRow][taCol]);
+  const rate = (revenue != null && sessions) ? Math.round((revenue / sessions) * 100) / 100 : null;
 
   const warnings = [];
-  if (sessions != null && Math.abs(sumS - sessions) > 0.5) warnings.push(`sessions: sheet total ${sessions}, client rows add to ${sumS}`);
-  if (revenue != null && Math.abs(sumR - revenue) > 5) warnings.push(`revenue: sheet total ${revenue}, client rows add to ${Math.round(sumR)}`);
+  if (!derived && sessions != null && Math.abs(sumS - sessions) > 0.5) warnings.push(`sessions: sheet total ${sessions}, client rows add to ${sumS}`);
+  if (!derived && revenue != null && Math.abs(sumR - revenue) > 5) warnings.push(`revenue: sheet total ${revenue}, client rows add to ${Math.round(sumR)}`);
   if (sheetCancelled != null && cancelled != null && Math.abs(sheetCancelled - cancelled) > 0.5)
     warnings.push(`cancelled: client rows add to ${cancelled}, the sheet's own total row says ${sheetCancelled}`);
 
-  return { sessions, revenue, cancelled, rate, clients, warnings };
+  return { sessions, revenue, cancelled, rate, clients, derived, warnings };
 }
