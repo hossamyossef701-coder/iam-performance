@@ -33,8 +33,17 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
+      # The runner image already carries the libraries Chromium needs. Installing them again
+      # goes through apt, which has hung for ten minutes before now, so it is a separate,
+      # time-boxed step that the run is allowed to continue without.
+      - name: Browser system libraries
+        run: sudo npx playwright install-deps chromium
+        timeout-minutes: 4
+        continue-on-error: true
+
       - name: Install the browser
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
+        timeout-minutes: 6
 
       - name: Pull coach sheets and encrypt
         env:

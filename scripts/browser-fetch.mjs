@@ -158,7 +158,7 @@ export async function viaBrowserFile(shareUrl, L) {
 
     // 1. ask for the file with the page's own session
     try {
-      const res = await ctx.request.get(dl, { headers: { Accept: "*/*" }, timeout: 120000 });
+      const res = await ctx.request.get(dl, { headers: { Accept: "*/*" }, timeout: 45000 });
       L.log(`  download address: HTTP ${res.status()}`);
       if (res.ok()) {
         const b = Buffer.from(await res.body());
@@ -170,8 +170,8 @@ export async function viaBrowserFile(shareUrl, L) {
     // 2. let the browser handle it as a download
     try {
       const [download] = await Promise.all([
-        page.waitForEvent("download", { timeout: 45000 }),
-        page.goto(dl, { timeout: 45000 }).catch(() => {}),
+        page.waitForEvent("download", { timeout: 25000 }),
+        page.goto(dl, { timeout: 25000 }).catch(() => {}),
       ]);
       const path = await download.path();
       if (path) {
