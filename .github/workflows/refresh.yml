@@ -50,6 +50,7 @@ jobs:
           SHARE_URL: ${{ secrets.SHARE_URL }}
           DATA_PASSPHRASE: ${{ secrets.DATA_PASSPHRASE }}
           HISTORY_JSON: ${{ secrets.HISTORY_JSON }}
+          ASSESS_SHARE_URL: ${{ secrets.ASSESS_SHARE_URL }}
         run: node scripts/refresh.mjs
 
       - name: Save changes

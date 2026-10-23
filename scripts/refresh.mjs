@@ -24,7 +24,7 @@ const ORDER = (env.FETCH_STRATEGIES || "od,odkey,spshares,zip,rest,browser").spl
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
-console.log("refresh build 2026-10-23a (assessment tracker)");  // proves which version the job is running
+console.log("refresh build 2026-10-23b (tracker secret wired)");  // proves which version the job is running
 
 // One typed character of difference, so "Shayla" finds "Shyla".
 function near(a, b) {
@@ -132,6 +132,7 @@ async function main() {
   // 3. The assessment tracker, when a link for it is configured. A failure here never
   //    stops the run: the coach figures are the point, assessments are an addition.
   let assess = null, assessReport = null;
+  if (!ASSESS_URL) L.log("No ASSESS_SHARE_URL secret is set, so the assessment tracker was not read.");
   if (ASSESS_URL) {
     try {
       L.log("Assessment tracker");
