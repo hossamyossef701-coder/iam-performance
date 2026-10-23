@@ -83,6 +83,9 @@ tfoot td:first-child{background:var(--panel-2);}
 .d{display:block;font-size:10.5px;margin-top:2px;}
 .d.up{color:var(--up);} .d.down{color:var(--down);} .d.flat{color:var(--flat);}
 .dim{color:var(--ink-faint);}
+/* Rank marker: where a coach sits on revenue within the month being viewed - green at the
+   top of the order through to red at the bottom. */
+.rk{display:inline-block;width:4px;height:17px;border-radius:2px;margin-right:9px;vertical-align:-3px;}
 .att{display:flex;align-items:center;gap:9px;justify-content:flex-end;}
 .att-track{position:relative;width:92px;height:6px;border-radius:3px;background:var(--panel-3);}
 .att-fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px;}
@@ -456,6 +459,14 @@ function attCell(att){
 
 var COLS=[{k:"coach",t:"Coach"},{k:"sessions",t:"Sessions"},{k:"spd",t:"Sessions / day"},{k:"rate",t:"Rate / session"},
           {k:"revenue",t:"Revenue AED"},{k:"cancelled",t:"Cancelled"},{k:"cpc",t:"Cancelled %"},{k:"assess",t:"Assessments"},{k:"conv",t:"Converted"},{k:"attain",t:"Even share"}];
+// Green through amber to red across the order. A coach with no revenue this month gets a
+// neutral mark rather than a place in the ranking.
+function rankMark(r,span){
+  if(r.rank==null) return '<span class="rk" style="background:var(--line)"></span>';
+  var h=Math.round(140-140*(r.rank/span));
+  return '<span class="rk" style="background:linear-gradient(180deg,hsl('+h+',72%,56%),hsl('+h+',64%,36%));'+
+         'box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 0 7px hsla('+h+',72%,46%,.4)"></span>';
+}
 function render(){
   var p=ui.month, tbl=document.getElementById("tbl"), empty=document.getElementById("empty");
   var isNow=(p===currentPeriod()), chip=document.getElementById("chipMtd");
@@ -480,6 +491,13 @@ function render(){
             attain:(evenShare&&m.r!=null&&inEven(c))?m.r/evenShare*100:null, b:basis(p,c)};
   });
 
+  // Ranked on revenue regardless of how the table is sorted, so the colour always means
+  // the same thing.
+  var ranked=rows.filter(function(r){ return r.revenue!=null; })
+                 .sort(function(a,b){ return b.revenue-a.revenue; });
+  ranked.forEach(function(r,i){ r.rank=i; });
+  var rankSpan=Math.max(1,ranked.length-1);
+
   rows.sort(function(a,b){
     if(ui.sort==="coach") return a.coach.localeCompare(b.coach)*(ui.dir<0?1:-1);
     var av=a[ui.sort], bv=b[ui.sort];
@@ -497,7 +515,7 @@ function render(){
     var b=r.b||{};
     var bar=attCell(r.attain);
     return '<tr class="'+(r.coach===DIRECTOR?"me":"")+'">'+
-      "<td>"+r.coach+"</td>"+
+      "<td>"+rankMark(r,rankSpan)+r.coach+"</td>"+
       "<td>"+fmtInt(r.sessions)+delta(r.sessions,b.s,false)+"</td>"+
       "<td>"+(r.spd==null?'<span class="dim">\u2014</span>':r.spd.toFixed(1)+delta(r.spd,b.spd,false))+"</td>"+
       "<td>"+fmtRate(r.rate)+delta(r.rate,b.rate,false)+"</td>"+
@@ -511,7 +529,7 @@ function render(){
 
   var was=(ui.compare==="none")?null:teamTotals(p,true);
   var tcmp=function(a,b,inv){ return was&&was.n?delta(a,b,inv):""; };
-  var foot="<tfoot><tr><td>"+(ui.scope==="all"?"Team":"Team excl. "+DIRECTOR)+" · "+rows.length+" coaches</td>"+
+  var foot="<tfoot><tr><td>"+(ui.scope==="all"?"Team":"Team ex. FD")+" · "+rows.length+"</td>"+
     "<td>"+fmtInt(team.s)+tcmp(team.s,was&&was.s,false)+"</td>"+
     "<td>"+(team.spd==null?'<span class="dim">\u2014</span>':team.spd.toFixed(1)+tcmp(team.spd,was&&was.spd,false))+"</td>"+
     "<td>"+fmtRate(team.rate)+tcmp(team.rate,was&&was.rate,false)+"</td>"+
