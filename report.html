@@ -368,27 +368,27 @@ function basis(p,coach){
   if(ui.compare==="none") return null;
   var list=basisPeriods(p);
   if(!list.length) return null;
-  var acc={s:[],r:[],x:[],a:[],cv:[],rate:[],cpc:[],spd:[],conv:[]}, any=false;
+  var TOTALS=["s","r","x","a","cv"];          // running totals, cut down to the same point
+  var RATIOS=["rate","cpc","spd","conv"];     // already per-session or per-day, never scaled
+  var acc={}; TOTALS.concat(RATIOS).forEach(function(k){ acc[k]=[]; });
+  // "full" weighs against the whole earlier month; otherwise each earlier month is cut to
+  // the same point IN ITS OWN LENGTH - day 23 of a 30-day month is 23/30 of it, not 23/31.
+  // Using the current month's length here is what made the sessions and sessions-a-day
+  // comparisons disagree by the difference between the two months.
+  var partial=(p===currentPeriod()) && ui.compare!=="prev" && ui.compare!=="yoyfull";
+  var day=dayOfMonth(), any=false;
   list.forEach(function(q){
     var m=metrics(q,coach); if(!m) return;
-    ["s","r","x","a","cv","rate","cpc","spd","conv"].forEach(function(k){ if(m[k]!=null) acc[k].push(m[k]); });
+    var f=partial?Math.min(1,day/monthDays(q)):1;
+    TOTALS.forEach(function(k){ if(m[k]!=null) acc[k].push(m[k]*f); });
+    RATIOS.forEach(function(k){ if(m[k]!=null) acc[k].push(m[k]); });
     any=true;
   });
   if(!any) return null;
-  // "full" measures against the whole earlier month; the others against the same share
-  // of it that has run so far, so a part-month is not judged against a complete one.
-  // "full" variants weigh against the whole earlier month; the rest against the same share
-  // of it that has run so far.
-  var k=(ui.compare==="prev"||ui.compare==="yoyfull")?1:progress(p);
   var out={};
-  ["s","r","x","a","cv","rate","cpc","spd","conv"].forEach(function(key){
+  TOTALS.concat(RATIOS).forEach(function(key){
     var vals=acc[key];
-    var mean=vals.length?vals.reduce(function(a,b){return a+b;},0)/vals.length:null;
-    // A price per session and a cancellation rate are ratios, not running totals, so
-    // neither is scaled down for a part-finished month.
-    // Rate, cancellation share and sessions a day are all per-unit figures already, so none
-    // of them is scaled down for a part-finished month.
-    out[key]=(mean==null)?null:((key==="rate"||key==="cpc"||key==="spd"||key==="conv")?mean:mean*k);
+    out[key]=vals.length?vals.reduce(function(a,b){return a+b;},0)/vals.length:null;
   });
   return out;
 }
