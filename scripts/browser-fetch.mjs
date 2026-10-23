@@ -120,3 +120,74 @@ export async function viaBrowser(shareUrl, L) {
     await browser.close().catch(() => {});
   }
 }
+
+// A link to ONE shared workbook rather than a folder. OneDrive opens such a link in Excel
+// for the web, so the file has to be asked for explicitly. Three ways are tried: the
+// download address, a download triggered in the page, and any spreadsheet the page itself
+// fetches while loading.
+export async function viaBrowserFile(shareUrl, L) {
+  let chromium;
+  try { ({ chromium } = await import("playwright")); }
+  catch { throw new Error("the browser component isn't installed in this job"); }
+
+  const isXlsx = (buf) => buf && buf.length > 4 && buf[0] === 0x50 && buf[1] === 0x4b;   // a zip header
+  const browser = await chromium.launch({
+    executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined,
+    args: ["--no-sandbox", "--disable-dev-shm-usage"],
+  });
+  try {
+    const ctx = await browser.newContext({ userAgent: UA, viewport: { width: 1400, height: 1000 }, locale: "en-GB", acceptDownloads: true });
+    const page = await ctx.newPage();
+    let sniffed = null;
+    page.on("response", async (res) => {
+      try {
+        if (sniffed) return;
+        const ct = res.headers()["content-type"] || "";
+        if (!/spreadsheet|octet-stream|excel/i.test(ct)) return;
+        const b = Buffer.from(await res.body());
+        if (isXlsx(b)) sniffed = b;
+      } catch {}
+    });
+
+    L.log("  opening the workbook in a headless browser");
+    await page.goto(shareUrl, { waitUntil: "domcontentloaded", timeout: 90000 });
+    try { await page.waitForLoadState("networkidle", { timeout: 30000 }); } catch {}
+
+    const sep = shareUrl.includes("?") ? "&" : "?";
+    const dl = shareUrl + sep + "download=1";
+
+    // 1. ask for the file with the page's own session
+    try {
+      const res = await ctx.request.get(dl, { headers: { Accept: "*/*" }, timeout: 120000 });
+      L.log(`  download address: HTTP ${res.status()}`);
+      if (res.ok()) {
+        const b = Buffer.from(await res.body());
+        if (isXlsx(b)) return b;
+        L.log(`  that returned a page, not a workbook (${b.length} bytes)`);
+      }
+    } catch (e) { L.log("  download address failed: " + e.message.slice(0, 60)); }
+
+    // 2. let the browser handle it as a download
+    try {
+      const [download] = await Promise.all([
+        page.waitForEvent("download", { timeout: 45000 }),
+        page.goto(dl, { timeout: 45000 }).catch(() => {}),
+      ]);
+      const path = await download.path();
+      if (path) {
+        const fs = await import("node:fs");
+        const b = fs.readFileSync(path);
+        L.log(`  the browser downloaded ${b.length} bytes`);
+        if (isXlsx(b)) return b;
+      }
+    } catch { L.log("  no download was offered by the page"); }
+
+    // 3. anything spreadsheet-shaped the page fetched on its own
+    if (sniffed) { L.log(`  took the workbook from the page's own request (${sniffed.length} bytes)`); return sniffed; }
+
+    const signin = await page.locator("input[type=password], #i0116").count().catch(() => 0);
+    throw new Error(signin ? "the link asked for a sign-in" : "the workbook could not be downloaded from this link");
+  } finally {
+    await browser.close().catch(() => {});
+  }
+}

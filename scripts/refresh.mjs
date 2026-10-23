@@ -1,13 +1,14 @@
 // Pulls every coach workbook from the shared OneDrive folder, parses the monthly sheets,
 // encrypts the result and writes live.enc.json (+ history.enc.json when HISTORY_JSON is set).
 // Env: SHARE_URL, DATA_PASSPHRASE (required) · HISTORY_JSON
-//      LIVE_FROM (default "1900-01": every month the files hold) · COACH_FILE_PATTERN (default "performance sheet") · FETCH_STRATEGIES (default "od,odkey,spshares,zip,rest,browser") · OUT_DIR (default ".") · MIN_AGE_HOURS (default 12)
+//      ASSESS_SHARE_URL (the assessment tracker) · LIVE_FROM (default "1900-01": every month the files hold) · COACH_FILE_PATTERN (default "performance sheet") · FETCH_STRATEGIES (default "od,odkey,spshares,zip,rest,browser") · OUT_DIR (default ".") · MIN_AGE_HOURS (default 12)
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import XLSX from "xlsx";
-import { fetchWorkbooks, makeLogger } from "./fetch.mjs";
+import { fetchWorkbooks, fetchOneWorkbook, makeLogger } from "./fetch.mjs";
 import { parseCoachSheet, probeSheet, sheetNameToPeriod, coachFromFilename } from "./parse.mjs";
+import { parseAssessments } from "./assess.mjs";
 import { encryptJSON, decryptJSON } from "./crypto.mjs";
 
 const env = process.env;
@@ -18,12 +19,25 @@ const OUT = env.OUT_DIR || ".";
 // secret ("2026-08") to read only from a given month instead.
 const LIVE_FROM = env.LIVE_FROM || "1900-01";
 const MIN_AGE_H = Number(env.MIN_AGE_HOURS || 12);
+const ASSESS_URL = (env.ASSESS_SHARE_URL || "").trim();
 const ORDER = (env.FETCH_STRATEGIES || "od,odkey,spshares,zip,rest,browser").split(",").map((s) => s.trim());
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
-console.log("refresh build 2026-10-22e (subfolders + duplicates)");  // proves which version the job is running
+console.log("refresh build 2026-10-23a (assessment tracker)");  // proves which version the job is running
 
+// One typed character of difference, so "Shayla" finds "Shyla".
+function near(a, b) {
+  if (a === b) return true;
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0, j = 0, slips = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { i++; j++; continue; }
+    if (++slips > 1) return false;
+    if (a.length > b.length) i++; else if (a.length < b.length) j++; else { i++; j++; }
+  }
+  return slips + (a.length - i) + (b.length - j) <= 1;
+}
 function dubaiPeriod() {
   const p = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dubai", year: "numeric", month: "2-digit" }).format(new Date());
   return p.slice(0, 7);
@@ -115,9 +129,63 @@ async function main() {
   L.log(`Parsed ${files.length} workbook(s): ${okCount} with data, ${report.filter((r) => r.errors.length).length} with problems, ${Object.keys(periods).length} month(s).`);
   if (!okCount) { console.error("No coach data could be parsed from any workbook - not overwriting live data."); process.exit(1); }
 
-  // 3. Skip the write when nothing changed and the last write is recent (avoids commit noise).
+  // 3. The assessment tracker, when a link for it is configured. A failure here never
+  //    stops the run: the coach figures are the point, assessments are an addition.
+  let assess = null, assessReport = null;
+  if (ASSESS_URL) {
+    try {
+      L.log("Assessment tracker");
+      const AL = makeLogger(ASSESS_URL);
+      const buf = await fetchOneWorkbook(ASSESS_URL, AL);
+      const wb = XLSX.read(buf, { type: "buffer", cellDates: true });
+      const merged = {}; const warnings = []; let counted = 0, rows = 0, sheetsRead = 0;
+      for (const name of wb.SheetNames) {
+        const arr = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: false, defval: null });
+        const r = parseAssessments(arr);
+        if (r.error) { L.log(`  sheet "${name}": ${r.error}`); continue; }
+        sheetsRead++; counted += r.counted; rows += r.rows;
+        r.warnings.forEach((w) => warnings.push(`${name}: ${w}`));
+        for (const p of Object.keys(r.periods)) {
+          const bucket = (merged[p] = merged[p] || {});
+          for (const c of Object.keys(r.periods[p])) {
+            const cell = (bucket[c] = bucket[c] || { a: 0, c: 0 });
+            cell.a += r.periods[p][c].a; cell.c += r.periods[p][c].c;
+          }
+        }
+      }
+      if (!sheetsRead) throw new Error("no sheet in the tracker had Coach and Month columns");
+      // Match the tracker's spelling of a coach to the one the performance files use
+      // ("Shayla" and "Shyla" are the same person).
+      const known = [...new Set(Object.values(periods).flatMap((o) => Object.keys(o)))];
+      const mapped = {}, unmatched = new Set(), renamed = new Set();
+      const sq = (x) => x.toLowerCase().replace(/[^a-z]/g, "");
+      for (const p of Object.keys(merged)) {
+        const bucket = (mapped[p] = mapped[p] || {});
+        for (const c of Object.keys(merged[p])) {
+          let target = known.find((k) => sq(k) === sq(c));
+          if (!target) target = known.find((k) => near(sq(k), sq(c)));
+          if (target && target !== c) renamed.add(`${c} -> ${target}`);
+          if (!target) unmatched.add(c);
+          const key = target || c;
+          const cell = (bucket[key] = bucket[key] || { a: 0, c: 0 });
+          cell.a += merged[p][c].a; cell.c += merged[p][c].c;
+        }
+      }
+      if (renamed.size) L.log(`  coach names matched to the performance files: ${[...renamed].join(", ")}`);
+      if (unmatched.size) L.log(`  coach names with no performance file: ${[...unmatched].join(", ")}`);
+      assess = mapped;
+      assessReport = { rows, counted, months: Object.keys(mapped).sort(), warnings, unmatched: [...unmatched] };
+      L.log(`  ${counted} completed assessment(s) across ${Object.keys(mapped).length} month(s)`);
+      warnings.forEach((w) => L.log("  " + w));
+    } catch (e) {
+      L.log("  the tracker could not be read: " + L.redact(e.message).split("\n")[0]);
+      assessReport = { error: L.redact(e.message).split("\n")[0] };
+    }
+  }
+
+  // 4. Skip the write when nothing changed and the last write is recent (avoids commit noise).
   const livePath = path.join(OUT, "live.enc.json");
-  const digest = crypto.createHash("sha256").update(JSON.stringify({ periods, report })).digest("hex");
+  const digest = crypto.createHash("sha256").update(JSON.stringify({ periods, report, assess })).digest("hex");
   if (fs.existsSync(livePath)) {
     try {
       const prev = await decryptJSON(JSON.parse(fs.readFileSync(livePath, "utf8")), PASS);
@@ -125,7 +193,7 @@ async function main() {
       if (prev.digest === digest && ageH < MIN_AGE_H) { L.log(`No change (last write ${ageH.toFixed(1)}h ago) - live.enc.json left as is.`); return; }
     } catch { L.log("Previous live.enc.json could not be read (new passphrase?) - rewriting."); }
   }
-  const live = { v: 1, generated: new Date().toISOString(), digest, strategy, liveFrom: LIVE_FROM, periods, files: report };
+  const live = { v: 1, generated: new Date().toISOString(), digest, strategy, liveFrom: LIVE_FROM, periods, files: report, assess, assessReport };
   fs.writeFileSync(livePath, JSON.stringify(await encryptJSON(live, PASS)));
   L.log("live.enc.json written");
 }

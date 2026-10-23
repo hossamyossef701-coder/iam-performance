@@ -263,3 +263,35 @@ export async function fetchWorkbooks(shareUrl, order, L) {
   err.tried = tried;
   throw err;
 }
+
+/* ---- A single shared workbook (the assessment tracker), rather than a folder. ---- */
+export async function fetchOneWorkbook(shareUrl, L) {
+  describeLink(shareUrl, L);
+  const tried = [];
+  // The plain API route first: it costs a second and needs no browser.
+  try {
+    const redeemed = decodeRedeem(shareUrl, L) || shareUrl;
+    const key = encodeShare(redeemed);
+    for (const base of ["https://api.onedrive.com/v1.0", "https://my.microsoftpersonalcontent.com/_api/v2.0"]) {
+      const res = await get(`${base}/shares/${key}/driveItem`, { headers: { Accept: "application/json" } }, L, "item");
+      if (!res.ok) { tried.push(`${base.split("/")[2]}: HTTP ${res.status}`); continue; }
+      const j = await res.json();
+      const url = j["@content.downloadUrl"] || j["@microsoft.graph.downloadUrl"];
+      if (!url) { tried.push("no download address in the answer"); continue; }
+      const dl = await get(url, { headers: { Accept: "*/*" } }, L, "download");
+      if (!dl.ok) { tried.push(`download HTTP ${dl.status}`); continue; }
+      const buf = Buffer.from(await dl.arrayBuffer());
+      if (buf[0] === 0x50 && buf[1] === 0x4b) return buf;
+      tried.push("the download was not a workbook");
+    }
+  } catch (e) { tried.push(L.redact(e.message)); }
+
+  L.log("Opening the workbook in a browser instead");
+  try {
+    const mod = await import("./browser-fetch.mjs");
+    return await mod.viaBrowserFile(shareUrl, L);
+  } catch (e) {
+    tried.push(`browser: ${L.redact(e.message)}`);
+    throw new Error("The assessment tracker could not be downloaded.\n" + tried.map((t) => " - " + t).join("\n"));
+  }
+}

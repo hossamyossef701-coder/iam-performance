@@ -55,8 +55,8 @@ button:hover,select:hover{border-color:var(--ink-faint);}
 @media(max-width:700px){.note{margin-left:0;width:100%;}}
 
 /* team tiles */
-.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;}
-@media(max-width:860px){.tiles{grid-template-columns:repeat(2,1fr);}}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(176px,1fr));gap:10px;margin-bottom:16px;}
+@media(max-width:700px){.tiles{grid-template-columns:repeat(2,1fr);}}
 .tile{background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r);padding:14px 15px;position:relative;overflow:hidden;}
 .tile::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--line);}
 .tile.lead::before{background:linear-gradient(180deg,var(--accent),var(--accent-2));}
@@ -68,7 +68,7 @@ button:hover,select:hover{border-color:var(--ink-faint);}
 
 .card{background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r);overflow:hidden;}
 .scroll{overflow-x:auto;}
-table{width:100%;border-collapse:collapse;min-width:780px;}
+table{width:100%;border-collapse:collapse;min-width:980px;}
 th,td{text-align:right;padding:11px 12px;border-bottom:1px solid var(--line-soft);white-space:nowrap;}
 th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:var(--panel);}
 th{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-faint);font-weight:500;cursor:pointer;user-select:none;background:var(--panel);position:sticky;top:0;z-index:1;}
@@ -265,17 +265,37 @@ function build(){
   var H=(HIST&&HIST.HIST)||{};
   Object.keys(H).forEach(function(p){
     DATA[p]={};
-    Object.keys(H[p]).forEach(function(c){ DATA[p][c]={s:H[p][c][0], r:H[p][c][1], x:null}; });
+    Object.keys(H[p]).forEach(function(c){ DATA[p][c]={s:H[p][c][0], r:H[p][c][1], x:null, a:null, c:null}; });
+  });
+  // Assessments recorded by hand before the tracker was wired in.
+  var SEED=(HIST&&HIST.SEED)||{};
+  Object.keys(SEED).forEach(function(p){
+    DATA[p]=DATA[p]||{};
+    Object.keys(SEED[p]).forEach(function(c){
+      var v=SEED[p][c]||{}, cell=DATA[p][c]||(DATA[p][c]={s:null,r:null,x:null,a:null,c:null});
+      if(v.a!=null) cell.a=v.a;
+      if(v.c!=null) cell.c=v.c;
+    });
   });
   if(LIVE&&LIVE.periods) Object.keys(LIVE.periods).forEach(function(p){
     DATA[p]=DATA[p]||{};
     Object.keys(LIVE.periods[p]).forEach(function(c){
       var v=LIVE.periods[p][c]||{}, prev=DATA[p][c]||{};
-      DATA[p][c]={ s:(v.s!=null?v.s:prev.s), r:(v.r!=null?v.r:prev.r), x:(v.x!=null?v.x:(prev.x!=null?prev.x:null)) };
+      DATA[p][c]={ s:(v.s!=null?v.s:prev.s), r:(v.r!=null?v.r:prev.r), x:(v.x!=null?v.x:(prev.x!=null?prev.x:null)),
+                   a:(prev.a!=null?prev.a:null), c:(prev.c!=null?prev.c:null) };
+    });
+  });
+  // The tracker is the authority on assessments wherever it covers a month.
+  if(LIVE&&LIVE.assess) Object.keys(LIVE.assess).forEach(function(p){
+    DATA[p]=DATA[p]||{};
+    Object.keys(LIVE.assess[p]).forEach(function(c){
+      var v=LIVE.assess[p][c]||{}, cell=DATA[p][c]||(DATA[p][c]={s:null,r:null,x:null,a:null,c:null});
+      cell.a=v.a!=null?v.a:cell.a;
+      cell.c=v.c!=null?v.c:cell.c;
     });
   });
   PERIODS=Object.keys(DATA).filter(function(p){
-    return Object.keys(DATA[p]).some(function(c){ var d=DATA[p][c]; return d&&(d.s!=null||d.r!=null); });
+    return Object.keys(DATA[p]).some(function(c){ var d=DATA[p][c]; return d&&(d.s!=null||d.r!=null||d.a!=null); });
   }).sort();
 }
 function label(p){ var a=p.split("-"); return MONTHS[+a[1]-1]+" "+a[0]; }
@@ -325,7 +345,7 @@ function recentCoaches(){
 }
 function coachesIn(p){
   return Object.keys(DATA[p]||{}).filter(function(c){
-    var d=DATA[p][c]; return inScope(c) && d && (d.s!=null||d.r!=null);
+    var d=DATA[p][c]; return inScope(c) && d && (d.s!=null||d.r!=null||d.a!=null);
   });
 }
 function metrics(p,coach){
@@ -334,8 +354,10 @@ function metrics(p,coach){
   // Cancelled as a share of everything booked: conducted plus cancelled.
   var booked=(d.s!=null&&d.x!=null)?(d.s+d.x):null;
   var days=daysUsed(p);
-  return { s:d.s, r:d.r, x:d.x, rate:(d.r!=null&&d.s)?d.r/d.s:null, cpc:booked?d.x/booked*100:null,
-           spd:(d.s!=null&&days)?d.s/days:null };
+  return { s:d.s, r:d.r, x:d.x, a:d.a, cv:d.c,
+           rate:(d.r!=null&&d.s)?d.r/d.s:null, cpc:booked?d.x/booked*100:null,
+           spd:(d.s!=null&&days)?d.s/days:null,
+           conv:(d.a)?d.c/d.a*100:null };
 }
 // The comparison figure for one coach. "pace" scales the earlier month down to the share of
 // the month that has run, so a month-to-date column is not measured against a whole month.
@@ -343,10 +365,10 @@ function basis(p,coach){
   if(ui.compare==="none") return null;
   var list=basisPeriods(p);
   if(!list.length) return null;
-  var acc={s:[],r:[],x:[],rate:[],cpc:[],spd:[]}, any=false;
+  var acc={s:[],r:[],x:[],a:[],cv:[],rate:[],cpc:[],spd:[],conv:[]}, any=false;
   list.forEach(function(q){
     var m=metrics(q,coach); if(!m) return;
-    ["s","r","x","rate","cpc","spd"].forEach(function(k){ if(m[k]!=null) acc[k].push(m[k]); });
+    ["s","r","x","a","cv","rate","cpc","spd","conv"].forEach(function(k){ if(m[k]!=null) acc[k].push(m[k]); });
     any=true;
   });
   if(!any) return null;
@@ -356,19 +378,19 @@ function basis(p,coach){
   // of it that has run so far.
   var k=(ui.compare==="prev"||ui.compare==="yoyfull")?1:progress(p);
   var out={};
-  ["s","r","x","rate","cpc","spd"].forEach(function(key){
+  ["s","r","x","a","cv","rate","cpc","spd","conv"].forEach(function(key){
     var vals=acc[key];
     var mean=vals.length?vals.reduce(function(a,b){return a+b;},0)/vals.length:null;
     // A price per session and a cancellation rate are ratios, not running totals, so
     // neither is scaled down for a part-finished month.
     // Rate, cancellation share and sessions a day are all per-unit figures already, so none
     // of them is scaled down for a part-finished month.
-    out[key]=(mean==null)?null:((key==="rate"||key==="cpc"||key==="spd")?mean:mean*k);
+    out[key]=(mean==null)?null:((key==="rate"||key==="cpc"||key==="spd"||key==="conv")?mean:mean*k);
   });
   return out;
 }
 function teamTotals(p,useBasis){   // p is needed for the day count
-  var t={s:0,r:0,x:null,n:0}, anyX=false;
+  var t={s:0,r:0,x:null,a:null,cv:null,n:0}, anyX=false, anyA=false;
   coachesIn(p).forEach(function(c){
     var m=useBasis?basis(p,c):metrics(p,c);
     if(!m) return;
@@ -376,11 +398,14 @@ function teamTotals(p,useBasis){   // p is needed for the day count
     if(m.s!=null) t.s+=m.s;
     if(m.r!=null) t.r+=m.r;
     if(m.x!=null){ t.x=(t.x||0)+m.x; anyX=true; }
+    if(m.a!=null){ t.a=(t.a||0)+m.a; t.cv=(t.cv||0)+(m.cv||0); anyA=true; }
   });
+  if(!anyA){ t.a=null; t.cv=null; }
   t.rate=t.s?t.r/t.s:null;
   if(!anyX) t.x=null;
   t.cpc=(t.x!=null&&(t.s+t.x))?t.x/(t.s+t.x)*100:null;
   t.spd=daysUsed(p)?t.s/daysUsed(p):null;
+  t.conv=(t.a)?t.cv/t.a*100:null;
   return t;
 }
 
@@ -407,6 +432,8 @@ function renderTiles(p){
      d:cmp(now.s,was&&was.s,false)+(now.spd==null?"":'<span class="d flat">'+now.spd.toFixed(1)+" a day over "+daysUsed(p)+" days</span>")},
     {k:"Team revenue AED", v:fmtInt(now.r), d:cmp(now.r,was&&was.r,false), lead:true},
     {k:"Rate / session", v:fmtRate(now.rate), d:cmp(now.rate,was&&was.rate,false)},
+    {k:"Assessments", v:now.a==null?"—":fmtInt(now.a),
+     d:(now.conv==null?"":'<span class="d '+(was&&was.conv!=null?(now.conv>=was.conv?"up":"down"):"flat")+'">'+now.conv.toFixed(0)+"% converted</span>")},
     {k:"Cancelled", v:now.x==null?"—":fmtInt(now.x),
      d:(now.cpc==null?"":'<span class="d '+(was&&was.cpc!=null?(now.cpc<=was.cpc?"up":"down"):"flat")+'">'+now.cpc.toFixed(1)+"% of booked</span>")}
   ];
@@ -428,7 +455,7 @@ function attCell(att){
 }
 
 var COLS=[{k:"coach",t:"Coach"},{k:"sessions",t:"Sessions"},{k:"spd",t:"Sessions / day"},{k:"rate",t:"Rate / session"},
-          {k:"revenue",t:"Revenue AED"},{k:"cancelled",t:"Cancelled"},{k:"cpc",t:"Cancelled %"},{k:"attain",t:"Even share"}];
+          {k:"revenue",t:"Revenue AED"},{k:"cancelled",t:"Cancelled"},{k:"cpc",t:"Cancelled %"},{k:"assess",t:"Assessments"},{k:"conv",t:"Converted"},{k:"attain",t:"Even share"}];
 function render(){
   var p=ui.month, tbl=document.getElementById("tbl"), empty=document.getElementById("empty");
   var isNow=(p===currentPeriod()), chip=document.getElementById("chipMtd");
@@ -449,6 +476,7 @@ function render(){
   var rows=list.map(function(c){
     var m=metrics(p,c);
     return {coach:c, sessions:m.s, spd:m.spd, rate:m.rate, revenue:m.r, cancelled:m.x, cpc:m.cpc,
+            assess:m.a, conv:m.conv, cv:m.cv,
             attain:(evenShare&&m.r!=null&&inEven(c))?m.r/evenShare*100:null, b:basis(p,c)};
   });
 
@@ -476,6 +504,8 @@ function render(){
       "<td>"+fmtInt(r.revenue)+delta(r.revenue,b.r,false)+"</td>"+
       "<td>"+(r.cancelled==null?'<span class="dim">—</span>':fmtInt(r.cancelled)+delta(r.cancelled,b.x,true))+"</td>"+
       "<td>"+(r.cpc==null?'<span class="dim">—</span>':r.cpc.toFixed(1)+"%"+delta(r.cpc,b.cpc,true))+"</td>"+
+      "<td>"+(r.assess==null?'<span class="dim">—</span>':fmtInt(r.assess)+delta(r.assess,b.a,false))+"</td>"+
+      "<td>"+(r.conv==null?'<span class="dim">—</span>':r.conv.toFixed(0)+"%"+'<span class="d flat">'+fmtInt(r.cv)+" of "+fmtInt(r.assess)+"</span>")+"</td>"+
       "<td>"+bar+"</td></tr>";
   }).join("")+"</tbody>";
 
@@ -488,6 +518,8 @@ function render(){
     "<td>"+fmtInt(team.r)+tcmp(team.r,was&&was.r,false)+"</td>"+
     "<td>"+(team.x==null?'<span class="dim">—</span>':fmtInt(team.x)+tcmp(team.x,was&&was.x,true))+"</td>"+
     "<td>"+(team.cpc==null?'<span class="dim">—</span>':team.cpc.toFixed(1)+"%"+tcmp(team.cpc,was&&was.cpc,true))+"</td>"+
+    "<td>"+(team.a==null?'<span class="dim">—</span>':fmtInt(team.a)+tcmp(team.a,was&&was.a,false))+"</td>"+
+    "<td>"+(team.conv==null?'<span class="dim">—</span>':team.conv.toFixed(0)+"%"+'<span class="d flat">'+fmtInt(team.cv)+" of "+fmtInt(team.a)+"</span>")+"</td>"+
     "<td>"+evenSummary(rows)+"</td></tr></tfoot>";
 
   tbl.innerHTML=head+body+foot;
