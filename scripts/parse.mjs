@@ -157,15 +157,33 @@ export function parseCoachSheet(arr, opts) {
   const cancelledCol = findCol((h) => matchesAny(h, ["cancelledsessions", "canceledsessions", "cancelled", "cancelledsession"]));
   if (ppsCol < 0) return { error: "no per-session price column (PPS / VALUE / Rate) was found — the sheet layout may have changed." };
   const sessionsCol = ppsCol + 1;            // the session count sits right after the price
-  // The columns holding the days of the month, taken from the header row's 1..31.
-  const dayCols = [];
-  for (let c = 0; c < headers.length; c++) {
-    if (c === ppsCol || c === sessionsCol) continue;
-    const d = num(headers[c]);
-    if (d != null && Number.isInteger(d) && d >= 1 && d <= 31) dayCols.push({ c, d });
-  }
   const moneyCol = taCol >= 0 ? taCol : ppsCol + 2;   // and the money right after that
   const moneyGuessed = taCol < 0;
+
+  // The columns holding the days of the month. Usually numbered 1..31 on the header row,
+  // but some sheets put them a row above or below it, and some hold real dates rather than
+  // plain numbers. The row with the most day-like cells wins; fewer than 20 is not a
+  // calendar and is refused rather than half-used.
+  function dayCellsOn(r) {
+    const row = arr[r]; if (!row) return [];
+    const out = [];
+    for (let c = 0; c < row.length; c++) {
+      if (c === ppsCol || c === sessionsCol || c === moneyCol || c === nameCol || c === cancelledCol) continue;
+      const v = row[c];
+      let d = null;
+      if (v instanceof Date && !isNaN(v)) d = v.getDate();
+      else { const n = num(v); if (n != null && Number.isInteger(n) && n >= 1 && n <= 31) d = n; }
+      if (d != null) out.push({ c, d });
+    }
+    return out;
+  }
+  let dayCols = [], dayRowIdx = -1;
+  for (const r of [headerRowIdx, headerRowIdx - 1, headerRowIdx + 1, headerRowIdx - 2, headerRowIdx + 2]) {
+    if (r < 0 || r >= arr.length) continue;
+    const cand = dayCellsOn(r);
+    if (cand.length > dayCols.length) { dayCols = cand; dayRowIdx = r; }
+  }
+  if (dayCols.length < 20) { dayCols = []; dayRowIdx = -1; }
 
   // 2. The totals row: "Conducted Sessions", with or without "/ Day", in or near the name column.
   let conductedRow = -1;
@@ -253,7 +271,7 @@ export function parseCoachSheet(arr, opts) {
   let mtd = null;
   if (cutoff) {
     if (!dayCols.length) {
-      warnings.push("no day columns were found, so a month-to-date figure could not be worked out for this sheet");
+      warnings.push("no row of day numbers (1-31) was found, so a month-to-date figure could not be worked out");
     } else {
       const upTo = dayCols.filter((x) => x.d <= cutoff);
       let mS = 0, mR = 0, mX = 0, marks = 0, odd = 0;
@@ -299,5 +317,5 @@ export function parseCoachSheet(arr, opts) {
     }
   }
 
-  return { sessions, revenue, cancelled, rate, clients, derived, dayCols: dayCols.length, mtd, warnings };
+  return { sessions, revenue, cancelled, rate, clients, derived, dayCols: dayCols.length, dayRow: dayRowIdx, mtd, warnings };
 }
