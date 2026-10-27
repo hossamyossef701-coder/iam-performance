@@ -560,7 +560,7 @@ function render(){
     var bar=attCell(r.attain);
     return '<tr class="'+(r.coach===DIRECTOR?"me":"")+'">'+
       "<td>"+rankMark(r,rankSpan)+r.coach+
-        (r.mtdMissing?'<span class="nomtd" title="This sheet has no day-by-day counts, so these are whole-month figures including bookings ahead">\u25cf whole month</span>':"")+"</td>"+
+        (r.mtdMissing?'<span class="nomtd" title="This sheet has no day-by-day counts, so this row is the whole month, bookings ahead included">\u25cf</span>':"")+"</td>"+
       "<td>"+fmtInt(r.sessions)+delta(r.sessions,b.s,false)+"</td>"+
       "<td>"+(r.spd==null?'<span class="dim">\u2014</span>':r.spd.toFixed(1)+delta(r.spd,b.spd,false))+"</td>"+
       "<td>"+fmtRate(r.rate)+delta(r.rate,b.rate,false)+"</td>"+
@@ -630,6 +630,9 @@ function renderCoverage(){
     if(other.length) note.push('<span class="gap">'+other.join("; ")+"</span>");
     if(f.ignoredDuplicate) note.push('<span class="dim">ignored: this coach also has a file in the main folder</span>');
     if(f.empty&&f.empty.length) note.push('<span class="dim">'+f.empty.length+" month(s) still empty</span>");
+    // Warnings are not failures, but they are the reason a figure might look wrong.
+    (f.warnings||[]).slice(0,4).forEach(function(w){ note.push('<span style="color:var(--watch)">'+w+"</span>"); });
+    if((f.warnings||[]).length>4) note.push('<span class="dim">and '+((f.warnings.length)-4)+" more notes</span>");
     return "<tr><td>"+f.coach+(f.folder?' <span class="dim">('+f.folder+")</span>":"")+"</td>"+
       "<td>"+months.length+"</td><td>"+range+"</td>"+
       '<td style="white-space:normal">'+(note.join("<br>")||'<span class="dim">\u2014</span>')+"</td></tr>";

@@ -24,7 +24,7 @@ const ORDER = (env.FETCH_STRATEGIES || "od,odkey,spshares,zip,rest,browser").spl
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
-console.log("refresh build 2026-10-27c (day row found anywhere)");  // proves which version the job is running
+console.log("refresh build 2026-10-27e (layout self-tests)");  // proves which version the job is running
 
 // One typed character of difference, so "Shayla" finds "Shyla".
 function near(a, b) {
@@ -135,6 +135,12 @@ async function main() {
       entry.months.push(t.p);
     }
   }
+  // Warnings explain a figure that looks odd, so they belong in the log as well as the page.
+  report.filter((r) => r.warnings.length).forEach((r) => {
+    L.log(`Notes on ${r.coach}:`);
+    r.warnings.slice(0, 6).forEach((w) => L.log("  " + w));
+    if (r.warnings.length > 6) L.log(`  ...and ${r.warnings.length - 6} more`);
+  });
   const fromSub = report.filter((r) => r.folder && r.months.length);
   if (fromSub.length) L.log(`${fromSub.length} file(s) in subfolders contributed months: ${fromSub.map((r) => r.coach + " (" + r.months.length + ")").join(", ")}`);
   const dupes = report.filter((r) => r.ignoredDuplicate);

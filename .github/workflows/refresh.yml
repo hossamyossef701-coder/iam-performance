@@ -45,6 +45,11 @@ jobs:
         run: npx playwright install chromium
         timeout-minutes: 6
 
+      # The layout families the parser must handle, checked before anything is published.
+      # A failure here stops the run instead of writing figures nobody has verified.
+      - name: Check the parser against known layouts
+        run: node scripts/selftest.mjs
+
       - name: Pull coach sheets and encrypt
         env:
           SHARE_URL: ${{ secrets.SHARE_URL }}
