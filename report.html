@@ -879,7 +879,19 @@ unlock().then(function(){
 })();
 </script>
 <script>
-if("serviceWorker" in navigator) window.addEventListener("load",function(){ navigator.serviceWorker.register("./sw.js").catch(function(){}); });
+// Check for a newer page on every load, and never let the browser serve a cached copy of
+// the worker itself. When a new worker takes over, reload once so the page on screen is the
+// new one - otherwise a phone keeps showing the version it first installed.
+if("serviceWorker" in navigator) window.addEventListener("load",function(){
+  navigator.serviceWorker.register("./sw.js",{updateViaCache:"none"}).then(function(reg){
+    reg.update();
+    setInterval(function(){ reg.update(); }, 60*60*1000);
+  }).catch(function(){});
+  var reloading=false;
+  navigator.serviceWorker.addEventListener("controllerchange",function(){
+    if(reloading) return; reloading=true; location.reload();
+  });
+});
 </script>
 </body>
 </html>
