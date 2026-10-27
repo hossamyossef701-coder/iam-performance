@@ -57,7 +57,7 @@ export async function viaBrowser(shareUrl, L) {
         if (!j) return;
         answers++;
         const before = found.size;
-        collect(j, found, scanning ? null : folders, scanning, dupeNames);
+        collect(j, found, folders, scanning, dupeNames);
         if (found.size > before) L.log(`  listed ${found.size} spreadsheet(s)${scanning ? " (in a subfolder)" : ""}`);
       } catch {}
     });
@@ -76,26 +76,37 @@ export async function viaBrowser(shareUrl, L) {
 
     // Now the subfolders, one at a time. Navigating by the folder's own id is how the site
     // itself moves between folders; if that fails the folder is skipped rather than the run.
-    const subfolders = [...folders.entries()].slice(0, 8);
-    if (subfolders.length) L.log(`  ${subfolders.length} subfolder(s) to scan`);
-    for (const [fname, fid] of subfolders) {
-      try {
-        scanning = fname;
-        const before = found.size;
-        const u = new URL(shareUrl);
-        u.searchParams.set("id", fid);
-        await page.goto(u.toString(), { waitUntil: "domcontentloaded", timeout: 60000 });
-        try { await page.waitForLoadState("networkidle", { timeout: 25000 }); } catch {}
-        for (let i = 0; i < 10 && found.size === before; i++) {
-          await page.mouse.wheel(0, 1200).catch(() => {});
-          await page.waitForTimeout(800);
+    // Every subfolder, and the subfolders inside them, to a fixed depth. A coach's file
+    // filed two levels down ("Inactive/2022") was invisible before this.
+    const MAX_FOLDERS = Number(process.env.MAX_SUBFOLDERS || 40), MAX_DEPTH = 3;
+    const done = new Set();
+    let opened = 0;
+    for (let depth = 1; depth <= MAX_DEPTH; depth++) {
+      const queue = [...folders.entries()].filter(([n]) => !done.has(n));
+      if (!queue.length) break;
+      L.log(`  ${queue.length} subfolder(s) to scan at level ${depth}`);
+      for (const [fname, fid] of queue) {
+        done.add(fname);
+        if (++opened > MAX_FOLDERS) { L.log(`  stopping after ${MAX_FOLDERS} subfolders`); break; }
+        try {
+          scanning = fname;
+          const before = found.size;
+          const u = new URL(shareUrl);
+          u.searchParams.set("id", fid);
+          await page.goto(u.toString(), { waitUntil: "domcontentloaded", timeout: 60000 });
+          try { await page.waitForLoadState("networkidle", { timeout: 25000 }); } catch {}
+          for (let i = 0; i < 10 && found.size === before; i++) {
+            await page.mouse.wheel(0, 1200).catch(() => {});
+            await page.waitForTimeout(800);
+          }
+          L.log(`  "${fname}": ${found.size - before} new spreadsheet(s)`);
+        } catch (e) {
+          L.log(`  "${fname}" could not be opened and was skipped: ${e.message.slice(0, 60)}`);
+        } finally {
+          scanning = null;
         }
-        L.log(`  subfolder scanned: ${found.size - before} new spreadsheet(s)`);
-      } catch (e) {
-        L.log(`  a subfolder could not be opened and was skipped: ${e.message.slice(0, 60)}`);
-      } finally {
-        scanning = null;
       }
+      if (opened > MAX_FOLDERS) break;
     }
 
     if (!found.size) {

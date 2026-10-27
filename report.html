@@ -105,6 +105,12 @@ details.coaches[open] summary::before{content:"\25BE ";}
 .coach-row span.nm{flex:1;font-size:13px;}
 .coach-row label{display:flex;align-items:center;gap:5px;white-space:nowrap;font-family:var(--f-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);cursor:pointer;}
 .coach-row input{accent-color:var(--accent);}
+#coverage{min-width:520px;margin-top:10px;}
+#coverage th,#coverage td{padding:7px 10px;font-size:12px;}
+#coverage td:first-child,#coverage th:first-child{position:static;background:transparent;}
+#coverage th{position:static;background:transparent;cursor:default;}
+#coverage td{font-family:var(--f-mono);}
+.gap{color:var(--down);}
 .token-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px;}
 .token-row input{flex:1;min-width:230px;padding:8px 11px;font-size:13px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;color:var(--ink);font-family:var(--f-mono);}
 .token-row input:focus{outline:none;border-color:var(--accent);}
@@ -152,6 +158,10 @@ body.locked{overflow:hidden;}
   <div class="bar">
     <select id="selMonth"></select>
     <span class="chip" id="chipMtd" style="display:none"></span>
+    <span class="seg" id="segBasis">
+      <button data-v="mtd" class="on">To date</button>
+      <button data-v="full">Whole month</button>
+    </span>
     <span class="seg" id="segScope">
       <button data-v="all" class="on">With Hossam</button>
       <button data-v="team">Team only</button>
@@ -183,6 +193,11 @@ body.locked{overflow:hidden;}
     <div class="empty" id="empty" style="display:none">No coach has figures for this month yet.</div>
   </div>
 
+  <details class="coaches" id="coveragePanel">
+    <summary id="coverageSummary">Coverage</summary>
+    <div class="scroll"><table id="coverage"></table></div>
+  </details>
+
   <details class="coaches" id="tokenPanel">
     <summary id="tokenSummary">Refresh access</summary>
     <div class="token-row">
@@ -210,7 +225,7 @@ var PASS_KEY="iamlive:pass", CFG_KEY="iamlive:cfg", UI_KEY="iamreport:ui";
 var DIRECTOR="Hossam";
 var MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 var PASS=null, LIVE=null, HIST=null, DATA={}, PERIODS=[];
-var ui={month:null, compare:"pace", scope:"all", sort:"revenue", dir:-1};
+var ui={month:null, compare:"pace", scope:"all", basis:"mtd", sort:"revenue", dir:-1};
 // Per-coach switches. Ivan starts outside the even-share figure because his sessions are
 // counted differently; everyone else is in by default.
 var COACH_KEY="iamreport:coaches";
@@ -227,10 +242,10 @@ function setPref(c,k,v){
   savePrefs();
 }
 try{ var sv=JSON.parse(localStorage.getItem(UI_KEY)||"{}");
-  ["compare","scope","sort"].forEach(function(k){ if(sv[k]) ui[k]=sv[k]; });
+  ["compare","scope","basis","sort"].forEach(function(k){ if(sv[k]) ui[k]=sv[k]; });
   if(sv.dir) ui.dir=sv.dir;
 }catch(e){}
-function saveUi(){ try{ localStorage.setItem(UI_KEY,JSON.stringify({compare:ui.compare,scope:ui.scope,sort:ui.sort,dir:ui.dir})); }catch(e){} }
+function saveUi(){ try{ localStorage.setItem(UI_KEY,JSON.stringify({compare:ui.compare,scope:ui.scope,basis:ui.basis,sort:ui.sort,dir:ui.dir})); }catch(e){} }
 function cfg(){ try{ return JSON.parse(localStorage.getItem(CFG_KEY)||"{}"); }catch(e){ return {}; } }
 function setStat(id,t,c){ var e=document.getElementById(id); if(e){ e.className="status "+(c||""); e.textContent=t; } }
 
@@ -285,7 +300,9 @@ function build(){
     Object.keys(LIVE.periods[p]).forEach(function(c){
       var v=LIVE.periods[p][c]||{}, prev=DATA[p][c]||{};
       DATA[p][c]={ s:(v.s!=null?v.s:prev.s), r:(v.r!=null?v.r:prev.r), x:(v.x!=null?v.x:(prev.x!=null?prev.x:null)),
-                   a:(prev.a!=null?prev.a:null), c:(prev.c!=null?prev.c:null) };
+                   a:(prev.a!=null?prev.a:null), c:(prev.c!=null?prev.c:null),
+                   // The same month counted only to the day the job last ran.
+                   ms:(v.ms!=null?v.ms:null), mr:(v.mr!=null?v.mr:null), mx:(v.mx!=null?v.mx:null), md:(v.md!=null?v.md:null) };
     });
   });
   // The tracker is the authority on assessments wherever it covers a month.
@@ -308,8 +325,13 @@ function currentPeriod(){
 function monthDays(p){ var a=p.split("-"); return new Date(+a[0],+a[1],0).getDate(); }
 function dayOfMonth(){ return +new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Dubai",day:"numeric"}).format(new Date()); }
 // Only a month still running is part-complete; a finished month counts whole.
-function daysUsed(p){ return p===currentPeriod()? dayOfMonth() : monthDays(p); }
-function progress(p){ return p===currentPeriod()? Math.max(0.03,Math.min(1,dayOfMonth()/monthDays(p))) : 1; }
+function daysUsed(p){
+  if(p!==currentPeriod()) return monthDays(p);
+  // Counting the whole month as entered means the daily rate is over the whole month.
+  if(ui.basis!=="mtd") return monthDays(p);
+  return cutoffDay(p) || dayOfMonth();
+}
+function progress(p){ return p===currentPeriod()? Math.max(0.03,Math.min(1,daysUsed(p)/monthDays(p))) : 1; }
 function prevPeriods(p,n){ var i=PERIODS.indexOf(p); return i<0?[]:PERIODS.slice(Math.max(0,i-n),i); }
 // Every month on record from an anchor up to, but not including, the month being viewed.
 function periodsSince(anchor,p){
@@ -351,9 +373,21 @@ function coachesIn(p){
     var d=DATA[p][c]; return inScope(c) && d && (d.s!=null||d.r!=null||d.a!=null);
   });
 }
+// Sessions are booked ahead, so for the month still running the sheet's own totals count
+// days that have not happened. "To date" uses the figures counted up to the cutoff day;
+// "Whole month" uses the totals as entered, which is the projection.
+function toDate(p){ return ui.basis==="mtd" && p===currentPeriod(); }
+function cutoffDay(p){
+  if(!toDate(p)) return null;
+  var days=null;
+  Object.keys(DATA[p]||{}).forEach(function(c){ var d=DATA[p][c]; if(d&&d.md!=null) days=d.md; });
+  return days;
+}
 function metrics(p,coach){
-  var d=(DATA[p]||{})[coach];
-  if(!d) return null;
+  var raw=(DATA[p]||{})[coach];
+  if(!raw) return null;
+  var d=raw;
+  if(toDate(p)&&raw.ms!=null) d={ s:raw.ms, r:raw.mr, x:raw.mx, a:raw.a, c:raw.c };
   // Cancelled as a share of everything booked: conducted plus cancelled.
   var booked=(d.s!=null&&d.x!=null)?(d.s+d.x):null;
   var days=daysUsed(p);
@@ -375,8 +409,10 @@ function basis(p,coach){
   // the same point IN ITS OWN LENGTH - day 23 of a 30-day month is 23/30 of it, not 23/31.
   // Using the current month's length here is what made the sessions and sessions-a-day
   // comparisons disagree by the difference between the two months.
-  var partial=(p===currentPeriod()) && ui.compare!=="prev" && ui.compare!=="yoyfull";
-  var day=dayOfMonth(), any=false;
+  // Only a part-month is measured against part of an earlier one. Reading the whole month
+  // as entered is a projection, so it is weighed against whole months.
+  var partial=toDate(p) && ui.compare!=="prev" && ui.compare!=="yoyfull";
+  var day=daysUsed(p), any=false;
   list.forEach(function(q){
     var m=metrics(q,coach); if(!m) return;
     var f=partial?Math.min(1,day/monthDays(q)):1;
@@ -471,7 +507,9 @@ function render(){
   var p=ui.month, tbl=document.getElementById("tbl"), empty=document.getElementById("empty");
   var isNow=(p===currentPeriod()), chip=document.getElementById("chipMtd");
   chip.style.display=isNow?"":"none";
-  if(isNow) chip.textContent="Day "+dayOfMonth()+" of "+monthDays(p);
+  if(isNow) chip.textContent=(ui.basis==="mtd")
+    ? ("Day "+(cutoffDay(p)||dayOfMonth())+" of "+monthDays(p))
+    : ("Whole month \u00b7 includes bookings ahead");
 
   var list=coachesIn(p);
   if(!list.length){ tbl.innerHTML=""; empty.style.display=""; renderTiles(p); return; }
@@ -558,6 +596,44 @@ function evenSummary(rows){
   var at=withRev.filter(function(r){ return r.attain>=99.5; }).length;
   return Math.round(at/withRev.length*100)+'%<span class="even-note">'+at+" of "+withRev.length+" at or above even</span>";
 }
+// Which months each file actually produced, and which it could not. A month that failed to
+// parse is otherwise indistinguishable from a month that never happened, which is the one
+// way this dashboard could mislead without anyone noticing.
+function renderCoverage(){
+  var tbl=document.getElementById("coverage"), sum=document.getElementById("coverageSummary");
+  var files=(LIVE&&LIVE.files)||[];
+  if(!files.length){ tbl.innerHTML=""; sum.textContent="Coverage"; return; }
+  var totalGaps=0;
+  var rows=files.slice().sort(function(a,b){ return a.coach.localeCompare(b.coach); }).map(function(f){
+    var months=(f.months||[]).slice().sort();
+    var failed=(f.errors||[]).map(function(e){ var m=e.match(/^(\d{4}-\d{2})/); return m?m[1]:null; }).filter(Boolean);
+    var other=(f.errors||[]).filter(function(e){ return !/^\d{4}-\d{2}/.test(e); });
+    totalGaps+=failed.length;
+    var range=months.length?(months[0]+(months.length>1?" \u2192 "+months[months.length-1]:"")):"\u2014";
+    var note=[];
+    if(failed.length) note.push('<span class="gap">'+failed.length+" could not be read: "+failed.join(", ")+"</span>");
+    if(other.length) note.push('<span class="gap">'+other.join("; ")+"</span>");
+    if(f.ignoredDuplicate) note.push('<span class="dim">ignored: this coach also has a file in the main folder</span>');
+    if(f.empty&&f.empty.length) note.push('<span class="dim">'+f.empty.length+" month(s) still empty</span>");
+    return "<tr><td>"+f.coach+(f.folder?' <span class="dim">('+f.folder+")</span>":"")+"</td>"+
+      "<td>"+months.length+"</td><td>"+range+"</td>"+
+      '<td style="white-space:normal">'+(note.join("<br>")||'<span class="dim">\u2014</span>')+"</td></tr>";
+  }).join("");
+  // Files the job did not even try: a renamed coach file lands here rather than vanishing.
+  var skipped=(LIVE&&LIVE.skipped)||[];
+  var skipRows=skipped.map(function(f){
+    return '<tr><td><span class="dim">'+f.name+(f.folder?" ("+f.folder+")":"")+"</span></td>"+
+      '<td>0</td><td>\u2014</td><td style="white-space:normal"><span class="gap">not read \u2014 the file name does not look like a coach performance sheet</span></td></tr>';
+  }).join("");
+  tbl.innerHTML="<thead><tr><th>Coach</th><th>Months</th><th>Range</th><th>Notes</th></tr></thead><tbody>"+rows+skipRows+"</tbody>";
+  var a=LIVE&&LIVE.assessReport;
+  var bits=[files.length+" files"];
+  if(skipped.length) bits.push(skipped.length+" file(s) not read");
+  if(totalGaps) bits.push(totalGaps+" month(s) unread");
+  if(a&&a.error) bits.push("tracker failed");
+  else if(a&&a.counted!=null) bits.push(a.counted+" assessments");
+  sum.textContent="Coverage \u00b7 "+bits.join(" \u00b7 ");
+}
 function renderCoachPanel(){
   var grid=document.getElementById("coachGrid");
   var list=recentCoaches();
@@ -606,6 +682,11 @@ function paint(){
   Array.prototype.forEach.call(document.querySelectorAll("#segScope button"),function(b){
     b.classList.toggle("on",b.getAttribute("data-v")===ui.scope);
   });
+  Array.prototype.forEach.call(document.querySelectorAll("#segBasis button"),function(b){
+    b.classList.toggle("on",b.getAttribute("data-v")===ui.basis);
+  });
+  // The choice only bites on the month still running.
+  document.getElementById("segBasis").style.opacity=(ui.month===currentPeriod())?"1":".45";
   // A file counts as unread only when it yielded no month at all. A coach whose current
   // months are fine but whose oldest tabs use a layout the parser will not guess at is not
   // a problem to flag on a page someone else reads.
@@ -613,7 +694,17 @@ function paint(){
     return f.errors&&f.errors.length&&!(f.months&&f.months.length);
   }):[];
   renderCoachPanel();
-  document.getElementById("note").textContent=bad.length?(bad.length+" sheet(s) could not be read: "+bad.map(function(f){return f.coach;}).join(", ")):"";
+  renderCoverage();
+  var gaps=0;
+  ((LIVE&&LIVE.files)||[]).forEach(function(f){
+    gaps+=((f.errors||[]).filter(function(e){ return /^\d{4}-\d{2}/.test(e); })).length;
+  });
+  var msg=[];
+  if(bad.length) msg.push(bad.length+" sheet(s) could not be read: "+bad.map(function(f){return f.coach;}).join(", "));
+  if(gaps) msg.push(gaps+" month(s) could not be read \u2014 see Coverage");
+  var skippedCount=((LIVE&&LIVE.skipped)||[]).length;
+  if(skippedCount) msg.push(skippedCount+" file(s) skipped on their name \u2014 see Coverage");
+  document.getElementById("note").textContent=msg.join(" \u00b7 ");
   render();
 }
 
@@ -753,6 +844,13 @@ unlock().then(function(){
       ui.scope=b.getAttribute("data-v"); saveUi();
       Array.prototype.forEach.call(document.querySelectorAll("#segScope button"),function(o){ o.classList.toggle("on",o===b); });
       render();
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("#segBasis button"),function(b){
+    b.addEventListener("click",function(){
+      ui.basis=b.getAttribute("data-v"); saveUi();
+      Array.prototype.forEach.call(document.querySelectorAll("#segBasis button"),function(o){ o.classList.toggle("on",o===b); });
+      paint();
     });
   });
   document.getElementById("btnReload").addEventListener("click",reload);

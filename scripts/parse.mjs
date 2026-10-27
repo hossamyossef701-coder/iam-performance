@@ -123,7 +123,10 @@ function within1(a, b) {
 }
 const matchesAny = (text, options) => { const t = squash(text); return !!t && options.some((o) => within1(t, o)); };
 
-export function parseCoachSheet(arr) {
+// Coaches book sessions ahead, so the sheet's own monthly totals include days that have not
+// happened yet. For the month still running, the figures are rebuilt by counting only the
+// day columns up to and including today. opts.cutoffDay says which day that is.
+export function parseCoachSheet(arr, opts) {
   // 1. The header row is the one carrying the client-name column; its position and spelling
   //    both vary, so search the opening rows across the opening columns.
   const NAME_KEYS = NAME_HEADERS.map(squash);
@@ -151,6 +154,13 @@ export function parseCoachSheet(arr) {
   const cancelledCol = findCol((h) => matchesAny(h, ["cancelledsessions", "canceledsessions", "cancelled", "cancelledsession"]));
   if (ppsCol < 0) return { error: "no per-session price column (PPS / VALUE / Rate) was found — the sheet layout may have changed." };
   const sessionsCol = ppsCol + 1;            // the session count sits right after the price
+  // The columns holding the days of the month, taken from the header row's 1..31.
+  const dayCols = [];
+  for (let c = 0; c < headers.length; c++) {
+    if (c === ppsCol || c === sessionsCol) continue;
+    const d = num(headers[c]);
+    if (d != null && Number.isInteger(d) && d >= 1 && d <= 31) dayCols.push({ c, d });
+  }
   const moneyCol = taCol >= 0 ? taCol : ppsCol + 2;   // and the money right after that
   const moneyGuessed = taCol < 0;
 
@@ -235,5 +245,56 @@ export function parseCoachSheet(arr) {
   if (sheetCancelled != null && cancelled != null && Math.abs(sheetCancelled - cancelled) > 0.5)
     warnings.push(`cancelled: client rows add to ${cancelled}, the sheet's own total row says ${sheetCancelled}`);
 
-  return { sessions, revenue, cancelled, rate, clients, derived, warnings };
+  // Month to date, counted from the day columns rather than taken from the totals.
+  const cutoff = opts && opts.cutoffDay ? Number(opts.cutoffDay) : null;
+  let mtd = null;
+  if (cutoff) {
+    if (!dayCols.length) {
+      warnings.push("no day columns were found, so a month-to-date figure could not be worked out for this sheet");
+    } else {
+      const upTo = dayCols.filter((x) => x.d <= cutoff);
+      let mS = 0, mR = 0, mX = 0, marks = 0, odd = 0;
+      for (let r = headerRowIdx + 1; r < clientEnd; r++) {
+        const row = arr[r]; if (!row) continue;
+        const nm = norm(row[nameCol]);
+        if (GROUP_ROW.test(nm)) break;
+        if (!nm || NOT_A_CLIENT.test(nm)) continue;
+        const price = num(row[ppsCol]);
+        for (const { c } of upTo) {
+          const v = num(row[c]);
+          if (v == null) continue;             // an empty day is simply no session
+          marks++;
+          // Matching the sheet's own rule: a 1 is a session held, an exact 0 is a session
+          // cancelled. Anything else in a day cell is left out of both counts.
+          if (v >= 1) { mS += v; if (price != null) mR += v * price; }
+          else if (v === 0) mX += 1;
+          else odd++;
+        }
+      }
+      // The sheet's own per-day tally, where it has one, is the check on the count above.
+      let tallied = null;
+      if (conductedRow >= 0) {
+        tallied = 0;
+        for (const { c } of upTo) { const v = num(arr[conductedRow][c]); if (v != null) tallied += v; }
+      }
+      // The client rows are the basis: they are the same cells the revenue and the
+      // cancellations come from, so the three always agree with each other. Where the
+      // sheet's own day row disagrees, that is reported rather than silently preferred.
+      if (tallied != null && Math.abs(tallied - mS) > 0.5) {
+        warnings.push(`month to date: the client rows add to ${mS} sessions, the sheet's day row to ${tallied}`);
+      }
+      mtd = {
+        day: cutoff,
+        sessions: mS,
+        dayRow: tallied,
+        revenue: Math.round(mR * 100) / 100,
+        cancelled: mX,
+        marks,
+      };
+      if (!marks) warnings.push("month to date: no day cells were filled in up to today");
+      if (odd) warnings.push(`month to date: ${odd} day cell(s) held something other than 0 or 1 and were not counted`);
+    }
+  }
+
+  return { sessions, revenue, cancelled, rate, clients, derived, dayCols: dayCols.length, mtd, warnings };
 }

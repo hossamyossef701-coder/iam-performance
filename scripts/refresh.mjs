@@ -24,7 +24,7 @@ const ORDER = (env.FETCH_STRATEGIES || "od,odkey,spshares,zip,rest,browser").spl
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
-console.log("refresh build 2026-10-23b (tracker secret wired)");  // proves which version the job is running
+console.log("refresh build 2026-10-27a (month to date excludes future bookings)");  // proves which version the job is running
 
 // One typed character of difference, so "Shayla" finds "Shyla".
 function near(a, b) {
@@ -37,6 +37,10 @@ function near(a, b) {
     if (a.length > b.length) i++; else if (a.length < b.length) j++; else { i++; j++; }
   }
   return slips + (a.length - i) + (b.length - j) <= 1;
+}
+// Today's date in Dubai: the cutoff for the month still running.
+function dubaiDay() {
+  return Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dubai", day: "numeric" }).format(new Date()));
 }
 function dubaiPeriod() {
   const p = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dubai", year: "numeric", month: "2-digit" }).format(new Date());
@@ -61,7 +65,8 @@ async function main() {
   // 2. Fetch + parse.
   const { strategy, files } = await fetchWorkbooks(SHARE_URL, ORDER, L);
   const now = dubaiPeriod();
-  let probesLeft = Number(env.PROBE_LIMIT || 20);   // describes the first few unreadable sheets
+  const today = dubaiDay();
+  let probesLeft = Number(env.PROBE_LIMIT || 24);   // describes the first few unreadable sheets
   const recentFrom = (function () {              // two months back, for probe reporting only
     const [y, m] = now.split("-").map(Number);
     const d = new Date(Date.UTC(y, m - 3, 1));
@@ -72,7 +77,12 @@ async function main() {
   // finance files and so on) is listed as skipped rather than reported as broken.
   const COACH_FILE = new RegExp(env.COACH_FILE_PATTERN || "performance sheet", "i");
   const skipped = files.filter((f) => !COACH_FILE.test(f.name));
-  if (skipped.length) L.log(`Skipped ${skipped.length} file(s) that are not coach performance sheets.`);
+  // Named, not just counted: a coach's file renamed out of the pattern would otherwise
+  // drop them from the dashboard with nothing to show for it.
+  if (skipped.length) {
+    L.log(`Skipped ${skipped.length} file(s) whose name does not contain "${COACH_FILE.source}":`);
+    skipped.forEach((f) => L.log(`  - ${f.name}${f.folder ? " (in " + f.folder + ")" : ""}`));
+  }
   // Files in the main folder are read first, so that where the same coach also has a file in
   // a subfolder ("Inactive"), the main one wins for any month they both hold. The subfolder
   // copy still fills in months the main file does not cover.
@@ -97,13 +107,15 @@ async function main() {
     if (!targets.length) entry.errors.push(`no month sheet from ${LIVE_FROM} onward`);
     for (const t of targets) {
       const arr = XLSX.utils.sheet_to_json(wb.Sheets[t.n], { header: 1, raw: true, defval: null });
-      const r = parseCoachSheet(arr);
+      // For the month still running, also count only the days that have happened, because
+      // sessions are booked ahead and the sheet's totals include them.
+      const r = parseCoachSheet(arr, t.p === now ? { cutoffDay: today } : null);
       if (r.error) {
         entry.errors.push(`${t.p}: ${r.error}`);
         // Describe the layout so it can be taught to the parser. Column headers and rows
         // labelled like totals only - a client row can never appear here.
         // Only recent months are described; an old tab that will never be revisited is noise.
-        if (probesLeft > 0 && t.p >= recentFrom) {
+        if (probesLeft > 0) {
           probesLeft--;
           const pr = probeSheet(arr);
           L.log(`  layout of ${coach} / ${t.n} (${pr.rows} rows):`);
@@ -118,6 +130,8 @@ async function main() {
       const bucket = (periods[t.p] = periods[t.p] || {});
       if (bucket[coach]) { entry.superseded.push(t.p); continue; }   // already taken from the main folder
       bucket[coach] = { s: r.sessions, r: r.revenue, x: r.cancelled };
+      // ms/mr/mx: the same month counted only to day md. Present for the current month only.
+      if (r.mtd) { bucket[coach].ms = r.mtd.sessions; bucket[coach].mr = r.mtd.revenue; bucket[coach].mx = r.mtd.cancelled; bucket[coach].md = r.mtd.day; }
       entry.months.push(t.p);
     }
   }
@@ -186,7 +200,7 @@ async function main() {
 
   // 4. Skip the write when nothing changed and the last write is recent (avoids commit noise).
   const livePath = path.join(OUT, "live.enc.json");
-  const digest = crypto.createHash("sha256").update(JSON.stringify({ periods, report, assess })).digest("hex");
+  const digest = crypto.createHash("sha256").update(JSON.stringify({ periods, report, assess, skipped: skipped.map((f) => f.name) })).digest("hex");
   if (fs.existsSync(livePath)) {
     try {
       const prev = await decryptJSON(JSON.parse(fs.readFileSync(livePath, "utf8")), PASS);
@@ -194,7 +208,9 @@ async function main() {
       if (prev.digest === digest && ageH < MIN_AGE_H) { L.log(`No change (last write ${ageH.toFixed(1)}h ago) - live.enc.json left as is.`); return; }
     } catch { L.log("Previous live.enc.json could not be read (new passphrase?) - rewriting."); }
   }
-  const live = { v: 1, generated: new Date().toISOString(), digest, strategy, liveFrom: LIVE_FROM, periods, files: report, assess, assessReport };
+  const live = { v: 1, generated: new Date().toISOString(), digest, strategy, liveFrom: LIVE_FROM, cutoffDay: today, cutoffPeriod: now,
+                 periods, files: report, assess, assessReport,
+                 skipped: skipped.map((f) => ({ name: f.name, folder: f.folder || null })) };
   fs.writeFileSync(livePath, JSON.stringify(await encryptJSON(live, PASS)));
   L.log("live.enc.json written");
 }
