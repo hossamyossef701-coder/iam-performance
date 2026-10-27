@@ -146,7 +146,10 @@ export function parseCoachSheet(arr, opts) {
     return -1;
   };
   // The per-session price column is "PPS" in most files and "VALUE" in at least one.
-  const ppsCol = findCol((h) => matchesAny(h, ["pps", "value", "rate", "price", "ppc", "sessionvalue"]));
+  // "PPS", "VALUE", "Price PS", "Price per session", "Rate" - the older sheets word it
+  // differently again, so anything beginning with price/pps/rate is taken as the price.
+  const ppsCol = findCol((h) => matchesAny(h, ["pps", "value", "rate", "price", "ppc", "sessionvalue"])
+    || /^(price|pps|rate)/.test(squash(h)));
   // The money column is "TA" in most files; in some it carries no header at all, in which
   // case it sits two columns right of the price (price, session count, money).
   const taCol = findCol((h) => matchesAny(h, ["ta", "totalamount", "amount", "revenue", "total"]));

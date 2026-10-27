@@ -50,6 +50,7 @@ button:hover,select:hover{border-color:var(--ink-faint);}
 .seg button{border:none;border-radius:0;background:transparent;padding:8px 13px;color:var(--ink-soft);}
 .seg button+button{border-left:1px solid var(--line);}
 .seg button.on{background:var(--accent);color:#120800;font-weight:600;}
+.chip-line{margin:-6px 0 12px;min-height:24px;}
 .chip{font-family:var(--f-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);border:1px solid rgba(239,105,29,.4);border-radius:999px;padding:5px 10px;white-space:nowrap;}
 .note{font-family:var(--f-mono);font-size:11px;color:var(--ink-faint);margin-left:auto;}
 @media(max-width:700px){.note{margin-left:0;width:100%;}}
@@ -157,7 +158,6 @@ body.locked{overflow:hidden;}
 
   <div class="bar">
     <select id="selMonth"></select>
-    <span class="chip" id="chipMtd" style="display:none"></span>
     <span class="seg" id="segBasis">
       <button data-v="mtd" class="on">To date</button>
       <button data-v="full">Whole month</button>
@@ -183,6 +183,7 @@ body.locked{overflow:hidden;}
     <span class="note" id="note"></span>
   </div>
 
+  <p class="chip-line"><span class="chip" id="chipMtd" style="display:none"></span></p>
   <p class="status" id="status"></p>
 
 
