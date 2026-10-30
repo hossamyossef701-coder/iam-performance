@@ -94,7 +94,10 @@ export function probeSheet(arr) {
 }
 
 const NAME_HEADERS = ["client name", "clients", "client", "client names", "name", "names", "customer", "customers"];
-const NOT_A_CLIENT = /(conduct|cancell?ed|^total|sessions? ?\/ ?day|first session|last session|charged session|penultimate|rewarding|brought forward|assessment|^cover$|^notes?$|^legend$|salary|basic|petrol|salik)/;
+// "rewarding" was too narrow: the sheets say "Rewarded Session", which slipped through and let
+// the salary block's TOT be read as a client. The salary labels are listed too, in case one of
+// them ever lands in the name column rather than beside it.
+const NOT_A_CLIENT = /(conduct|cancell?ed|^total|sessions? ?\/ ?day|first session|last session|charged session|penultimate|reward|brought forward|assessment|^cover$|^notes?$|^legend$|salary|basic|petrol|salik|commission|bonus|deduct|^ded\b|^extra$|^tot$|^min$|^fin$|^bs$|^cm$|^bn$)/;
 const GROUP_ROW = /^group\s*(training|class|classes|session|sessions)/;
 
 // Spelling drifts: a stray space, a plural, a typo. Labels are compared with the spaces and
@@ -195,9 +198,43 @@ export function parseCoachSheet(arr, opts) {
     }
     if (conductedRow >= 0) break;
   }
+  // Some months the label is simply missing - the row is there, filled with per-day counts,
+  // but nobody typed "Conducted Sessions / Day" beside it. Recognise it by its shape instead:
+  // no client name, and most of the day grid filled with numbers. Without this the client
+  // block has no end and the parser walks on into the legend and the salary block below.
+  if (conductedRow < 0 && dayCols.length) {
+    for (let r = headerRowIdx + 1; r < arr.length; r++) {
+      const row = arr[r]; if (!row) continue;
+      if (norm(row[nameCol])) continue;
+      let filled = 0;
+      for (const { c } of dayCols) if (num(row[c]) != null) filled++;
+      if (filled >= Math.ceil(dayCols.length * 0.5)) { conductedRow = r; break; }
+    }
+  }
   // Some sheets carry no totals row at all - every August file, and a few coaches in every
   // month. There the client rows ARE the total, so they are added up rather than failing.
   const clientEnd = conductedRow >= 0 ? conductedRow : arr.length;
+
+  // A client leaves a mark in the day grid. A legend line, a salary line and any stray total
+  // below the clients never do. That one rule is what keeps money from the block beneath the
+  // table out of the revenue, even when the totals row is missing and the block has no end,
+  // and it holds whatever those rows happen to be called.
+  const isClientRow = (row) => {
+    const nm = norm(row[nameCol]);
+    if (!nm || GROUP_ROW.test(nm) || NOT_A_CLIENT.test(nm)) return false;
+    // The salary block labels (BS, CM, TOT, EXTRA) sit in the price column. Text there means
+    // this row is part of that block, not a client with a rate.
+    const priceCell = norm(row[ppsCol]);
+    if (priceCell && num(row[ppsCol]) == null) return false;
+    // A figure in the money column with nothing behind it - no session count, and not one mark
+    // in the day grid all month - is a total, not a client. The older, simpler sheets record a
+    // session count without filling the day grid, so that count alone is enough to be a client.
+    if (num(row[moneyCol]) != null && num(row[sessionsCol]) == null) {
+      for (const { c } of dayCols) if (norm(row[c]) !== "") return true;
+      return false;
+    }
+    return true;
+  };
 
   // 3. Cancelled sessions. The sheets disagree about where the total goes - an unnamed row
   //    in one file, the Group Training row in another, and in some files no total at all -
@@ -214,18 +251,21 @@ export function parseCoachSheet(arr, opts) {
   // 4. Add up the individual client rows: the cross-check when the sheet has its own total,
   //    and the figure itself when it has not. Group training is counted separately by the
   //    sheet, so it ends the client block.
-  let sumS = 0, sumR = 0, sumC = 0, clients = 0;
+  let sumS = 0, sumR = 0, sumC = 0, sumPS = 0, maxPrice = 0, clients = 0;
   for (let r = headerRowIdx + 1; r < clientEnd; r++) {
     const row = arr[r]; if (!row) continue;
     const nm = norm(row[nameCol]);
     if (GROUP_ROW.test(nm)) break;
     if (!nm) continue;                       // a blank line inside the client block is not the end of it
-    // A summary or legend line is not a client. Without this guard a totals row whose label
-    // the parser did not recognise would be added on top of the clients it already totals.
-    if (NOT_A_CLIENT.test(nm)) continue;
+    // A summary, legend or salary line is not a client. Without this guard a total whose label
+    // the parser did not recognise is added on top of the clients it already totals.
+    if (!isClientRow(row)) continue;
     clients++;
     const s = num(row[sessionsCol]); if (s != null) sumS += s;
     const rv = num(row[moneyCol]); if (rv != null) sumR += rv;
+    const p = num(row[ppsCol]);
+    if (p != null && s != null) sumPS += p * s;
+    if (p != null && p > maxPrice) maxPrice = p;
     const cc = cancelledCol >= 0 ? num(row[cancelledCol]) : null; if (cc != null) sumC += cc;
   }
 
@@ -238,7 +278,7 @@ export function parseCoachSheet(arr, opts) {
       const row = arr[r]; if (!row) continue;
       const nm = norm(row[nameCol]);
       if (GROUP_ROW.test(nm)) break;
-      if (!nm || NOT_A_CLIENT.test(nm)) continue;
+      if (!isClientRow(row)) continue;
       const price = num(row[ppsCol]), sess = num(row[sessionsCol]), money = num(row[moneyCol]);
       if (price == null || !sess || money == null) continue;
       checked++;
@@ -261,7 +301,17 @@ export function parseCoachSheet(arr, opts) {
   const warnings = [];
   if (!derived && sessions != null && Math.abs(sumS - sessions) > 0.5) warnings.push(`sessions: sheet total ${sessions}, client rows add to ${sumS}`);
   if (!derived && revenue != null && Math.abs(sumR - revenue) > 5) warnings.push(`revenue: sheet total ${revenue}, client rows add to ${Math.round(sumR)}`);
-  // A rate far outside anything the business charges means a column was misread.
+  // Revenue, reached two independent ways: the money column, and price x sessions off the same
+  // rows. They can only disagree if the money column picked up a figure that is not a client's.
+  // This is the check that would have caught the salary block being read as a client.
+  if (sumPS > 0 && Math.abs(sumR - sumPS) > Math.max(50, sumPS * 0.02)) {
+    warnings.push(`revenue does not reconcile: the money column adds to ${Math.round(sumR)}, price x sessions to ${Math.round(sumPS)} — a non-client row may have been counted`);
+  }
+  // A rate above anything this sheet actually charges means a column was misread. Measured
+  // against the sheet's own highest price rather than a fixed band, which was too wide to fire.
+  if (rate != null && maxPrice > 0 && rate > maxPrice * 1.25) {
+    warnings.push(`rate per session works out at ${Math.round(rate)}, above the highest price on the sheet (${Math.round(maxPrice)}) — check this sheet's columns`);
+  }
   if (rate != null && (rate < 20 || rate > 5000)) warnings.push(`rate per session works out at ${Math.round(rate)} — check this sheet's columns`);
   if (sheetCancelled != null && cancelled != null && Math.abs(sheetCancelled - cancelled) > 0.5)
     warnings.push(`cancelled: client rows add to ${cancelled}, the sheet's own total row says ${sheetCancelled}`);
@@ -279,7 +329,7 @@ export function parseCoachSheet(arr, opts) {
         const row = arr[r]; if (!row) continue;
         const nm = norm(row[nameCol]);
         if (GROUP_ROW.test(nm)) break;
-        if (!nm || NOT_A_CLIENT.test(nm)) continue;
+        if (!isClientRow(row)) continue;
         const price = num(row[ppsCol]);
         for (const { c } of upTo) {
           const v = num(row[c]);

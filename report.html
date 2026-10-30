@@ -778,8 +778,11 @@ function refreshNow(){
   .then(function(){
     return new Promise(function(res,rej){
       (function poll(){
-        if(++tries>60) return rej(new Error("the read is taking longer than five minutes — try Reload shortly"));
-        setStat("status","Reading the coach sheets… ("+(tries*5)+"s)","");
+        // A cold run installs the browser before it opens the folder, which alone takes about
+        // six minutes, so five was never long enough. This waits 15 and says where to look.
+        if(++tries>180) return rej(new Error("still running after 15 minutes — open the Actions tab to see where it has got to"));
+        var secs=tries*5;
+        setStat("status","Reading the coach sheets… ("+(secs<90?secs+"s":Math.floor(secs/60)+"m "+(secs%60)+"s")+")","");
         getJson("https://api.github.com/repos/"+GH_OWNER+"/"+GH_REPO+"/actions/workflows/"+GH_WORKFLOW+"/runs?per_page=1&created=%3E"+encodeURIComponent(t0),ghHeaders(c.pat))
           .then(function(j){
             var run=(j.workflow_runs||[])[0];

@@ -121,6 +121,24 @@ const totals = (r) => (r.error ? { error: r.error } : { s: r.sessions, r: Math.r
   check("no calendar leaves no to-date figure", { mtd: r.mtd, warned: r.warnings.some((w) => /day numbers/.test(w)) }, { mtd: null, warned: true });
 }
 
+/* 9b. The totals row carries no label, and a salary block sits below the clients. This is the
+   April 2026 shape: the client block has no end, so the parser used to walk on into the block
+   beneath and read its TOT as a thirteenth client - revenue 63,402 against the sheet's 37,839.
+   The rows below the clients must contribute nothing. */
+{
+  const sheet = [
+    row([[0, "Committment %"], [1, "Clients"], ...days(2, 30), [34, "PPS"], [36, "TA"]]),
+    row([[1, "Ann"], [34, 300], [35, 4], [36, 1200], ...marks(2, [1, 3, 5, 7])]),
+    row([[1, "Ben"], [34, 250], [35, 2], [36, 500], ...marks(2, [2, 4])]),
+    row([[0, 0.846], ...days(2, 30).map(([i]) => [i, 1]), [35, 6], [36, 1700]]),  // totals row, no label
+    row([[1, "First Session"], [34, "BS"], [36, 12000]]),
+    row([[1, "Cover"], [34, "CM"], [36, 13244]]),
+    row([[1, "Rewarded Session"], [34, "TOT"], [36, 25563]]),    // the row that used to slip in
+  ];
+  check("salary block below the clients is not revenue",
+        totals(parseCoachSheet(sheet)), { s: 6, r: 1700, x: null });
+}
+
 /* 10. Month tab names. */
 check("sheet names", ["Oct 2026", "Sept 2026", "October 2026", " October 2022", "Assessment Report - 2026"].map(sheetNameToPeriod),
   ["2026-10", "2026-09", "2026-10", "2022-10", null]);

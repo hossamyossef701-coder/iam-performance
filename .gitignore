@@ -5,3 +5,14 @@ node_modules/
 # Your own setup notes - no need to publish them.
 SETUP.md
 .DS_Store
+
+# Local test harness and working files. The repo is public and these hold
+# real coach names and figures in the clear.
+t/
+extracted-names.json
+transform.py
+gate.html
+gate.css
+live.html
+live.js
+*.pem
