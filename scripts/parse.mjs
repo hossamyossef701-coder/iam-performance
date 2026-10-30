@@ -294,13 +294,25 @@ export function parseCoachSheet(arr, opts) {
 
   const cancelled = (cancelledCol >= 0) ? sumC : null;
   const derived = conductedRow < 0;
-  const sessions = derived ? sumS : num(arr[conductedRow][sessionsCol]);
-  const revenue = derived ? Math.round(sumR * 100) / 100 : num(arr[conductedRow][moneyCol]);
+  let sessions = derived ? sumS : num(arr[conductedRow][sessionsCol]);
+  let revenue = derived ? Math.round(sumR * 100) / 100 : num(arr[conductedRow][moneyCol]);
+
+  // A totals row can hold a zero - or nothing at all - in the money or session cell while the
+  // client rows beneath it carry real figures. That is an empty cell, not a total, and taking
+  // it at face value reports the coach as having earned nothing: Ivan's sheets read this way
+  // for sixteen months. Where the totals row says zero and the clients say otherwise, the
+  // clients are believed, and the substitution is reported rather than made quietly.
+  const fellBack = [];
+  if (!derived) {
+    if (!sessions && sumS > 0) { sessions = sumS; fellBack.push("session count"); }
+    if (!revenue && sumR > 0) { revenue = Math.round(sumR * 100) / 100; fellBack.push("revenue"); }
+  }
   const rate = (revenue != null && sessions) ? Math.round((revenue / sessions) * 100) / 100 : null;
 
   const warnings = [];
-  if (!derived && sessions != null && Math.abs(sumS - sessions) > 0.5) warnings.push(`sessions: sheet total ${sessions}, client rows add to ${sumS}`);
-  if (!derived && revenue != null && Math.abs(sumR - revenue) > 5) warnings.push(`revenue: sheet total ${revenue}, client rows add to ${Math.round(sumR)}`);
+  if (fellBack.length) warnings.push(`the totals row carried no ${fellBack.join(" and no ")} — the client rows were added up instead`);
+  if (!derived && !fellBack.includes("session count") && sessions != null && Math.abs(sumS - sessions) > 0.5) warnings.push(`sessions: sheet total ${sessions}, client rows add to ${sumS}`);
+  if (!derived && !fellBack.includes("revenue") && revenue != null && Math.abs(sumR - revenue) > 5) warnings.push(`revenue: sheet total ${revenue}, client rows add to ${Math.round(sumR)}`);
   // Revenue, reached two independent ways: the money column, and price x sessions off the same
   // rows. They can only disagree if the money column picked up a figure that is not a client's.
   // This is the check that would have caught the salary block being read as a client.

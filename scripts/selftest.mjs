@@ -139,6 +139,31 @@ const totals = (r) => (r.error ? { error: r.error } : { s: r.sessions, r: Math.r
         totals(parseCoachSheet(sheet)), { s: 6, r: 1700, x: null });
 }
 
+/* 9c. The totals row is there but its money and session cells are zero, while the client rows
+   below hold real figures - Ivan's sheets for sixteen months. A zero there is an empty cell,
+   not a total: believing it reported his revenue as nothing. */
+{
+  const sheet = [
+    row([[0, "Commitment %"], [1, "Clients"], ...days(2), [34, "PPS"], [36, "TA"]]),
+    row([[1, "Ann"], [34, 250], [35, 8], [36, 2000], ...marks(2, [1, 3, 5, 7, 9, 11, 13, 15])]),
+    row([[1, "Ben"], [34, 250], [35, 5], [36, 1250], ...marks(2, [2, 4, 6, 8, 10])]),
+    row([[1, "Conducted Sessions / Day"], [35, 0], [36, 0]]),
+  ];
+  const r = parseCoachSheet(sheet);
+  check("zero totals row falls back to the client rows", totals(r), { s: 13, r: 3250, x: null });
+  check("...and says so", r.warnings.some((w) => /client rows were added up instead/.test(w)), true);
+}
+
+/* 9d. A coach who genuinely did nothing stays at zero - the fallback must not invent figures. */
+{
+  const sheet = [
+    row([[0, "Commitment %"], [1, "Clients"], ...days(2), [34, "PPS"], [36, "TA"]]),
+    row([[1, "Ann"], [34, 250], [35, 0], [36, 0]]),
+    row([[1, "Conducted Sessions / Day"], [35, 0], [36, 0]]),
+  ];
+  check("an empty month stays empty", totals(parseCoachSheet(sheet)), { s: 0, r: 0, x: null });
+}
+
 /* 10. Month tab names. */
 check("sheet names", ["Oct 2026", "Sept 2026", "October 2026", " October 2022", "Assessment Report - 2026"].map(sheetNameToPeriod),
   ["2026-10", "2026-09", "2026-10", "2022-10", null]);
