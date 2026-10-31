@@ -24,7 +24,7 @@ const ORDER = (env.FETCH_STRATEGIES || "od,odkey,spshares,zip,rest,browser").spl
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
-console.log("refresh build 2026-10-30b (zero totals row falls back to client rows)");  // proves which version the job is running
+console.log("refresh build 2026-10-31a (a hand-asked read always rewrites)");  // proves which version the job is running
 
 // One typed character of difference, so "Shayla" finds "Shyla".
 function near(a, b) {
@@ -205,13 +205,21 @@ async function main() {
   }
 
   // 4. Skip the write when nothing changed and the last write is recent (avoids commit noise).
+  //    A read somebody asked for by hand is different: they pressed the button to find out
+  //    where things stand now, so the file is always rewritten and the timestamp always moves.
+  //    Without this, "Refresh now" would finish having changed nothing the dashboard can see,
+  //    which is indistinguishable from the read having failed.
+  const FORCED = env.FORCE_WRITE === "1" || env.GITHUB_EVENT_NAME === "workflow_dispatch";
   const livePath = path.join(OUT, "live.enc.json");
   const digest = crypto.createHash("sha256").update(JSON.stringify({ periods, report, assess, skipped: skipped.map((f) => f.name) })).digest("hex");
   if (fs.existsSync(livePath)) {
     try {
       const prev = await decryptJSON(JSON.parse(fs.readFileSync(livePath, "utf8")), PASS);
       const ageH = (Date.now() - Date.parse(prev.generated)) / 36e5;
-      if (prev.digest === digest && ageH < MIN_AGE_H) { L.log(`No change (last write ${ageH.toFixed(1)}h ago) - live.enc.json left as is.`); return; }
+      if (prev.digest === digest) {
+        if (FORCED) L.log(`The figures are unchanged since the last read ${ageH.toFixed(1)}h ago, but this read was asked for by hand - rewriting so the dashboard can see it ran.`);
+        else if (ageH < MIN_AGE_H) { L.log(`No change (last write ${ageH.toFixed(1)}h ago) - live.enc.json left as is.`); return; }
+      }
     } catch { L.log("Previous live.enc.json could not be read (new passphrase?) - rewriting."); }
   }
   const live = { v: 1, generated: new Date().toISOString(), digest, strategy, liveFrom: LIVE_FROM, cutoffDay: today, cutoffPeriod: now,
