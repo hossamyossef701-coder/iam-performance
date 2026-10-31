@@ -270,11 +270,16 @@ function getJson(url,headers){
   });
 }
 // The GitHub API always serves the committed file; the Pages cache can lag a few minutes.
+// Unauthenticated API calls are capped at 60 an hour, and once that cap is hit this quietly
+// fell back to the Pages copy - which is how a forced refresh could still show a read from
+// hours earlier. The saved token lifts the cap to 5,000, so it is sent whenever there is one.
 function loadEnc(name,viaApi){
   var rel="./"+name+"?t="+Date.now();
   if(!viaApi) return getJson(rel);
-  return getJson("https://api.github.com/repos/"+GH_OWNER+"/"+GH_REPO+"/contents/"+name+"?ref="+GH_BRANCH+"&t="+Date.now(),
-    {Accept:"application/vnd.github.raw"}).catch(function(){ return getJson(rel); });
+  var c=cfg(), h={Accept:"application/vnd.github.raw"};
+  if(c&&c.pat) h.Authorization="Bearer "+c.pat;
+  return getJson("https://api.github.com/repos/"+GH_OWNER+"/"+GH_REPO+"/contents/"+name+"?ref="+GH_BRANCH+"&t="+Date.now(), h)
+    .catch(function(){ return getJson(rel); });
 }
 
 /* ---------- data ----------
@@ -744,15 +749,32 @@ function busy(id,on,text){
   if(on){ b.dataset.label=b.dataset.label||b.textContent; b.textContent=text; b.disabled=true; }
   else { b.textContent=b.dataset.label||b.textContent; b.disabled=false; }
 }
-function reload(){
+// newerThan: after a forced refresh, the figures that come back must actually be newer than
+// the ones on screen. Showing the previous read and calling it done is the bug this fixes, so
+// where the file has not caught up yet the page waits for it rather than reporting success.
+function reload(newerThan){
   busy("btnReload",true,"Reading…");
   setStat("status","Reading the latest figures…","");
-  return loadEnc("live.enc.json",true)
-    .then(function(env){ return decrypt(env,PASS); })
-    .then(function(l){
-      LIVE=l; build(); paint();
-      setStat("status","Up to date — last read "+(LIVE.generated?new Date(LIVE.generated).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"}):"unknown"),"ok");
-    })
+  var waited=0;
+  function attempt(){
+    return loadEnc("live.enc.json",true)
+      .then(function(env){ return decrypt(env,PASS); })
+      .then(function(l){
+        var gen=l.generated?new Date(l.generated).getTime():0;
+        if(newerThan&&gen&&gen<=newerThan&&waited<180000){
+          waited+=5000;
+          setStat("status","Waiting for the new figures to publish… ("+Math.round(waited/1000)+"s)","");
+          return new Promise(function(r){ setTimeout(r,5000); }).then(attempt);
+        }
+        LIVE=l; build(); paint();
+        if(newerThan&&gen&&gen<=newerThan){
+          setStat("status","The read finished but the published figures have not changed — try Reload in a minute.","err");
+          return;
+        }
+        setStat("status","Up to date — last read "+(LIVE.generated?new Date(LIVE.generated).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"}):"unknown"),"ok");
+      });
+  }
+  return attempt()
     .catch(function(e){ setStat("status","Could not read the latest figures: "+e.message,"err"); })
     .then(function(){ busy("btnReload",false); });
 }
@@ -765,10 +787,22 @@ function refreshNow(){
     return;
   }
   busy("btnRefresh",true,"Reading…");
-  var t0=new Date(Date.now()-60000).toISOString(), tries=0;
+  var tries=0;
+  // The figures on screen now. The reload at the end must come back newer than this.
+  var prevGen=(LIVE&&LIVE.generated)?new Date(LIVE.generated).getTime():0;
+  // Only runs this button started. The old code took the newest run created in the last
+  // minute, so a scheduled read already in flight could be mistaken for this one and the
+  // page would stop waiting too early.
+  var runsUrl="https://api.github.com/repos/"+GH_OWNER+"/"+GH_REPO+"/actions/workflows/"+GH_WORKFLOW+"/runs?per_page=1&event=workflow_dispatch";
+  var beforeId=null;
   setStat("status","Asking for a fresh read of the folder…","");
-  fetch("https://api.github.com/repos/"+GH_OWNER+"/"+GH_REPO+"/actions/workflows/"+GH_WORKFLOW+"/dispatches",
-    {method:"POST",headers:ghHeaders(c.pat),body:JSON.stringify({ref:GH_BRANCH})})
+  getJson(runsUrl+"&t="+Date.now(),ghHeaders(c.pat))
+    .then(function(j){ var r=(j.workflow_runs||[])[0]; beforeId=r?r.id:null; })
+    .catch(function(){})
+    .then(function(){
+      return fetch("https://api.github.com/repos/"+GH_OWNER+"/"+GH_REPO+"/actions/workflows/"+GH_WORKFLOW+"/dispatches",
+        {method:"POST",headers:ghHeaders(c.pat),body:JSON.stringify({ref:GH_BRANCH})});
+    })
   .then(function(r){
     if(r.status===204) return;
     if(r.status===401||r.status===403) throw new Error("the saved token was refused");
@@ -783,10 +817,10 @@ function refreshNow(){
         if(++tries>180) return rej(new Error("still running after 15 minutes — open the Actions tab to see where it has got to"));
         var secs=tries*5;
         setStat("status","Reading the coach sheets… ("+(secs<90?secs+"s":Math.floor(secs/60)+"m "+(secs%60)+"s")+")","");
-        getJson("https://api.github.com/repos/"+GH_OWNER+"/"+GH_REPO+"/actions/workflows/"+GH_WORKFLOW+"/runs?per_page=1&created=%3E"+encodeURIComponent(t0),ghHeaders(c.pat))
+        getJson(runsUrl+"&t="+Date.now(),ghHeaders(c.pat))
           .then(function(j){
             var run=(j.workflow_runs||[])[0];
-            if(run&&run.status==="completed"){
+            if(run&&run.id!==beforeId&&run.status==="completed"){
               if(run.conclusion!=="success") return rej(new Error("the read finished with “"+run.conclusion+"”"));
               return res();
             }
@@ -795,7 +829,7 @@ function refreshNow(){
       })();
     });
   })
-  .then(reload)
+  .then(function(){ return reload(prevGen); })
   .catch(function(e){ setStat("status","Refresh failed — "+e.message,"err"); })
   .then(function(){ busy("btnRefresh",false); });
 }
@@ -874,7 +908,9 @@ unlock().then(function(){
       paint();
     });
   });
-  document.getElementById("btnReload").addEventListener("click",reload);
+  // Wrapped, not passed directly: as a listener the click Event would arrive as reload's
+  // "newerThan" argument, and a plain Reload must not wait for anything.
+  document.getElementById("btnReload").addEventListener("click",function(){ reload(); });
   document.getElementById("btnRefresh").addEventListener("click",refreshNow);
   wireToken();
   if(!LIVE) setStat("status","No live figures have been written yet — run the refresh job once.","err");
