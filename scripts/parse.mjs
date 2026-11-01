@@ -349,7 +349,11 @@ export function parseCoachSheet(arr, opts) {
           marks++;
           // Matching the sheet's own rule: a 1 is a session held, an exact 0 is a session
           // cancelled. Anything else in a day cell is left out of both counts.
-          if (v >= 1) { mS += v; if (price != null) mR += v * price; }
+          // An online 1+1 session is marked 0.5: two of them for the price of one in person.
+          // Any positive value is a session of that weight, so a half counts as half a session
+          // and earns half the rate. The old rule wanted 1 or more, so halves were thrown away
+          // and reported as unreadable - a whole month of online work could vanish this way.
+          if (v > 0) { mS += v; if (price != null) mR += v * price; }
           else if (v === 0) mX += 1;
           else odd++;
         }

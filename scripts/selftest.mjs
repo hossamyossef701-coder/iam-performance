@@ -139,6 +139,22 @@ const totals = (r) => (r.error ? { error: r.error } : { s: r.sessions, r: Math.r
         totals(parseCoachSheet(sheet)), { s: 6, r: 1700, x: null });
 }
 
+/* 8b. Online 1+1 sessions are marked 0.5 - two of them for the price of one in person. Half a
+   session counts as half, earns half the rate, and is never treated as an unreadable cell. */
+{
+  const sheet = [
+    row([[0, "Commitment %"], [1, "Client Name"], ...days(2), [34, "PPS"], [36, "TA"]]),
+    // two in person, three online halves, one cancelled - 3.5 sessions at 300
+    row([[1, "Ann"], [34, 300], [35, 3.5], [36, 1050], [2, 1], [3, 0.5], [4, 0.5], [5, 1], [6, 0.5], [7, 0]]),
+  ];
+  const r = parseCoachSheet(sheet, { cutoffDay: 27 });
+  check("half sessions count as half",
+        { s: r.mtd.sessions, r: r.mtd.revenue, x: r.mtd.cancelled },
+        { s: 3.5, r: 1050, x: 1 });
+  check("...and are not called unreadable",
+        r.warnings.some((w) => /other than 0 or 1/.test(w)), false);
+}
+
 /* 9c. The totals row is there but its money and session cells are zero, while the client rows
    below hold real figures - Ivan's sheets for sixteen months. A zero there is an empty cell,
    not a total: believing it reported his revenue as nothing. */
