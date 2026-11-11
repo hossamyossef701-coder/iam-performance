@@ -180,6 +180,72 @@ const totals = (r) => (r.error ? { error: r.error } : { s: r.sessions, r: Math.r
   check("an empty month stays empty", totals(parseCoachSheet(sheet)), { s: 0, r: 0, x: null });
 }
 
+/* 9e. The Nov 2026 layout: Projected Sessions and Projection (AED) after TA, Rewards after those,
+   the totals row summing both, and the progress % on the row beneath it. The projection is the
+   client rows; the % row and the Group Training row add nothing; the rest of the sheet reads as
+   before. */
+const PROJ_HEAD = [[0, "Commitment %"], [1, "Client Name"], ...days(2, 30), [34, "PPS"], [36, "TA"],
+                   [38, "Projected Sessions"], [39, "Projection\n(AED)"], [40, "Rewards (AED)"], [41, "Rwd Session"]];
+{
+  const sheet = [
+    row([[1, "Sun"]]),
+    row(PROJ_HEAD),
+    row([[1, "Ann"], [34, 300], [35, 4], [36, 1200], [38, 12], [39, 3600], [40, 60], ...marks(2, [1, 3, 5, 7])]),
+    row([[1, "Ben"], [34, 250], [35, 2], [36, 500], [38, 8], [39, 2000], [40, 48], ...marks(2, [2, 4])]),
+    row([[1, "Cy"], [34, 280], [35, 0], [36, 0]]),                       // no projection typed: still a client
+    row([[1, "Group Training"], [35, 0], [38, 4]]),                       // must not join the projection
+    row([[1, "Conducted Sessions / Day"], [35, 6], [36, 1700], [38, 24], [39, 5600]]),
+    row([[39, 0.3036]]),                                                  // the progress % row
+  ];
+  const r = parseCoachSheet(sheet, { cutoffDay: 10 });
+  check("projection read from the client rows", { ...totals(r), p: r.projection },
+        { s: 6, r: 1700, x: null, p: { s: 20, r: 5600, clients: 2, priced: false } });
+  check("...and the Group Training figure is reported, not added",
+        r.warnings.some((w) => /projected sessions: sheet total 24, client rows add to 20/.test(w)), true);
+}
+
+/* 9f. Projected sessions without the money column: priced at each client's own rate. */
+{
+  const sheet = [
+    row([[0, "Commitment %"], [1, "Clients"], ...days(2, 30), [34, "PPS"], [36, "TA"], [38, "Projected Sessions"]]),
+    row([[1, "Ann"], [34, 300], [35, 4], [36, 1200], [38, 10]]),
+    row([[1, "Ben"], [34, 250], [35, 2], [36, 500], [38, 6]]),
+  ];
+  check("projection priced when the money column is missing", parseCoachSheet(sheet).projection,
+        { s: 16, r: 4500, clients: 2, priced: true });
+}
+
+/* 9g. A projection in AED that is not projected sessions x price is flagged. */
+{
+  const sheet = [
+    row(PROJ_HEAD),
+    row([[1, "Ann"], [34, 300], [35, 4], [36, 1200], [38, 12], [39, 9999]]),
+  ];
+  check("an unreconciled projection is flagged",
+        parseCoachSheet(sheet).warnings.some((w) => /projection does not reconcile/.test(w)), true);
+}
+
+/* 9h. Every earlier layout: no projection columns, no projection, no new warnings. */
+{
+  const sheet = [
+    row([[0, "Commitment %"], [1, "Client Name"], ...days(2), [34, "PPS"], [36, "TA"], [40, "Cancelled Sessions"]]),
+    row([[1, "Ann"], [34, 300], [35, 4], [36, 1200], [40, 1], ...marks(2, [1, 3, 5, 7])]),
+    row([[1, "Conducted Sessions / Day"], [35, 4], [36, 1200]]),
+  ];
+  const r = parseCoachSheet(sheet);
+  check("older sheets carry no projection", { p: r.projection, w: r.warnings.length }, { p: null, w: 0 });
+}
+
+/* 9i. The columns are there but nothing is typed yet: a projection of zero, not an error. */
+{
+  const sheet = [
+    row(PROJ_HEAD),
+    row([[1, "Ann"], [34, 300], [35, 4], [36, 1200], ...marks(2, [1, 3, 5, 7])]),
+  ];
+  check("blank projection columns read as zero", parseCoachSheet(sheet).projection,
+        { s: 0, r: 0, clients: 0, priced: false });
+}
+
 /* 10. Month tab names. */
 check("sheet names", ["Oct 2026", "Sept 2026", "October 2026", " October 2022", "Assessment Report - 2026"].map(sheetNameToPeriod),
   ["2026-10", "2026-09", "2026-10", "2022-10", null]);

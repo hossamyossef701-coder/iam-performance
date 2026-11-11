@@ -42,7 +42,7 @@ const SAFE_WORDS = new Set(("commitment committment client clients name names cu
   "notes note weekly schedule data report salary lost bs cm bn ded extra tot min max sum rate income pt i am performance " +
   "sheet consolidated vs hours time type status month year and the of to from with in on at by is are no yes new old " +
   "mon tue wed thu fri sat sun monday tuesday wednesday thursday friday saturday sunday " +
-  "jan feb mar apr may jun jul aug sep sept oct nov dec").split(" "));
+  "jan feb mar apr may jun jul aug sep sept oct nov dec projected projection projections aed").split(" "));
 function safeLabel(t) {
   if (!t || t.length > 46) return null;
   const words = t.toLowerCase().split(/[^a-z%]+/).filter((w) => w && w !== "%");
@@ -163,6 +163,24 @@ export function parseCoachSheet(arr, opts) {
   const moneyCol = taCol >= 0 ? taCol : ppsCol + 2;   // and the money right after that
   const moneyGuessed = taCol < 0;
 
+  // The month's projection, added to the sheets in Nov 2026: "Projected Sessions" per client,
+  // and "Projection (AED)" - those sessions at that client's price. Older months have neither
+  // column, and nothing else on the sheet depends on them, so their absence is not a problem.
+  // Found by header like everything else: anything starting "proj" that mentions sessions is
+  // the session count; any other "proj" heading is the money.
+  const taken = new Set([nameCol, ppsCol, sessionsCol, moneyCol, cancelledCol]);
+  let projSCol = -1, projRCol = -1;
+  for (const r of [headerRowIdx, headerRowIdx - 1, headerRowIdx + 1]) {
+    const row = arr[r]; if (r < 0 || !row) continue;
+    for (let c = 0; c < row.length; c++) {
+      if (taken.has(c)) continue;
+      const t = squash(row[c]);
+      if (!t.startsWith("proj")) continue;
+      if (/sess/.test(t)) { if (projSCol < 0) projSCol = c; }
+      else if (projRCol < 0) projRCol = c;
+    }
+  }
+
   // The columns holding the days of the month. Usually numbered 1..31 on the header row,
   // but some sheets put them a row above or below it, and some hold real dates rather than
   // plain numbers. The row with the most day-like cells wins; fewer than 20 is not a
@@ -252,6 +270,7 @@ export function parseCoachSheet(arr, opts) {
   //    and the figure itself when it has not. Group training is counted separately by the
   //    sheet, so it ends the client block.
   let sumS = 0, sumR = 0, sumC = 0, sumPS = 0, maxPrice = 0, clients = 0;
+  let projS = 0, projR = 0, projPS = 0, projClients = 0;
   for (let r = headerRowIdx + 1; r < clientEnd; r++) {
     const row = arr[r]; if (!row) continue;
     const nm = norm(row[nameCol]);
@@ -267,6 +286,11 @@ export function parseCoachSheet(arr, opts) {
     if (p != null && s != null) sumPS += p * s;
     if (p != null && p > maxPrice) maxPrice = p;
     const cc = cancelledCol >= 0 ? num(row[cancelledCol]) : null; if (cc != null) sumC += cc;
+    const ps = projSCol >= 0 ? num(row[projSCol]) : null;
+    const pr = projRCol >= 0 ? num(row[projRCol]) : null;
+    if (ps != null) { projS += ps; if (p != null) projPS += ps * p; }
+    if (pr != null) projR += pr;
+    if ((ps || 0) > 0 || (pr || 0) > 0) projClients++;
   }
 
   // When the money column had no header and its position was inferred, prove it: on a
@@ -328,6 +352,30 @@ export function parseCoachSheet(arr, opts) {
   if (sheetCancelled != null && cancelled != null && Math.abs(sheetCancelled - cancelled) > 0.5)
     warnings.push(`cancelled: client rows add to ${cancelled}, the sheet's own total row says ${sheetCancelled}`);
 
+  // The projection is the sum of the client rows - the same rows the revenue comes from - so a
+  // projection typed against the Group Training row or below the table is left out, and the
+  // sheet's own total is only the check on it. Where there is no money column, the projected
+  // sessions are priced at each client's rate, which is exactly what that column computes.
+  let projection = null;
+  if (projSCol >= 0 || projRCol >= 0) {
+    const round = (v) => Math.round(v * 100) / 100;
+    projection = {
+      s: projSCol >= 0 ? round(projS) : null,
+      r: projRCol >= 0 ? round(projR) : (projSCol >= 0 ? round(projPS) : null),
+      clients: projClients,
+      priced: projRCol < 0,           // true: worked out from projected sessions x price
+    };
+    if (projRCol >= 0 && projSCol >= 0 && projPS > 0 && Math.abs(projR - projPS) > Math.max(50, projPS * 0.02)) {
+      warnings.push(`projection does not reconcile: Projection (AED) adds to ${Math.round(projR)}, projected sessions x price to ${Math.round(projPS)}`);
+    }
+    if (conductedRow >= 0) {
+      const tS = projSCol >= 0 ? num(arr[conductedRow][projSCol]) : null;
+      const tR = projRCol >= 0 ? num(arr[conductedRow][projRCol]) : null;
+      if (tS != null && Math.abs(tS - projS) > 0.5) warnings.push(`projected sessions: sheet total ${tS}, client rows add to ${round(projS)}`);
+      if (tR != null && Math.abs(tR - projR) > 5) warnings.push(`projection (AED): sheet total ${Math.round(tR)}, client rows add to ${Math.round(projR)}`);
+    }
+  }
+
   // Month to date, counted from the day columns rather than taken from the totals.
   const cutoff = opts && opts.cutoffDay ? Number(opts.cutoffDay) : null;
   let mtd = null;
@@ -383,5 +431,5 @@ export function parseCoachSheet(arr, opts) {
     }
   }
 
-  return { sessions, revenue, cancelled, rate, clients, derived, dayCols: dayCols.length, dayRow: dayRowIdx, mtd, warnings };
+  return { sessions, revenue, cancelled, rate, clients, derived, dayCols: dayCols.length, dayRow: dayRowIdx, mtd, projection, warnings };
 }

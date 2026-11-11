@@ -24,7 +24,7 @@ const ORDER = (env.FETCH_STRATEGIES || "od,odkey,spshares,zip,rest,browser").spl
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
-console.log("refresh build 2026-11-01a (half sessions counted as half)");  // proves which version the job is running
+console.log("refresh build 2026-11-11a (monthly projection read)");  // proves which version the job is running
 
 // One typed character of difference, so "Shayla" finds "Shyla".
 function near(a, b) {
@@ -126,12 +126,17 @@ async function main() {
         continue;
       }
       r.warnings.forEach((w) => entry.warnings.push(`${t.p}: ${w}`));
-      if (!(r.sessions || r.revenue || r.cancelled)) { entry.empty.push(t.p); continue; } // month sheet exists but nothing entered yet
+      // A projection on its own counts as content: on the 1st of the month it is the only thing there.
+      const projected = r.projection && (r.projection.s || r.projection.r);
+      if (!(r.sessions || r.revenue || r.cancelled || projected)) { entry.empty.push(t.p); continue; } // month sheet exists but nothing entered yet
       const bucket = (periods[t.p] = periods[t.p] || {});
       if (bucket[coach]) { entry.superseded.push(t.p); continue; }   // already taken from the main folder
       bucket[coach] = { s: r.sessions, r: r.revenue, x: r.cancelled };
       // ms/mr/mx: the same month counted only to day md. Present for the current month only.
       if (r.mtd) { bucket[coach].ms = r.mtd.sessions; bucket[coach].mr = r.mtd.revenue; bucket[coach].mx = r.mtd.cancelled; bucket[coach].md = r.mtd.day; }
+      // ps/pr: the month's projected sessions and revenue. Only on sheets that carry the columns;
+      // a 0 means the columns are there but nothing has been typed in them yet.
+      if (r.projection) { bucket[coach].ps = r.projection.s; bucket[coach].pr = r.projection.r; }
       entry.months.push(t.p);
     }
   }
