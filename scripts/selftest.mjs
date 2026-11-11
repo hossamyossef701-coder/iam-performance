@@ -226,6 +226,19 @@ const PROJ_HEAD = [[0, "Commitment %"], [1, "Client Name"], ...days(2, 30), [34,
         parseCoachSheet(sheet).warnings.some((w) => /projection does not reconcile/.test(w)), true);
 }
 
+/* 9g2. Projected sessions typed but the Projection (AED) formulas missing: priced instead of 0. */
+{
+  const sheet = [
+    row(PROJ_HEAD),
+    row([[1, "Ann"], [34, 300], [35, 4], [36, 1200], [38, 10]]),
+    row([[1, "Ben"], [34, 250], [35, 2], [36, 500], [38, 6]]),
+  ];
+  const r = parseCoachSheet(sheet);
+  check("an empty Projection (AED) column falls back to sessions x price",
+        { r: r.projection.r, priced: r.projection.priced, flagged: r.warnings.some((w) => /column is empty/.test(w)) },
+        { r: 4500, priced: true, flagged: true });
+}
+
 /* 9h. Every earlier layout: no projection columns, no projection, no new warnings. */
 {
   const sheet = [

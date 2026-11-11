@@ -167,7 +167,7 @@ async function badgerToken(L) {
   return j.token;
 }
 const isZip = (b) => b && b.length > 4 && b[0] === 0x50 && b[1] === 0x4b;
-async function viaBadger(shareUrl, L) {
+async function viaBadger(shareUrl, L, opts = {}) {
   const token = await badgerToken(L);
   const H = { Authorization: `Badger ${token}`, Prefer: "autoredeem", Accept: "application/json" };
   const redeemed = decodeRedeem(shareUrl, L);
@@ -187,13 +187,14 @@ async function viaBadger(shareUrl, L) {
     const take = (items, folder) => {
       for (const it of items || []) {
         if (!it || !it.file || !SHEET_RE.test(it.name || "") || it.name.startsWith("~$")) continue;
+        if (opts.only && !opts.only.test(it.name)) continue;
         if (seen.has(it.name)) continue;          // the main folder's copy wins over a subfolder's
         seen.add(it.name); wanted.push({ name: it.name, folder, item: it });
       }
     };
     take(root.children, null);
     // Subfolders ("Inactive" and the like), two levels down, as the other strategies do.
-    const queue = root.children.filter((it) => it && it.folder).map((it) => ({ it, path: it.name, depth: 1 }));
+    const queue = opts.mainOnly ? [] : root.children.filter((it) => it && it.folder).map((it) => ({ it, path: it.name, depth: 1 }));
     while (queue.length) {
       const { it, path, depth } = queue.shift();
       let kids = null;
@@ -324,7 +325,9 @@ async function viaBrowser(shareUrl, L) {
 
 const STRATEGIES = { badger: viaBadger, od: viaOdShares, odkey: viaOdAuthKey, spshares: viaSpShares, zip: viaZip, rest: viaRest, browser: viaBrowser };
 
-export async function fetchWorkbooks(shareUrl, order, L) {
+// opts.only: a pattern the file name must match; opts.mainOnly: leave the subfolders alone.
+// Both are only a saving - the caller still checks what comes back.
+export async function fetchWorkbooks(shareUrl, order, L, opts = {}) {
   describeLink(shareUrl, L);
   const tried = [];
   for (const name of order) {
@@ -332,7 +335,7 @@ export async function fetchWorkbooks(shareUrl, order, L) {
     if (!fn) { L.log(`Unknown fetch strategy "${name}" - skipped`); continue; }
     L.log(`Fetch strategy "${name}"`);
     try {
-      const files = await fn(shareUrl, L);
+      const files = await fn(shareUrl, L, opts);
       if (files.length) { L.log(`  -> ${files.length} workbook(s)`); return { strategy: name, files }; }
       tried.push(`${name}: no workbooks found`);
     } catch (e) {
@@ -363,7 +366,7 @@ export function plainReason(tried) {
 }
 
 /* ---- A single shared workbook (the assessment tracker), rather than a folder. ---- */
-export async function fetchOneWorkbook(shareUrl, L) {
+export async function fetchOneWorkbook(shareUrl, L, label = "the assessment tracker") {
   describeLink(shareUrl, L);
   const tried = [];
   // The viewer-pass route first (the storage personal OneDrive moved to in 2026), then the
@@ -410,6 +413,6 @@ export async function fetchOneWorkbook(shareUrl, L) {
     return await mod.viaBrowserFile(shareUrl, L);
   } catch (e) {
     tried.push(`browser: ${L.redact(e.message)}`);
-    throw new Error("The assessment tracker could not be downloaded.\n" + tried.map((t) => " - " + t).join("\n"));
+    throw new Error(`${label[0].toUpperCase() + label.slice(1)} could not be downloaded.\n` + tried.map((t) => " - " + t).join("\n"));
   }
 }

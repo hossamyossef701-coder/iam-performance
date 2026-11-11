@@ -87,7 +87,7 @@ const API_HOST_RE = process.env.OD_TEST_HOST_RE ? new RegExp(process.env.OD_TEST
 // Only these request headers are carried over to a download: the page's sign-in, nothing else.
 const AUTH_HEADERS = /^(authorization|prefer|x-requestdigest|x-forms_based_auth_accepted|application|scenario|x-clientservice-clienttag)$/i;
 
-export async function viaBrowser(shareUrl, L) {
+export async function viaBrowser(shareUrl, L, opts = {}) {
   let chromium;
   try { ({ chromium } = await import("playwright")); }
   catch { throw new Error("the browser component isn't installed in this job"); }
@@ -139,8 +139,9 @@ export async function viaBrowser(shareUrl, L) {
     // Where the link landed: subfolders are opened from here, by changing its "id".
     const landed = page.url();
 
-    // Every subfolder, and the subfolders inside them, to a fixed depth.
-    const MAX_FOLDERS = Number(process.env.MAX_SUBFOLDERS || 40), MAX_DEPTH = 3;
+    // Every subfolder, and the subfolders inside them, to a fixed depth - unless only the
+    // folder itself is wanted.
+    const MAX_FOLDERS = opts.mainOnly ? 0 : Number(process.env.MAX_SUBFOLDERS || 40), MAX_DEPTH = 3;
     const done = new Set();
     let opened = 0;
     for (let depth = 1; depth <= MAX_DEPTH; depth++) {
@@ -183,6 +184,8 @@ export async function viaBrowser(shareUrl, L) {
         : `the page opened but listed no spreadsheets (${answers} data answers seen, page title "${title.slice(0, 40)}")`);
     }
 
+    if (opts.only) for (const k of [...state.found.keys()]) if (!opts.only.test(k)) state.found.delete(k);
+    if (!state.found.size) throw new Error("the folder opened but holds no file with the expected name");
     const out = [], worked = {}, failedHow = {};
     for (const [name, e] of state.found) {
       let buf = null;

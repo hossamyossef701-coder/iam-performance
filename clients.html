@@ -517,6 +517,21 @@ function paint(){
   sel.value=ui.coach;
   tiles(); lists(); chartActive(); chartFlow(); coaches(); mix(); checks();
 }
+// When there is no clients data yet, the refresh job will have said why on its last run (a
+// one-line note GitHub keeps with the run, public like the repository). Shown on the lock screen.
+function whyMissing(){
+  var api="https://api.github.com/repos/"+GH_OWNER+"/"+GH_REPO, h={Accept:"application/vnd.github+json"};
+  return getJson(api+"/actions/workflows/refresh.yml/runs?per_page=1&status=completed&t="+Date.now(),h).then(function(j){
+    var run=(j.workflow_runs||[])[0]; if(!run) return null;
+    return getJson(run.jobs_url+"?t="+Date.now(),h).then(function(jj){
+      var job=(jj.jobs||[])[0]; if(!job) return null;
+      return getJson(api+"/check-runs/"+job.id+"/annotations?t="+Date.now(),h).then(function(a){
+        var hit=(a||[]).filter(function(x){ return /clients page not updated|read failed/i.test(x.title||""); })[0];
+        return hit?hit.message:null;
+      });
+    });
+  }).catch(function(){ return null; });
+}
 function load(pass){ return loadEnc("clients.enc.json").then(function(env){ return decrypt(env,pass); }).then(function(m){ M=m; }); }
 
 function unlock(){
@@ -535,7 +550,11 @@ function unlock(){
         if(fromStore){ try{ localStorage.removeItem(PASS_KEY); }catch(e2){} }
         var wrong=e&&(e.name==="OperationError"||/decrypt/i.test(e.message||""));
         var missing=/HTTP 404/.test(e&&e.message||"");
-        setStat("gateStatus",wrong?"That passphrase doesn’t open the clients data.":(missing?"The clients data hasn’t been read yet — the next refresh will create it.":"Could not load the data: "+e.message),"err");
+        setStat("gateStatus",wrong?"That passphrase doesn’t open the clients data.":(missing?"The clients data hasn’t been read yet — checking why…":"Could not load the data: "+e.message),"err");
+        if(missing) whyMissing().then(function(why){
+          setStat("gateStatus",why?"The Clients file hasn’t been read yet: "+why:
+            "The clients data hasn’t been read yet. Press Refresh now on the Performance page; if it still doesn’t appear, the Actions log on GitHub says why.","err");
+        });
       });
     }
     form.addEventListener("submit",function(ev){

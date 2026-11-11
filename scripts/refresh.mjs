@@ -25,7 +25,7 @@ const ORDER = (env.FETCH_STRATEGIES || "badger,od,odkey,spshares,zip,rest,browse
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
-console.log("refresh build 2026-11-11c (clients page)");  // proves which version the job is running
+console.log("refresh build 2026-11-11d (clients file from a folder link)");  // proves which version the job is running
 
 // One typed character of difference, so "Shayla" finds "Shyla".
 function near(a, b) {
@@ -54,12 +54,36 @@ function dubaiPeriod() {
    coach figures. Only the five typed tabs are passed on; the file's views are never read. */
 async function readClients() {
   const url = (env.CLIENTS_SHARE_URL || "").trim(), pass = (env.CLIENTS_PASSPHRASE || "").trim();
-  if (!url || !pass) { console.log("No CLIENTS_SHARE_URL / CLIENTS_PASSPHRASE secret, so the Clients page was not updated."); return; }
+  if (!url || !pass) {
+    const missing = [!url && "CLIENTS_SHARE_URL", !pass && "CLIENTS_PASSPHRASE"].filter(Boolean).join(" and ");
+    if (url || pass) console.log(`::warning title=Clients page not updated::The ${missing} secret is missing (check its name is spelled exactly like that), so the Clients file was not read.`);
+    else console.log("No CLIENTS_SHARE_URL / CLIENTS_PASSPHRASE secret, so the Clients page was not updated.");
+    return;
+  }
   if (pass === PASS) console.log("Note: the Clients passphrase is the same as the Performance one, so either opens both pages.");
   try {
     const LC = makeLogger(url);
     console.log("Reading the Clients file");
-    const buf = await fetchOneWorkbook(url, LC);
+    // The link can be to the file itself or to the folder that holds it. From a folder, the file
+    // is picked by name ("I AM - Clients", or CLIENTS_FILE_PATTERN), so the old lists and
+    // anything else kept beside it are ignored.
+    const NAME = new RegExp(env.CLIENTS_FILE_PATTERN || "^I AM\\s*-\\s*Clients\\b[^/]*\\.xlsx$", "i");
+    let buf = null;
+    const fromFolder = async () => {
+      const { files } = await fetchWorkbooks(url, ORDER, LC, { only: NAME, mainOnly: true });
+      const hits = files.filter((f) => NAME.test(f.name));
+      const best = hits.find((f) => !f.folder && /^I AM\s*-\s*Clients\.xlsx$/i.test(f.name)) || hits.find((f) => !f.folder) || hits[0];
+      if (!best) throw new Error("the folder holds no file named like \"I AM - Clients.xlsx\"");
+      if (hits.length > 1) console.log(`  ${hits.length} files match the name; using the one in the folder itself`);
+      return best.buf;
+    };
+    if (/\/f\//.test(url)) {
+      console.log("  the link is to a folder: looking for the Clients file in it");
+      buf = await fromFolder();
+    } else {
+      try { buf = await fetchOneWorkbook(url, LC, "the Clients file"); }
+      catch (e) { console.log("  not readable as a single file - trying it as a folder"); buf = await fromFolder(); }
+    }
     const wb = XLSX.read(buf, { type: "buffer" });
     const sheets = {};
     for (const n of ["Clients", "Packages", "Coach Changes", "Lists", "Settings"]) {
@@ -82,8 +106,8 @@ async function readClients() {
     fs.writeFileSync(out, JSON.stringify(await encryptJSON(model, pass)));
     console.log(`Clients: ${model.kpi.total} clients, ${model.kpi.active} active - clients.enc.json written` + (model.names ? " (with names)" : " (Client IDs only)"));
   } catch (e) {
-    const msg = e.plain ? e.plain.replace(/SHARE_URL/g, "CLIENTS_SHARE_URL").replace(/coach folder/g, "Clients file")
-                        : `The Clients file could not be read: ${String(e.message || e).split("\n")[0].replace(/the assessment tracker/ig, "the Clients file").slice(0, 160)}`;
+    const msg = e.plain ? e.plain.replace(/\bSHARE_URL/g, "CLIENTS_SHARE_URL").replace(/coach folder/g, "Clients folder")
+                        : `The Clients file could not be read: ${String(e.message || e).split("\n")[0].slice(0, 160)}`;
     console.log(`::warning title=Clients page not updated::${msg}`);
     console.log(L.redact(String(e.stack || e.message)));
   }

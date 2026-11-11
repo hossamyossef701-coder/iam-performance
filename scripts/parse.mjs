@@ -366,13 +366,17 @@ export function parseCoachSheet(arr, opts) {
     const round = (v) => Math.round(v * 100) / 100;
     projection = {
       s: projSCol >= 0 ? round(projS) : null,
-      r: projRCol >= 0 ? round(projR) : (projSCol >= 0 ? round(projPS) : null),
+      // The money column, unless it is empty while sessions are projected (its formulas missing
+      // or deleted): then those sessions at each client's price - exactly what it should hold.
+      r: projRCol >= 0 && !(projR === 0 && projPS > 0) ? round(projR) : (projSCol >= 0 ? round(projPS) : null),
       clients: projClients,
       active: projActive,             // clients with sessions this month
       missing: projMissing,           // ...of whom this many have no projection
-      priced: projRCol < 0,           // true: worked out from projected sessions x price
+      priced: projRCol < 0 || (projR === 0 && projPS > 0),   // true: worked out from projected sessions x price
     };
-    if (projRCol >= 0 && projSCol >= 0 && projPS > 0 && Math.abs(projR - projPS) > Math.max(50, projPS * 0.02)) {
+    if (projRCol >= 0 && projSCol >= 0 && projPS > 0 && projR === 0) {
+      warnings.push(`the Projection (AED) column is empty though sessions are projected - used projected sessions x price (${Math.round(projPS)}) instead`);
+    } else if (projRCol >= 0 && projSCol >= 0 && projPS > 0 && Math.abs(projR - projPS) > Math.max(50, projPS * 0.02)) {
       warnings.push(`projection does not reconcile: Projection (AED) adds to ${Math.round(projR)}, projected sessions x price to ${Math.round(projPS)}`);
     }
     if (conductedRow >= 0) {
