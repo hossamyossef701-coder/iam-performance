@@ -133,6 +133,12 @@ tfoot td:first-child{background:var(--panel-2);}
 .ok{color:var(--up);} .near{color:var(--watch);} .low{color:var(--down);}
 .att-pct.ok{color:var(--up);} .att-pct.near{color:var(--watch);} .att-pct.low{color:var(--down);}
 .notset{font-family:var(--f-mono);font-size:11px;color:var(--watch);letter-spacing:.06em;}
+.d.near{color:var(--watch);}
+/* the last read failed: the figures on screen are older than they look */
+.readfail{display:flex;gap:12px;align-items:flex-start;border:1px solid rgba(225,75,75,.45);background:rgba(225,75,75,.08);
+  border-radius:var(--r);padding:12px 14px;margin-bottom:16px;font-size:13px;line-height:1.5;color:var(--ink);}
+.readfail b{color:var(--down);font-weight:600;}
+.readfail .when{display:block;font-family:var(--f-mono);font-size:10.5px;color:var(--ink-faint);margin-top:3px;}
 details.coaches{margin-bottom:16px;background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r);padding:11px 14px;}
 details.coaches summary{cursor:pointer;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-faint);list-style:none;}
 details.coaches summary::-webkit-details-marker{display:none;}
@@ -223,6 +229,8 @@ body.locked{overflow:hidden;}
   <p class="chip-line"><span class="chip" id="chipMtd" style="display:none"></span><span class="chip warn" id="chipWhole" style="display:none"></span></p>
   <p class="status" id="status"></p>
 
+
+  <div class="readfail" id="readFail" style="display:none"></div>
 
   <div class="tiles" id="tiles"></div>
 
@@ -349,7 +357,9 @@ function build(){
                    // The same month counted only to the day the job last ran.
                    ms:(v.ms!=null?v.ms:null), mr:(v.mr!=null?v.mr:null), mx:(v.mx!=null?v.mx:null), md:(v.md!=null?v.md:null),
                    // The month's projection, set by the coach at the start of it. Absent on older sheets.
-                   ps:(v.ps!=null?v.ps:null), pr:(v.pr!=null?v.pr:null) };
+                   ps:(v.ps!=null?v.ps:null), pr:(v.pr!=null?v.pr:null),
+                   // pm: clients with sessions this month but nothing projected for them.
+                   pm:(v.pm!=null?v.pm:null) };
     });
   });
   // The tracker is the authority on assessments wherever it covers a month.
@@ -442,7 +452,7 @@ function metrics(p,coach){
   var booked=(d.s!=null&&d.x!=null)?(d.s+d.x):null;
   var days=daysUsed(p);
   // The projection is one figure for the whole month: the same whichever basis is chosen.
-  return { s:d.s, r:d.r, x:d.x, a:d.a, cv:d.c, mtdMissing:mtdMissing, ps:raw.ps, pr:raw.pr,
+  return { s:d.s, r:d.r, x:d.x, a:d.a, cv:d.c, mtdMissing:mtdMissing, ps:raw.ps, pr:raw.pr, pm:raw.pm,
            rate:(d.r!=null&&d.s)?d.r/d.s:null, cpc:booked?d.x/booked*100:null,
            spd:(d.s!=null&&days)?d.s/days:null,
            conv:(d.a)?d.c/d.a*100:null };
@@ -517,19 +527,20 @@ function projState(pct,target){
 function projOf(p,c){
   var m=metrics(p,c); if(!m) return null;
   var has=(m.pr!=null||m.ps!=null), set=((m.pr||0)>0||(m.ps||0)>0);
-  return { has:has, set:set, pr:m.pr, ps:m.ps, r:m.r, s:m.s, mtdMissing:m.mtdMissing,
+  return { has:has, set:set, pr:m.pr, ps:m.ps, r:m.r, s:m.s, mtdMissing:m.mtdMissing, pm:m.pm||0,
            pctR:((m.pr||0)>0&&m.r!=null)?m.r/m.pr*100:null,
            pctS:((m.ps||0)>0&&m.s!=null)?m.s/m.ps*100:null };
 }
 // Only coaches who set a projection are measured against it: one who did not set it would
 // otherwise add revenue with nothing to set it against, and lift the team's figure.
 function projTeam(p){
-  var t={any:false, pr:0, ps:0, r:0, s:0, set:[], unset:[]};
+  var t={any:false, pr:0, ps:0, r:0, s:0, set:[], unset:[], partly:[]};
   coachesIn(p).forEach(function(c){
     var q=projOf(p,c); if(!q) return;
     if(q.has) t.any=true;
     if(!q.set){ t.unset.push(c); return; }
     t.set.push(c);
+    if(q.pm>0) t.partly.push(c+" ("+q.pm+")");
     if(q.pr>0){ t.pr+=q.pr; t.r+=(q.r||0); }
     if(q.ps>0){ t.ps+=q.ps; t.s+=(q.s||0); }
   });
@@ -551,6 +562,8 @@ function renderProj(p){
   var total=t.set.length+t.unset.length;
   var who=t.set.length?("Set by "+t.set.length+" of "+total+(total===1?" coach":" coaches")):"No coach has set a projection yet";
   if(t.set.length&&t.unset.length) who+=' \u00b7 not set: <b>'+t.unset.join(", ")+"</b>";
+  // Set, but leaving out clients who have sessions this month: the projection reads low.
+  if(t.partly.length) who+=' \u00b7 partly set: <b title="Clients with sessions this month but no projection">'+t.partly.join(", ")+"</b>";
   // gapFmt: how a shortfall is written. A pace target is fractional, so sessions round to whole ones there.
   function line(lbl,pct,done,goal,fmt,unit,gapFmt){
     if(!goal) return "";
@@ -591,7 +604,8 @@ function projCell(q,target){
   var tip=(q.pctR!=null?"Revenue "+fmtInt(q.r)+" of "+fmtInt(q.pr)+" AED ("+q.pctR.toFixed(0)+"%)":"")+
           (q.pctS!=null?(q.pctR!=null?" \u00b7 ":"")+"sessions "+fmtSess(q.s)+" of "+fmtSess(q.ps)+" ("+q.pctS.toFixed(0)+"%)":"");
   return '<span class="att" title="'+tip+'">'+projBar(pct,target,st,true)+'<span class="att-pct '+st+'">'+pct.toFixed(0)+"%</span></span>"+
-    '<span class="d flat">'+(q.pr>0?"of "+fmtInt(q.pr):"")+(q.ps>0?(q.pr>0?" \u00b7 ":"")+fmtSess(q.s)+"/"+fmtSess(q.ps)+" sess":"")+"</span>";
+    '<span class="d flat">'+(q.pr>0?"of "+fmtInt(q.pr):"")+(q.ps>0?(q.pr>0?" \u00b7 ":"")+fmtSess(q.s)+"/"+fmtSess(q.ps)+" sess":"")+"</span>"+
+    (q.pm>0?'<span class="d near" title="These clients have sessions this month but nothing projected for them, so the projection reads low">partly set \u00b7 '+q.pm+" missing</span>":"");
 }
 
 /* ---------- formatting ---------- */
@@ -924,12 +938,50 @@ function reload(newerThan){
           setStat("status","The read finished but the published figures have not changed — try Reload in a minute.","err");
           return;
         }
+        checkLastRun();
         setStat("status","Up to date — last read "+(LIVE.generated?new Date(LIVE.generated).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"}):"unknown"),"ok");
       });
   }
   return attempt()
     .catch(function(e){ setStat("status","Could not read the latest figures: "+e.message,"err"); })
     .then(function(){ busy("btnReload",false); });
+}
+/* ---------- a failed read ----------
+   When the scheduled read fails, the figures on screen stay as they were and only the "Last
+   read" time gives it away. On opening, the newest finished read is checked: if it failed
+   after these figures were written, the reason the job pinned to its run is shown above the
+   figures. Public information on a public repository, so no token is needed to look. */
+function apiHeaders(){ var c=cfg(); return (c&&c.pat)?ghHeaders(c.pat):{Accept:"application/vnd.github+json"}; }
+function runReason(run){
+  var h=apiHeaders();
+  return getJson(run.jobs_url+"?t="+Date.now(),h).then(function(j){
+    var job=(j.jobs||[])[0]; if(!job) return null;
+    return getJson("https://api.github.com/repos/"+GH_OWNER+"/"+GH_REPO+"/check-runs/"+job.id+"/annotations?t="+Date.now(),h)
+      .then(function(a){
+        var hit=(a||[]).filter(function(x){ return /read failed/i.test(x.title||""); })[0];
+        return hit?hit.message:null;
+      });
+  }).catch(function(){ return null; });
+}
+// The reason comes from outside the page, so it is shown as text, never as markup.
+function escapeHtml(t){ return String(t).replace(/[&<>"']/g,function(ch){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]; }); }
+function fmtWhen(d){ return new Date(d).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"}); }
+function showReadFail(run,reason){
+  var el=document.getElementById("readFail"); if(!el) return;
+  if(!run){ el.style.display="none"; el.innerHTML=""; return; }
+  el.innerHTML='<span><b>The last read failed.</b> '+escapeHtml(reason||"The Actions tab on GitHub has the details.")+
+    '<span class="when">Failed '+fmtWhen(run.updated_at)+(LIVE&&LIVE.generated?" \u00b7 the figures below are from "+fmtWhen(LIVE.generated):"")+"</span></span>";
+  el.style.display="";
+}
+function checkLastRun(){
+  getJson("https://api.github.com/repos/"+GH_OWNER+"/"+GH_REPO+"/actions/workflows/"+GH_WORKFLOW+"/runs?per_page=1&status=completed&t="+Date.now(),apiHeaders())
+    .then(function(j){
+      var run=(j.workflow_runs||[])[0];
+      var gen=(LIVE&&LIVE.generated)?new Date(LIVE.generated).getTime():0;
+      if(!run||run.conclusion==="success"||new Date(run.updated_at).getTime()<=gen){ showReadFail(null); return; }
+      return runReason(run).then(function(reason){ showReadFail(run,reason); });
+    })
+    .catch(function(){});
 }
 function ghHeaders(t){ return {Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28",Authorization:"Bearer "+t}; }
 function refreshNow(){
@@ -974,7 +1026,10 @@ function refreshNow(){
           .then(function(j){
             var run=(j.workflow_runs||[])[0];
             if(run&&run.id!==beforeId&&run.status==="completed"){
-              if(run.conclusion!=="success") return rej(new Error("the read finished with “"+run.conclusion+"”"));
+              if(run.conclusion!=="success") return runReason(run).then(function(reason){
+                showReadFail(run,reason);
+                rej(new Error(reason||("the read finished with “"+run.conclusion+"”")));
+              });
               return res();
             }
             setTimeout(poll,5000);
@@ -1025,6 +1080,7 @@ function unlock(){
         document.getElementById("app").style.display="";
         setStat("gateStatus","","");
         resolve();
+        checkLastRun();
       }).catch(function(e){
         btn.disabled=false;
         if(fromStore){ try{ localStorage.removeItem(PASS_KEY); }catch(e2){} }

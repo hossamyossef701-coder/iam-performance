@@ -270,7 +270,7 @@ export function parseCoachSheet(arr, opts) {
   //    and the figure itself when it has not. Group training is counted separately by the
   //    sheet, so it ends the client block.
   let sumS = 0, sumR = 0, sumC = 0, sumPS = 0, maxPrice = 0, clients = 0;
-  let projS = 0, projR = 0, projPS = 0, projClients = 0;
+  let projS = 0, projR = 0, projPS = 0, projClients = 0, projActive = 0, projMissing = 0;
   for (let r = headerRowIdx + 1; r < clientEnd; r++) {
     const row = arr[r]; if (!row) continue;
     const nm = norm(row[nameCol]);
@@ -291,6 +291,11 @@ export function parseCoachSheet(arr, opts) {
     if (ps != null) { projS += ps; if (p != null) projPS += ps * p; }
     if (pr != null) projR += pr;
     if ((ps || 0) > 0 || (pr || 0) > 0) projClients++;
+    // A client with sessions this month but nothing projected for them: the projection is only
+    // partly filled in, or the client joined after it was set. Either way it reads low.
+    if (projSCol >= 0 || projRCol >= 0) {
+      if ((s || 0) > 0) { projActive++; if (!((ps || 0) > 0) && !((pr || 0) > 0)) projMissing++; }
+    }
   }
 
   // When the money column had no header and its position was inferred, prove it: on a
@@ -363,6 +368,8 @@ export function parseCoachSheet(arr, opts) {
       s: projSCol >= 0 ? round(projS) : null,
       r: projRCol >= 0 ? round(projR) : (projSCol >= 0 ? round(projPS) : null),
       clients: projClients,
+      active: projActive,             // clients with sessions this month
+      missing: projMissing,           // ...of whom this many have no projection
       priced: projRCol < 0,           // true: worked out from projected sessions x price
     };
     if (projRCol >= 0 && projSCol >= 0 && projPS > 0 && Math.abs(projR - projPS) > Math.max(50, projPS * 0.02)) {

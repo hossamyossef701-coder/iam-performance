@@ -199,7 +199,7 @@ const PROJ_HEAD = [[0, "Commitment %"], [1, "Client Name"], ...days(2, 30), [34,
   ];
   const r = parseCoachSheet(sheet, { cutoffDay: 10 });
   check("projection read from the client rows", { ...totals(r), p: r.projection },
-        { s: 6, r: 1700, x: null, p: { s: 20, r: 5600, clients: 2, priced: false } });
+        { s: 6, r: 1700, x: null, p: { s: 20, r: 5600, clients: 2, active: 2, missing: 0, priced: false } });
   check("...and the Group Training figure is reported, not added",
         r.warnings.some((w) => /projected sessions: sheet total 24, client rows add to 20/.test(w)), true);
 }
@@ -212,7 +212,7 @@ const PROJ_HEAD = [[0, "Commitment %"], [1, "Client Name"], ...days(2, 30), [34,
     row([[1, "Ben"], [34, 250], [35, 2], [36, 500], [38, 6]]),
   ];
   check("projection priced when the money column is missing", parseCoachSheet(sheet).projection,
-        { s: 16, r: 4500, clients: 2, priced: true });
+        { s: 16, r: 4500, clients: 2, active: 2, missing: 0, priced: true });
 }
 
 /* 9g. A projection in AED that is not projected sessions x price is flagged. */
@@ -243,7 +243,20 @@ const PROJ_HEAD = [[0, "Commitment %"], [1, "Client Name"], ...days(2, 30), [34,
     row([[1, "Ann"], [34, 300], [35, 4], [36, 1200], ...marks(2, [1, 3, 5, 7])]),
   ];
   check("blank projection columns read as zero", parseCoachSheet(sheet).projection,
-        { s: 0, r: 0, clients: 0, priced: false });
+        { s: 0, r: 0, clients: 0, active: 1, missing: 1, priced: false });
+}
+
+/* 9j. Partly filled: three clients have sessions, one of them has nothing projected. */
+{
+  const sheet = [
+    row(PROJ_HEAD),
+    row([[1, "Ann"], [34, 300], [35, 4], [36, 1200], [38, 12], [39, 3600]]),
+    row([[1, "Ben"], [34, 250], [35, 2], [36, 500], [38, 8], [39, 2000]]),
+    row([[1, "New client"], [34, 280], [35, 1], [36, 280]]),
+    row([[1, "Old client"], [34, 280], [35, 0], [36, 0]]),            // no sessions: not counted either way
+  ];
+  const p = parseCoachSheet(sheet).projection;
+  check("a client with sessions but no projection is counted", { active: p.active, missing: p.missing }, { active: 3, missing: 1 });
 }
 
 /* 10. Month tab names. */

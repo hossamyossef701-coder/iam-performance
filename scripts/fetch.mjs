@@ -147,6 +147,87 @@ async function viaOdShares(shareUrl, L) {
   throw new Error(lastErr);
 }
 
+/* ---- "badger": consumer OneDrive as an anonymous viewer.
+   Since Microsoft moved personal OneDrive onto its newer storage (links now look like
+   1drv.ms/f/c/<id>/<token> and the folder page carries "migratedtospo"), the shares API no
+   longer answers to a bare request: it wants the same short-lived viewer pass ("Badger"
+   token) that OneDrive's own page fetches for someone opening the link signed out. The pass
+   identifies nobody and grants nothing the link does not; it is asked for fresh each run and
+   never logged. Then: list the folder, follow its subfolders, download each workbook. ---- */
+const BADGER_URL = process.env.OD_BADGER_URL || "https://api-badgerp.svc.ms/v1.0/token";
+const BADGER_APP = "5cbed6ac-a083-4e14-b191-b4ba07653de2";      // OneDrive web's own app id
+const OD_BASES = (process.env.OD_API_BASES || "https://api.onedrive.com/v1.0,https://my.microsoftpersonalcontent.com/_api/v2.0").split(",");
+async function badgerToken(L) {
+  const res = await fetch(BADGER_URL, { method: "POST", headers: { "User-Agent": UA, "Content-Type": "application/json", Accept: "application/json" },
+                                        body: JSON.stringify({ appId: BADGER_APP }) });
+  L.log(`  viewer pass: HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`no viewer pass (${res.status})`);
+  const j = await res.json().catch(() => ({}));
+  if (!j.token) throw new Error("the viewer pass answer carried no token");
+  return j.token;
+}
+const isZip = (b) => b && b.length > 4 && b[0] === 0x50 && b[1] === 0x4b;
+async function viaBadger(shareUrl, L) {
+  const token = await badgerToken(L);
+  const H = { Authorization: `Badger ${token}`, Prefer: "autoredeem", Accept: "application/json" };
+  const redeemed = decodeRedeem(shareUrl, L);
+  const keys = [...new Set([redeemed, shareUrl].filter(Boolean).map(encodeShare))];
+  let lastErr = "no endpoint answered";
+  for (const key of keys) for (const base of OD_BASES) {
+    const res = await get(`${base}/shares/${key}/driveItem?$expand=children`, { headers: H }, L, "list");
+    if (!res.ok) { lastErr = `listing failed (${res.status})`; continue; }
+    let root; try { root = await res.json(); } catch { lastErr = "the answer was not readable as data"; continue; }
+    if (!Array.isArray(root.children)) { lastErr = "the answer held no file list"; continue; }
+    const driveId = root.parentReference?.driveId || null;
+    // Ways to ask for one item's children or content, best first. Any of them may be refused,
+    // depending on which storage the account sits on, so each is tried until one answers.
+    const itemPaths = (id) => [`${base}/shares/${key}/items/${id}`, driveId ? `${base}/drives/${driveId}/items/${id}` : null].filter(Boolean);
+    const wanted = [];   // { name, folder, item }
+    const seen = new Set();
+    const take = (items, folder) => {
+      for (const it of items || []) {
+        if (!it || !it.file || !SHEET_RE.test(it.name || "") || it.name.startsWith("~$")) continue;
+        if (seen.has(it.name)) continue;          // the main folder's copy wins over a subfolder's
+        seen.add(it.name); wanted.push({ name: it.name, folder, item: it });
+      }
+    };
+    take(root.children, null);
+    // Subfolders ("Inactive" and the like), two levels down, as the other strategies do.
+    const queue = root.children.filter((it) => it && it.folder).map((it) => ({ it, path: it.name, depth: 1 }));
+    while (queue.length) {
+      const { it, path, depth } = queue.shift();
+      let kids = null;
+      for (const p of itemPaths(it.id)) {
+        const r = await get(`${p}/children?$top=200`, { headers: H }, L, "list (subfolder)");
+        if (r.ok) { kids = (await r.json().catch(() => ({}))).value || null; if (kids) break; }
+      }
+      if (!kids) { L.log("  a subfolder could not be listed and was skipped"); continue; }
+      take(kids, path);
+      if (depth < 2) kids.filter((k) => k && k.folder).forEach((k) => queue.push({ it: k, path: `${path}/${k.name}`, depth: depth + 1 }));
+    }
+    if (!wanted.length) { lastErr = "the folder answered but held no spreadsheets"; continue; }
+    L.log(`  ${wanted.length} spreadsheet(s) listed`);
+    const out = [];
+    for (const w of wanted) {
+      const tries = [w.item["@content.downloadUrl"] || w.item["@microsoft.graph.downloadUrl"], ...itemPaths(w.item.id).map((p) => `${p}/content`)].filter(Boolean);
+      let buf = null;
+      for (const u of tries) {
+        // A ready-made download address is pre-signed and must not be sent the pass.
+        const pre = !/\/content$/.test(u);
+        const r = await get(u, { headers: pre ? { Accept: "*/*" } : { ...H, Accept: "*/*" } }, L, "download");
+        if (!r.ok) continue;
+        const b = Buffer.from(await r.arrayBuffer());
+        if (isZip(b) || /\.xls$/i.test(w.name)) { buf = b; break; }
+      }
+      if (!buf) { L.log("  one workbook could not be downloaded and was skipped"); continue; }
+      out.push({ name: w.name, folder: w.folder, buf });
+    }
+    if (out.length) return out;
+    lastErr = "files were listed but none could be downloaded";
+  }
+  throw new Error(lastErr);
+}
+
 /* ---- "odkey": consumer OneDrive by item, using cid/resid/authkey out of the link. Older
    share links carry these directly and they work anonymously. ---- */
 async function viaOdAuthKey(shareUrl, L) {
@@ -241,7 +322,7 @@ async function viaBrowser(shareUrl, L) {
   return mod.viaBrowser(shareUrl, L);
 }
 
-const STRATEGIES = { od: viaOdShares, odkey: viaOdAuthKey, spshares: viaSpShares, zip: viaZip, rest: viaRest, browser: viaBrowser };
+const STRATEGIES = { badger: viaBadger, od: viaOdShares, odkey: viaOdAuthKey, spshares: viaSpShares, zip: viaZip, rest: viaRest, browser: viaBrowser };
 
 export async function fetchWorkbooks(shareUrl, order, L) {
   describeLink(shareUrl, L);
@@ -261,14 +342,51 @@ export async function fetchWorkbooks(shareUrl, order, L) {
   }
   const err = new Error("All fetch strategies failed.\n" + tried.map((t) => " - " + t).join("\n"));
   err.tried = tried;
+  err.plain = plainReason(tried);
   throw err;
+}
+
+// One sentence a person can act on, for the dashboard and the top of the run page. Worked out
+// from what the strategies reported, most specific first. Never carries the link.
+export function plainReason(tried) {
+  const all = tried.join(" | ");
+  // The real folder page is titled "<folder> - OneDrive"; a dead link lands on a page titled
+  // plain "OneDrive". So the folder having opened is what separates a reader problem from a link problem.
+  const folderOpened = /page title "[^"]+ - OneDrive|files were listed/i.test(all);
+  if (/asked for a sign-in|page title "Sign in/i.test(all))
+    return "The folder link in SHARE_URL asks for a sign-in, so it is not an 'Anyone' link. Ask the folder's owner for a new link (Anyone, Can view, no expiry, no password) and update the SHARE_URL secret.";
+  if (/sharing link could not be found|itemNotFound/i.test(all) && !folderOpened)
+    return "The folder link in SHARE_URL no longer works - OneDrive says it does not exist. Ask the folder's owner for a new link (Anyone, Can view, no expiry, no password) and update the SHARE_URL secret.";
+  if (/files were listed but none could be downloaded|could not be downloaded/i.test(all))
+    return "The coach folder opened and its files were listed, but they could not be downloaded. The link is fine; the reader needs updating - send the run log.";
+  return "The coach folder could not be read: the link opens, but none of the ways of reading it worked. The reader needs updating - send the run log.";
 }
 
 /* ---- A single shared workbook (the assessment tracker), rather than a folder. ---- */
 export async function fetchOneWorkbook(shareUrl, L) {
   describeLink(shareUrl, L);
   const tried = [];
-  // The plain API route first: it costs a second and needs no browser.
+  // The viewer-pass route first (the storage personal OneDrive moved to in 2026), then the
+  // plain API route: each costs a second and needs no browser.
+  try {
+    const token = await badgerToken(L);
+    const H = { Authorization: `Badger ${token}`, Prefer: "autoredeem", Accept: "application/json" };
+    const key = encodeShare(decodeRedeem(shareUrl, L) || shareUrl);
+    for (const base of OD_BASES) {
+      const res = await get(`${base}/shares/${key}/driveItem`, { headers: H }, L, "item");
+      if (!res.ok) { tried.push(`viewer pass, ${base.split("/")[2]}: HTTP ${res.status}`); continue; }
+      const j = await res.json();
+      const direct = j["@content.downloadUrl"] || j["@microsoft.graph.downloadUrl"];
+      const urls = [direct, `${base}/shares/${key}/driveItem/content`].filter(Boolean);
+      for (const u of urls) {
+        const dl = await get(u, { headers: u === direct ? { Accept: "*/*" } : { ...H, Accept: "*/*" } }, L, "download");
+        if (!dl.ok) continue;
+        const buf = Buffer.from(await dl.arrayBuffer());
+        if (isZip(buf)) return buf;
+      }
+      tried.push("viewer pass: the download was not a workbook");
+    }
+  } catch (e) { tried.push("viewer pass: " + L.redact(e.message)); }
   try {
     const redeemed = decodeRedeem(shareUrl, L) || shareUrl;
     const key = encodeShare(redeemed);

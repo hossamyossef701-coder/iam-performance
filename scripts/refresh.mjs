@@ -1,7 +1,7 @@
 // Pulls every coach workbook from the shared OneDrive folder, parses the monthly sheets,
 // encrypts the result and writes live.enc.json (+ history.enc.json when HISTORY_JSON is set).
 // Env: SHARE_URL, DATA_PASSPHRASE (required) · HISTORY_JSON
-//      ASSESS_SHARE_URL (the assessment tracker) · LIVE_FROM (default "1900-01": every month the files hold) · COACH_FILE_PATTERN (default "performance sheet") · FETCH_STRATEGIES (default "od,odkey,spshares,zip,rest,browser") · OUT_DIR (default ".") · MIN_AGE_HOURS (default 12)
+//      ASSESS_SHARE_URL (the assessment tracker) · LIVE_FROM (default "1900-01": every month the files hold) · COACH_FILE_PATTERN (default "performance sheet") · FETCH_STRATEGIES (default "badger,od,odkey,spshares,zip,rest,browser") · OUT_DIR (default ".") · MIN_AGE_HOURS (default 12)
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -20,11 +20,11 @@ const OUT = env.OUT_DIR || ".";
 const LIVE_FROM = env.LIVE_FROM || "1900-01";
 const MIN_AGE_H = Number(env.MIN_AGE_HOURS || 12);
 const ASSESS_URL = (env.ASSESS_SHARE_URL || "").trim();
-const ORDER = (env.FETCH_STRATEGIES || "od,odkey,spshares,zip,rest,browser").split(",").map((s) => s.trim());
+const ORDER = (env.FETCH_STRATEGIES || "badger,od,odkey,spshares,zip,rest,browser").split(",").map((s) => s.trim());
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
-console.log("refresh build 2026-11-11a (monthly projection read)");  // proves which version the job is running
+console.log("refresh build 2026-11-11b (new OneDrive storage, plain failure reasons)");  // proves which version the job is running
 
 // One typed character of difference, so "Shayla" finds "Shyla".
 function near(a, b) {
@@ -63,7 +63,10 @@ async function main() {
   }
 
   // 2. Fetch + parse.
-  const { strategy, files } = await fetchWorkbooks(SHARE_URL, ORDER, L);
+  let fetched;
+  try { fetched = await fetchWorkbooks(SHARE_URL, ORDER, L); }
+  catch (e) { annotate(e.plain || "The coach folder could not be read - send the run log."); throw e; }
+  const { strategy, files } = fetched;
   const now = dubaiPeriod();
   const today = dubaiDay();
   let probesLeft = Number(env.PROBE_LIMIT || 24);   // describes the first few unreadable sheets
@@ -106,10 +109,18 @@ async function main() {
     const targets = wb.SheetNames.map((n) => ({ n, p: sheetNameToPeriod(n) })).filter((x) => x.p && x.p >= LIVE_FROM && x.p <= now);
     if (!targets.length) entry.errors.push(`no month sheet from ${LIVE_FROM} onward`);
     for (const t of targets) {
-      const arr = XLSX.utils.sheet_to_json(wb.Sheets[t.n], { header: 1, raw: true, defval: null });
-      // For the month still running, also count only the days that have happened, because
-      // sessions are booked ahead and the sheet's totals include them.
-      const r = parseCoachSheet(arr, t.p === now ? { cutoffDay: today } : null);
+      // One tab that trips the reader is reported against that coach and month; it must never
+      // stop the read, or every other coach's figures go unsaved with it.
+      let arr, r;
+      try {
+        arr = XLSX.utils.sheet_to_json(wb.Sheets[t.n], { header: 1, raw: true, defval: null });
+        // For the month still running, also count only the days that have happened, because
+        // sessions are booked ahead and the sheet's totals include them.
+        r = parseCoachSheet(arr, t.p === now ? { cutoffDay: today } : null);
+      } catch (e) {
+        entry.errors.push(`${t.p}: this month's tab could not be read (${String(e && e.message || e).slice(0, 80)})`);
+        continue;
+      }
       if (r.error) {
         entry.errors.push(`${t.p}: ${r.error}`);
         // Describe the layout so it can be taught to the parser. Column headers and rows
@@ -136,7 +147,7 @@ async function main() {
       if (r.mtd) { bucket[coach].ms = r.mtd.sessions; bucket[coach].mr = r.mtd.revenue; bucket[coach].mx = r.mtd.cancelled; bucket[coach].md = r.mtd.day; }
       // ps/pr: the month's projected sessions and revenue. Only on sheets that carry the columns;
       // a 0 means the columns are there but nothing has been typed in them yet.
-      if (r.projection) { bucket[coach].ps = r.projection.s; bucket[coach].pr = r.projection.r; }
+      if (r.projection) { bucket[coach].ps = r.projection.s; bucket[coach].pr = r.projection.r; bucket[coach].pm = r.projection.missing; }
       entry.months.push(t.p);
     }
   }
@@ -234,4 +245,14 @@ async function main() {
   L.log("live.enc.json written");
 }
 
-main().catch((e) => { console.error(L.redact(e.stack || e.message)); process.exit(1); });
+// A one-line reason pinned to the run, which the dashboard reads and shows. GitHub's own
+// "annotation" format; the text never carries the link, a path or a name.
+let annotated = false;
+function annotate(msg) {
+  annotated = true;
+  console.log(`::error title=Read failed::${String(msg).replace(/%/g, "%25").replace(/\r?\n/g, " ")}`);
+}
+main().catch((e) => {
+  if (!annotated) annotate("The read stopped on an unexpected error - send the run log.");
+  console.error(L.redact(e.stack || e.message)); process.exit(1);
+});
