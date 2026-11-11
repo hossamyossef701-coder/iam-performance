@@ -56,6 +56,9 @@ jobs:
           DATA_PASSPHRASE: ${{ secrets.DATA_PASSPHRASE }}
           HISTORY_JSON: ${{ secrets.HISTORY_JSON }}
           ASSESS_SHARE_URL: ${{ secrets.ASSESS_SHARE_URL }}
+          CLIENTS_SHARE_URL: ${{ secrets.CLIENTS_SHARE_URL }}
+          CLIENTS_PASSPHRASE: ${{ secrets.CLIENTS_PASSPHRASE }}
+          CLIENT_NAMES: ${{ vars.CLIENT_NAMES }}
         run: node scripts/refresh.mjs
 
       - name: Save changes
@@ -64,6 +67,7 @@ jobs:
           git config user.email "iam-refresh-bot@users.noreply.github.com"
           git add live.enc.json
           [ -f history.enc.json ] && git add history.enc.json || true
+          [ -f clients.enc.json ] && git add clients.enc.json || true
           if git diff --cached --quiet; then
             echo "Nothing new to save."
           else

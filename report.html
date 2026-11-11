@@ -50,6 +50,10 @@ button:hover,select:hover{border-color:var(--ink-faint);}
 .seg button{border:none;border-radius:0;background:transparent;padding:8px 13px;color:var(--ink-soft);}
 .seg button+button{border-left:1px solid var(--line);}
 .seg button.on{background:var(--accent);color:#120800;font-weight:600;}
+/* switching between the pages; each asks for its own passphrase */
+.seg a{padding:8px 13px;color:var(--ink-soft);font-size:13px;text-decoration:none;}
+.seg a+a{border-left:1px solid var(--line);}
+.seg a.on{background:var(--accent);color:#120800;font-weight:600;}
 .chip-line{margin:-6px 0 12px;min-height:24px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
 .chip.warn{color:var(--down);border-color:rgba(225,75,75,.5);}
 .nomtd{color:var(--down);margin-left:5px;font-size:11px;vertical-align:2px;}
@@ -99,7 +103,7 @@ tfoot td:first-child{background:var(--panel-2);}
 .att-pct{min-width:46px;font-size:12.5px;}
 .att-pct.over{color:var(--up);} .att-pct.under{color:var(--down);}
 /* projection: what each coach set at the start of the month, and how much of it is reached */
-.proj{background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r);padding:14px 16px 10px;margin-bottom:16px;position:relative;overflow:hidden;}
+.proj{background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r);padding:14px 16px 10px;margin:16px 0;position:relative;overflow:hidden;}
 .proj::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:linear-gradient(180deg,var(--accent),var(--accent-2));}
 .proj-head{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;justify-content:space-between;margin-bottom:6px;}
 .proj-head .k{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.17em;text-transform:uppercase;color:var(--ink-faint);}
@@ -217,6 +221,7 @@ body.locked{overflow:hidden;}
   </div>
 
   <div class="bar">
+    <span class="seg"><a class="on" href="./report.html">Performance</a><a href="./clients.html">Clients</a></span>
     <select id="selMonth"></select>
     <span class="seg" id="segBasis">
       <button data-v="mtd" class="on">To date</button>
@@ -251,12 +256,12 @@ body.locked{overflow:hidden;}
 
   <div class="tiles" id="tiles"></div>
 
-  <div class="proj" id="proj" style="display:none"></div>
-
   <div class="card">
     <div class="scroll"><table id="tbl"></table></div>
     <div class="empty" id="empty" style="display:none">No coach has figures for this month yet.</div>
   </div>
+
+  <div class="proj" id="proj" style="display:none"></div>
 
   <details class="coaches" id="coveragePanel">
     <summary id="coverageSummary">Coverage</summary>

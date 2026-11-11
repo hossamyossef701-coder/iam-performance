@@ -1,6 +1,7 @@
 // Runs before every refresh. These are not anybody's real sheets: each case is a LAYOUT
 // FAMILY the parser must handle, written from scratch. If a change to the parser breaks one,
 // the job stops here rather than publishing figures nobody has checked.
+import { buildClientsModel } from "./clients-model.mjs";
 import { parseCoachSheet, sheetNameToPeriod } from "./parse.mjs";
 import { parseAssessments, monthToPeriod } from "./assess.mjs";
 
@@ -257,6 +258,45 @@ const PROJ_HEAD = [[0, "Commitment %"], [1, "Client Name"], ...days(2, 30), [34,
   ];
   const p = parseCoachSheet(sheet).projection;
   check("a client with sessions but no projection is counted", { active: p.active, missing: p.missing }, { active: 3, missing: 1 });
+}
+
+/* 9k. The Clients page: every status and renewal decision worked out from the typed tabs alone.
+   One made-up client per rule. Day numbers are Excel's (D(y, m, d) below). */
+{
+  const D = (y, m, d) => Math.round((Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 86400000);
+  const settings = [["Settings"], [], ["Grace period (days)", 90], ["Go-live date", D(2026, 11, 4)], ["Carry-over period (days)", 120],
+    ["Every purchase logged since", D(2026, 1, 1)], ["Expiring soon window (days)", 10], [],
+    ["Sessions", "Valid for (days)", "Applies to purchases from"], [12, 49, D(2020, 1, 1)], [24, 84, D(2020, 1, 1)], [12, 60, D(2027, 1, 1)]];
+  const clients = [[], ["Client ID", "Full name", "Coach", "Carried-over status", "End date (if they told us)"],
+    ["C0001", "Running", "Sue"], ["C0002", "Ran out in September", "Sue"], ["C0003", "Ran out in June", "Ann"],
+    ["C0004", "Extended", "Ann"], ["C0005", "Told us", "Ann", null, D(2026, 10, 15)], ["C0006", "Moved over", "Sue", "Active"],
+    ["C0007", "Family member", "Sue"], ["C0008", "Family payer", "Sue"], ["C0009", "Renewed then left", "Ann"], ["C0010", "Ends soon", "Ann"]];
+  const packages = [[], ["Date", "Client ID", "Size", "Unit", "Coach", "Extended until", "Shared with (Client IDs)"],
+    [D(2026, 11, 1), "C0001", 12, "Sessions", "Sue"],
+    [D(2026, 8, 1), "C0002", 12, "Sessions", "Sue"],
+    [D(2026, 5, 1), "C0003", 12, "Sessions", "Ann"],
+    [D(2026, 9, 1), "C0004", 12, "Sessions", "Ann", D(2026, 12, 1)],
+    [D(2026, 9, 1), "C0005", 24, "Sessions", "Ann"],
+    [D(2026, 11, 5), "C0008", 24, "Sessions", "Sue", null, "C0007"],
+    [D(2026, 3, 1), "C0009", 12, "Sessions", "Ann"],
+    [D(2026, 4, 15), "C0009", 12, "Sessions", "Ann"],
+    [D(2026, 9, 25), "C0010", 12, "Sessions", "Ann"]];
+  const sheets = { Settings: settings, Clients: clients, Packages: packages };
+  const m = buildClientsModel(sheets, { today: D(2026, 11, 11) });
+  check("clients: who is active (running, extended, moved over, family, payer, ends soon)", m.kpi.active, 6);
+  check("clients: renewal due", m.lists.due.map((x) => x.id), ["C0002"]);
+  check("clients: ended in the last 60 days, latest first", m.lists.recent.map((x) => x.id), ["C0005", "C0003"]);
+  check("clients: expiring soon is cover from a package, never the move from the old lists", m.lists.expiring.map((x) => [x.id, x.left]), [["C0010", 2]]);
+  check("clients: renewal decisions", { kept: m.kpi.kept, lost: m.kpi.lost, pending: m.kpi.pending }, { kept: 1, lost: 3, pending: 1 });
+  check("clients: no names unless asked for", "nm" in m.lists.due[0], false);
+  // A new rule for 12 sessions from 1 Jan 2027: a package bought after it runs 60 days, one before it 49.
+  packages.push([D(2027, 1, 2), "C0001", 12, "Sessions", "Sue"], [D(2026, 12, 30), "C0002", 12, "Sessions", "Sue"]);
+  const later = buildClientsModel(sheets, { today: D(2027, 2, 25), names: true });
+  check("clients: a dated rule applies only to purchases from its date", { due: later.lists.due.map((x) => x.id).sort(), active: later.lists.expiring.map((x) => x.id) },
+        // C0002 (bought before: 49 days) has run out; C0001 (bought after: 60 days) is about to.
+        // The extension, the family package and C0010 have all run out by then too.
+        { due: ["C0002", "C0004", "C0007", "C0008"], active: ["C0001"] });
+  check("clients: names when asked for", later.lists.due.find((x) => x.id === "C0002").nm, "Ran out in September");
 }
 
 /* 10. Month tab names. */

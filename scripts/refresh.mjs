@@ -1,7 +1,7 @@
 // Pulls every coach workbook from the shared OneDrive folder, parses the monthly sheets,
 // encrypts the result and writes live.enc.json (+ history.enc.json when HISTORY_JSON is set).
 // Env: SHARE_URL, DATA_PASSPHRASE (required) · HISTORY_JSON
-//      ASSESS_SHARE_URL (the assessment tracker) · LIVE_FROM (default "1900-01": every month the files hold) · COACH_FILE_PATTERN (default "performance sheet") · FETCH_STRATEGIES (default "badger,od,odkey,spshares,zip,rest,browser") · OUT_DIR (default ".") · MIN_AGE_HOURS (default 12)
+//      ASSESS_SHARE_URL (the assessment tracker) · CLIENTS_SHARE_URL + CLIENTS_PASSPHRASE (the Clients page) · CLIENT_NAMES ("on" to show names there) · LIVE_FROM (default "1900-01": every month the files hold) · COACH_FILE_PATTERN (default "performance sheet") · FETCH_STRATEGIES (default "badger,od,odkey,spshares,zip,rest,browser") · OUT_DIR (default ".") · MIN_AGE_HOURS (default 12)
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -10,6 +10,7 @@ import { fetchWorkbooks, fetchOneWorkbook, makeLogger } from "./fetch.mjs";
 import { parseCoachSheet, probeSheet, sheetNameToPeriod, coachFromFilename } from "./parse.mjs";
 import { parseAssessments } from "./assess.mjs";
 import { encryptJSON, decryptJSON } from "./crypto.mjs";
+import { buildClientsModel } from "./clients-model.mjs";
 
 const env = process.env;
 const SHARE_URL = (env.SHARE_URL || "").trim();
@@ -24,7 +25,7 @@ const ORDER = (env.FETCH_STRATEGIES || "badger,od,odkey,spshares,zip,rest,browse
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
-console.log("refresh build 2026-11-11b (new OneDrive storage, plain failure reasons)");  // proves which version the job is running
+console.log("refresh build 2026-11-11c (clients page)");  // proves which version the job is running
 
 // One typed character of difference, so "Shayla" finds "Shyla".
 function near(a, b) {
@@ -47,7 +48,49 @@ function dubaiPeriod() {
   return p.slice(0, 7);
 }
 
+/* The Clients page: "I AM - Clients.xlsx", read on its own link and locked with its own
+   passphrase, so the Performance passphrase never opens it and the other way round. It is read
+   first and on its own: a problem with it is reported and skipped, never allowed to stop the
+   coach figures. Only the five typed tabs are passed on; the file's views are never read. */
+async function readClients() {
+  const url = (env.CLIENTS_SHARE_URL || "").trim(), pass = (env.CLIENTS_PASSPHRASE || "").trim();
+  if (!url || !pass) { console.log("No CLIENTS_SHARE_URL / CLIENTS_PASSPHRASE secret, so the Clients page was not updated."); return; }
+  if (pass === PASS) console.log("Note: the Clients passphrase is the same as the Performance one, so either opens both pages.");
+  try {
+    const LC = makeLogger(url);
+    console.log("Reading the Clients file");
+    const buf = await fetchOneWorkbook(url, LC);
+    const wb = XLSX.read(buf, { type: "buffer" });
+    const sheets = {};
+    for (const n of ["Clients", "Packages", "Coach Changes", "Lists", "Settings"]) {
+      if (wb.Sheets[n]) sheets[n] = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null });
+    }
+    const model = buildClientsModel(sheets, { names: /^(1|on|yes|true)$/i.test((env.CLIENT_NAMES || "").trim()) });
+    const out = path.join(OUT, "clients.enc.json");
+    // The same figures as last time are not written again (a new lock changes the file and makes
+    // a pointless commit) unless they are getting old.
+    if (fs.existsSync(out)) {
+      try {
+        const prev = await decryptJSON(JSON.parse(fs.readFileSync(out, "utf8")), pass);
+        const { generated: g, ...rest } = prev;
+        if (JSON.stringify(rest) === JSON.stringify(model) && Date.now() - Date.parse(g) < MIN_AGE_H * 3600e3) {
+          console.log("Clients: same figures as the last read, not rewritten."); return;
+        }
+      } catch {}
+    }
+    model.generated = new Date().toISOString();
+    fs.writeFileSync(out, JSON.stringify(await encryptJSON(model, pass)));
+    console.log(`Clients: ${model.kpi.total} clients, ${model.kpi.active} active - clients.enc.json written` + (model.names ? " (with names)" : " (Client IDs only)"));
+  } catch (e) {
+    const msg = e.plain ? e.plain.replace(/SHARE_URL/g, "CLIENTS_SHARE_URL").replace(/coach folder/g, "Clients file")
+                        : `The Clients file could not be read: ${String(e.message || e).split("\n")[0].replace(/the assessment tracker/ig, "the Clients file").slice(0, 160)}`;
+    console.log(`::warning title=Clients page not updated::${msg}`);
+    console.log(L.redact(String(e.stack || e.message)));
+  }
+}
+
 async function main() {
+  await readClients();
   // 1. History file (one-off): encrypt the private history JSON held in a secret.
   if (env.HISTORY_JSON && env.HISTORY_JSON.trim()) {
     let h; try { h = JSON.parse(env.HISTORY_JSON); } catch { console.error("HISTORY_JSON secret is not valid JSON."); process.exit(2); }
