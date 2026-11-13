@@ -295,21 +295,28 @@ const PROJ_HEAD = [[0, "Commitment %"], [1, "Client Name"], ...days(2, 30), [34,
     [D(2026, 4, 15), "C0009", 12, "Sessions", "Ann"],
     [D(2026, 9, 25), "C0010", 12, "Sessions", "Ann"]];
   const sheets = { Settings: settings, Clients: clients, Packages: packages };
-  const m = buildClientsModel(sheets, { today: D(2026, 11, 11) });
+  const m = buildClientsModel(sheets, { today: D(2026, 11, 11), debug: true });
+  const count = (o) => m.debug.decisions.filter((x) => x[1] === o).length;
   check("clients: who is active (running, extended, moved over, family, payer, ends soon)", m.kpi.active, 6);
-  check("clients: renewal due", m.lists.due.map((x) => x.id), ["C0002"]);
-  check("clients: ended in the last 60 days, latest first", m.lists.recent.map((x) => x.id), ["C0005", "C0003"]);
-  check("clients: expiring soon is cover from a package, never the move from the old lists", m.lists.expiring.map((x) => [x.id, x.left]), [["C0010", 2]]);
-  check("clients: renewal decisions", { kept: m.kpi.kept, lost: m.kpi.lost, pending: m.kpi.pending }, { kept: 1, lost: 3, pending: 1 });
-  check("clients: no names unless asked for", "nm" in m.lists.due[0], false);
+  check("clients: renewal due", m.debug.due, ["C0002"]);
+  check("clients: ending in 30 days is cover from a package, never the move from the old lists", m.debug.soon, ["C0004", "C0010"]);
+  check("clients: renewal decisions", { kept: count("kept"), lost: count("lost"), pending: count("pending") }, { kept: 1, lost: 3, pending: 1 });
+  const { debug, ...page } = m;
+  check("clients: no names and no Client IDs in what the page receives", /Running|Ran out in|Family|C00\d\d/.test(JSON.stringify(page)), false);
+  check("clients: every month adds up (start + new + came back - ran out = end)",
+        m.months.every((x) => x.start + x.nw + x.back - x.out === x.end), true);
   // A new rule for 12 sessions from 1 Jan 2027: a package bought after it runs 60 days, one before it 49.
   packages.push([D(2027, 1, 2), "C0001", 12, "Sessions", "Sue"], [D(2026, 12, 30), "C0002", 12, "Sessions", "Sue"]);
-  const later = buildClientsModel(sheets, { today: D(2027, 2, 25), names: true });
-  check("clients: a dated rule applies only to purchases from its date", { due: later.lists.due.map((x) => x.id).sort(), active: later.lists.expiring.map((x) => x.id) },
+  const later = buildClientsModel(sheets, { today: D(2027, 2, 25), debug: true });
+  check("clients: a dated rule applies only to purchases from its date", { due: later.debug.due, soon: later.debug.soon },
         // C0002 (bought before: 49 days) has run out; C0001 (bought after: 60 days) is about to.
         // The extension, the family package and C0010 have all run out by then too.
-        { due: ["C0002", "C0004", "C0007", "C0008"], active: ["C0001"] });
-  check("clients: names when asked for", later.lists.due.find((x) => x.id === "C0002").nm, "Ran out in September");
+        { due: ["C0002", "C0004", "C0007", "C0008"], soon: ["C0001"] });
+  // Amounts are without VAT: a price typed as 1,050 counts as 1,000.
+  packages.push([D(2027, 2, 20), "C0009", 12, "Sessions", "Ann", null, null, 1050]);
+  packages[1].push("Price (AED incl. VAT)");
+  const vat = buildClientsModel(sheets, { today: D(2027, 2, 25) });
+  check("clients: package sales are without VAT", vat.kpi.salesMonth, 1000);
 }
 
 /* 10. Month tab names. */

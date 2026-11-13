@@ -1,7 +1,7 @@
 // Pulls every coach workbook from the shared OneDrive folder, parses the monthly sheets,
 // encrypts the result and writes live.enc.json (+ history.enc.json when HISTORY_JSON is set).
 // Env: SHARE_URL, DATA_PASSPHRASE (required) · HISTORY_JSON
-//      ASSESS_SHARE_URL (the assessment tracker) · CLIENTS_SHARE_URL + CLIENTS_PASSPHRASE (the Clients page) · CLIENT_NAMES ("on" to show names there) · LIVE_FROM (default "1900-01": every month the files hold) · COACH_FILE_PATTERN (default "performance sheet") · FETCH_STRATEGIES (default "badger,od,odkey,spshares,zip,rest,browser") · OUT_DIR (default ".") · MIN_AGE_HOURS (default 12)
+//      ASSESS_SHARE_URL (the assessment tracker) · CLIENTS_SHARE_URL + CLIENTS_PASSPHRASE (the Clients page) · LIVE_FROM (default "1900-01": every month the files hold) · COACH_FILE_PATTERN (default "performance sheet") · FETCH_STRATEGIES (default "badger,od,odkey,spshares,zip,rest,browser") · OUT_DIR (default ".") · MIN_AGE_HOURS (default 12)
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -25,7 +25,7 @@ const ORDER = (env.FETCH_STRATEGIES || "badger,od,odkey,spshares,zip,rest,browse
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
-console.log("refresh build 2026-11-11d (clients file from a folder link)");  // proves which version the job is running
+console.log("refresh build 2026-11-13a (Clients page v2, amounts without VAT)");  // proves which version the job is running
 
 // One typed character of difference, so "Shayla" finds "Shyla".
 function near(a, b) {
@@ -89,7 +89,7 @@ async function readClients() {
     for (const n of ["Clients", "Packages", "Coach Changes", "Lists", "Settings"]) {
       if (wb.Sheets[n]) sheets[n] = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null });
     }
-    const model = buildClientsModel(sheets, { names: /^(1|on|yes|true)$/i.test((env.CLIENT_NAMES || "").trim()) });
+    const model = buildClientsModel(sheets);
     const out = path.join(OUT, "clients.enc.json");
     // The same figures as last time are not written again (a new lock changes the file and makes
     // a pointless commit) unless they are getting old.
@@ -104,7 +104,7 @@ async function readClients() {
     }
     model.generated = new Date().toISOString();
     fs.writeFileSync(out, JSON.stringify(await encryptJSON(model, pass)));
-    console.log(`Clients: ${model.kpi.total} clients, ${model.kpi.active} active - clients.enc.json written` + (model.names ? " (with names)" : " (Client IDs only)"));
+    console.log(`Clients: ${model.kpi.total} clients, ${model.kpi.active} active - clients.enc.json written`  + " (no names, no IDs)");
   } catch (e) {
     const msg = e.plain ? e.plain.replace(/\bSHARE_URL/g, "CLIENTS_SHARE_URL").replace(/coach folder/g, "Clients folder")
                         : `The Clients file could not be read: ${String(e.message || e).split("\n")[0].slice(0, 160)}`;

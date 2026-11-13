@@ -15,9 +15,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.2.0/chartjs-plugin-zoom.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Alata&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./fonts/alata.css">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 :root{
@@ -26,7 +24,7 @@
   --ink:#f2ede6; --ink-soft:#b0a89e; --ink-faint:#6e6862;
   --normal:#5eb87a; --watch:#eeb64a; --signal:#e14b4b;
   --accent:#ef691d; --accent-2:#ff8340; --cool:#4a8db8; --gold:#eeb64a; --violet:#b48fd6;
-  --f-display:'Alata',system-ui,sans-serif; --f-body:'Alata',system-ui,sans-serif; --f-mono:'IBM Plex Mono',monospace;
+  --f-display:'Alata',system-ui,sans-serif; --f-body:'Alata',system-ui,sans-serif; --f-mono:'Alata',system-ui,sans-serif;
   --r:12px;
 }
 html{scroll-behavior:smooth;}
@@ -1470,7 +1468,7 @@ var refLinePlugin={
       ctx.beginPath(); ctx.moveTo(x,top); ctx.lineTo(x,bot);
       ctx.lineWidth=1.4; ctx.setLineDash([4,3]); ctx.strokeStyle="rgba(180,143,214,.85)"; ctx.stroke();
       ctx.setLineDash([]);
-      ctx.font="600 10px 'IBM Plex Mono', monospace";
+      ctx.font="600 10px 'Alata', sans-serif";
       var tw=ctx.measureText(target).width, pad=6, bw=tw+pad*2;
       var bx=Math.min(Math.max(x-bw/2,chart.chartArea.left),chart.chartArea.right-bw);
       ctx.fillStyle="rgba(180,143,214,.16)";
@@ -1487,17 +1485,17 @@ if(window.Chart) Chart.register(refLinePlugin);
 function baseOpts(yLabel,dec,logY,zoomable){
   var yScale = logY
     ? {type:"logarithmic",grid:{color:GRID},border:{display:false},
-       ticks:{color:TICK,font:{family:"IBM Plex Mono",size:10},padding:6,
+       ticks:{color:TICK,font:{family:"Alata",size:10},padding:6,
          // On a log axis Chart.js emits ticks at 1,2,5,10... Keep the human-readable ones
          // and blank the rest so the axis stays legible.
          callback:function(v){ var l=Math.log10(v); if(Math.abs(l-Math.round(l))<0.01||[2,5].indexOf(v/Math.pow(10,Math.floor(l)))>-1) return fmt(v,dec||0); return ""; }},
-       title:yLabel?{display:true,text:yLabel+" (log)",color:TICK,font:{family:"IBM Plex Mono",size:9.5}}:{display:false}}
+       title:yLabel?{display:true,text:yLabel+" (log)",color:TICK,font:{family:"Alata",size:9.5}}:{display:false}}
     : {grid:{color:GRID},border:{display:false},
-       ticks:{color:TICK,font:{family:"IBM Plex Mono",size:10},padding:6,callback:function(v){return fmt(v,dec||0);}},
-       title:yLabel?{display:true,text:yLabel,color:TICK,font:{family:"IBM Plex Mono",size:9.5}}:{display:false}};
+       ticks:{color:TICK,font:{family:"Alata",size:10},padding:6,callback:function(v){return fmt(v,dec||0);}},
+       title:yLabel?{display:true,text:yLabel,color:TICK,font:{family:"Alata",size:9.5}}:{display:false}};
   var pluginCfg={legend:{display:false},
       tooltip:{backgroundColor:"#0a0a0a",borderColor:"#3d3d42",borderWidth:1,cornerRadius:8,padding:11,
-        titleFont:{family:"IBM Plex Mono",size:11,weight:"600"},bodyFont:{family:"IBM Plex Mono",size:11},
+        titleFont:{family:"Alata",size:11,weight:"600"},bodyFont:{family:"Alata",size:11},
         callbacks:{label:function(c){ if(c.parsed.y===null) return null; return " "+c.dataset.label+"  "+fmt(c.parsed.y,c.dataset.dec||0); }}}};
   if(zoomable && window.Chart){
     pluginCfg.zoom={
@@ -1518,7 +1516,7 @@ function baseOpts(yLabel,dec,logY,zoomable){
     interaction:{mode:"index",intersect:false},
     plugins:pluginCfg,
     scales:{
-      x:{grid:{color:GRID,drawTicks:false},border:{color:"#2A3541"},ticks:{color:TICK,font:{family:"IBM Plex Mono",size:10},maxRotation:0,autoSkipPadding:16}},
+      x:{grid:{color:GRID,drawTicks:false},border:{color:"#2A3541"},ticks:{color:TICK,font:{family:"Alata",size:10},maxRotation:0,autoSkipPadding:16}},
       y:yScale
     }};
 }
@@ -1700,9 +1698,9 @@ function renderConv(){
     '</div><div class="chart-box sm"><canvas id="chConv"></canvas></div>';
   var opts=baseOpts(null,0);
   opts.scales.y.stacked=true; opts.scales.x.stacked=true;
-  opts.scales.y.title={display:true,text:"assessments",color:TICK,font:{family:"IBM Plex Mono",size:9.5}};
+  opts.scales.y.title={display:true,text:"assessments",color:TICK,font:{family:"Alata",size:9.5}};
   opts.scales.y1={position:"right",min:0,max:100,grid:{drawOnChartArea:false},border:{display:false},
-    ticks:{color:"#eeb64a",font:{family:"IBM Plex Mono",size:10},callback:function(v){return v+"%";}}};
+    ticks:{color:"#eeb64a",font:{family:"Alata",size:10},callback:function(v){return v+"%";}}};
   if(chConv){ chConv.destroy(); chConv=null; }
   chConv=new Chart(document.getElementById("chConv"),{data:{labels:ps.map(label),datasets:[
     {type:"bar",label:"converted",hidden:isHidden("converted"),data:ps.map(function(p){return teamRec(p).c;}),backgroundColor:"#5eb87a",stack:"a",borderRadius:3,dec:0},
@@ -1780,8 +1778,8 @@ function renderAsmConv(){
   ];
   var opts=baseOpts("assessments held",0,false,true);
   opts.scales.y1={position:"right",min:0,max:100,grid:{drawOnChartArea:false},border:{display:false},
-    ticks:{color:"#ef691d",font:{family:"IBM Plex Mono",size:10},callback:function(v){return v+"%";}},
-    title:{display:true,text:"conversion",color:"#ef691d",font:{family:"IBM Plex Mono",size:9.5}}};
+    ticks:{color:"#ef691d",font:{family:"Alata",size:10},callback:function(v){return v+"%";}},
+    title:{display:true,text:"conversion",color:"#ef691d",font:{family:"Alata",size:9.5}}};
   opts.plugins.tooltip.callbacks.label=function(c){
     var r=rows[c.dataIndex];
     if(c.dataset.label==="assessments held") return " held "+r.a+"  \u00b7  converted "+r.c;
@@ -1859,9 +1857,9 @@ function renderAsmCoach(){
   // coach's name against another's numbers.
   opts.interaction={mode:"nearest",axis:"y",intersect:false};
   opts.scales.x={min:0,max:100,grid:{color:GRID},border:{display:false},
-    ticks:{color:TICK,font:{family:"IBM Plex Mono",size:10},callback:function(v){return v+"%";}}};
+    ticks:{color:TICK,font:{family:"Alata",size:10},callback:function(v){return v+"%";}}};
   opts.scales.y={grid:{display:false},border:{display:false},
-    ticks:{color:TICK,font:{family:"IBM Plex Mono",size:10}}};
+    ticks:{color:TICK,font:{family:"Alata",size:10}}};
   opts.plugins.tooltip.callbacks.title=function(it){ return names[it[0].dataIndex]; };
   opts.plugins.tooltip.callbacks.label=function(c){
     var w=ws[c.dataIndex], nm=names[c.dataIndex], g=agg[nm];
@@ -1877,7 +1875,7 @@ function renderAsmCoach(){
       ctx.strokeStyle="rgba(242,237,230,.75)"; ctx.lineWidth=1.3;
       ctx.beginPath(); ctx.moveTo(x1,y); ctx.lineTo(x2,y); ctx.stroke();
       [x1,x2].forEach(function(x){ ctx.beginPath(); ctx.moveTo(x,y-4); ctx.lineTo(x,y+4); ctx.stroke(); });
-      ctx.fillStyle="#b0a89e"; ctx.font="10px 'IBM Plex Mono', monospace"; ctx.textBaseline="middle";
+      ctx.fillStyle="#b0a89e"; ctx.font="10px 'Alata', sans-serif"; ctx.textBaseline="middle";
       ctx.fillText(w.c+"/"+w.n, Math.min(xs.right-34, x2+7), y);
     });
     var tx=xs.getPixelForValue(teamRate);
