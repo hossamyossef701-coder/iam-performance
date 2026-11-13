@@ -110,6 +110,8 @@ const totals = (r) => (r.error ? { error: r.error } : { s: r.sessions, r: Math.r
   check("month to date excludes bookings ahead",
     { s: r.mtd.sessions, r: r.mtd.revenue, x: r.mtd.cancelled, whole: r.sessions },
     { s: 3, r: 900, x: 1, whole: 5 });
+  check("each client's days are kept, one character a day",
+    r.people.map((x) => [x.n, x.p, x.m]), [["Ann", 300, "10..1" + ".".repeat(19) + "1..1.1."]]);
 }
 
 /* 9. A sheet with no calendar at all: no month-to-date figure, and it says so. */

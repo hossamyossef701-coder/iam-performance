@@ -289,7 +289,15 @@ export function buildClientsModel(sheets, opts = {}) {
       const A1 = activeOn(at);
       let nw = 0, back = 0, out = 0;
       for (const id of A1) if (!A0.has(id)) { const c = clients.get(id); if (c.joined != null && c.joined >= start && c.joined <= endM) nw++; else back++; }
-      for (const id of A0) if (!A1.has(id)) out++;
+      // Everyone whose package ended this month: did they buy again within the grace period
+      // (came back later), not (left), or is it too early to say (still deciding)?
+      let outBack = 0, outLeft = 0, outWait = 0;
+      for (const id of A0) if (!A1.has(id)) {
+        out++;
+        const c = clients.get(id);
+        const again = c.pk.concat(c.sh).some((p) => p.date >= start && p.date <= Math.min(today, endM + grace));
+        if (again) outBack++; else if (endM + grace > today) outWait++; else outLeft++;
+      }
       const inMonth = packages.filter((p) => p.date >= start && p.date <= endM && own(p));
       const by = (t) => inMonth.filter((p) => p.type === t);
       const sum = (l) => Math.round(l.reduce((a, p) => a + (p.px || 0), 0));
@@ -301,9 +309,11 @@ export function buildClientsModel(sheets, opts = {}) {
       for (const k in coach) coach[k].s = Math.round(coach[k].s);
       months.push({
         p: `${y}-${String(m).padStart(2, "0")}`, partial: at < endM,
-        start: A0.size, nw, back, out, end: A1.size,
+        start: A0.size, nw, back, out, outBack, outLeft, outWait, end: A1.size,
         pk: { ren: by("Renewal").length, nw: by("New").length, ret: by("Returning").length },
         aed: { ren: sum(by("Renewal")), nw: sum(by("New")), ret: sum(by("Returning")) },
+        // Sessions bought, so a fall in renewals can be told apart from clients moving to bigger packages.
+        ses: Object.fromEntries([["ren", "Renewal"], ["nw", "New"], ["ret", "Returning"]].map(([k, t]) => [k, by(t).filter((p) => p.unit !== "Months").reduce((a, p) => a + (p.size || 0), 0)])),
         coach,
       });
       if (at < endM) break;
@@ -388,19 +398,22 @@ export function buildClientsModel(sheets, opts = {}) {
   }
   coaches.sort((a, b) => (a.status === "Former") - (b.status === "Former") || b.active - a.active || a.c.localeCompare(b.c));
 
-  /* ---- Who the active clients are: today against six months ago ---- */
-  const then = today - 182;
+  /* ---- Who the active clients are: today, and at the start of each period the page offers ---- */
   const activeNow = [...clients.values()].filter((c) => c.now.status === "Active");
-  const activeThen = [...clients.values()].filter((c) => statusOn(c, then).status === "Active");
   const tally = (list, f) => { const m = {}; for (const x of list) { const k = f(x) || "(not recorded)"; m[k] = (m[k] || 0) + 1; } return m; };
-  const mixOf = (f) => ({ now: tally(activeNow, f), then: tally(activeThen, f) });
-  const mix = {
-    then: iso(then),
-    service: mixOf((c) => c.service),
-    gender: mixOf((c) => ({ F: "Female", M: "Male" })[c.gender] || c.gender),
-    age: mixOf(ageOf),
-    lang: mixOf((c) => c.lang),
-  };
+  const mixFor = (list) => ({
+    service: tally(list, (c) => c.service),
+    gender: tally(list, (c) => ({ F: "Female", M: "Male" })[c.gender] || c.gender),
+    age: tally(list, ageOf),
+    lang: tally(list, (c) => c.lang),
+  });
+  const ty = +iso(today).slice(0, 4), tm = +iso(today).slice(5, 7), td = +iso(today).slice(8, 10);
+  const back = (n) => toSerial(ty, tm - n, td);       // Date.UTC rolls the month over the year
+  const mix = { now: mixFor(activeNow), at: {} };
+  for (const [k, d] of [["3", back(3)], ["6", back(6)], ["12", back(12)], ["y", toSerial(ty, 1, 1)]]) {
+    mix.at[k] = { d: iso(d), n: 0, ...mixFor([...clients.values()].filter((c) => statusOn(c, d).status === "Active")) };
+    mix.at[k].n = Object.values(mix.at[k].service).reduce((a, b) => a + b, 0);
+  }
 
   /* ---- Headline numbers ---- */
   const monthStart = toSerial(+iso(today).slice(0, 4), +iso(today).slice(5, 7), 1);

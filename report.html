@@ -192,6 +192,53 @@ details.coaches[open] summary::before{content:"\25BE ";}
 #gateBtn{background:var(--accent);border-color:var(--accent);color:#120800;font-weight:600;padding:12px;}
 .rem{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-soft);cursor:pointer;}
 body.locked{overflow:hidden;}
+/* client-level panels: training frequency, load, revenue per client, training less often */
+.deep{margin:16px 0;}
+.dcard{background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r);margin-bottom:16px;overflow:hidden;}
+.dcard-h{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:flex-start;justify-content:space-between;padding:13px 16px 11px;border-bottom:1px solid var(--line-soft);}
+.dcard-h .k{font-size:9.5px;letter-spacing:.17em;text-transform:uppercase;color:var(--ink-faint);}
+.dcard-h .t{font-size:15px;margin-top:2px;}
+.dcard-h .u{font-size:10.5px;color:var(--ink-faint);}
+.dcard-b{padding:12px 16px 14px;}
+.dnote{font-size:11px;color:var(--ink-faint);margin-top:8px;line-height:1.6;}
+.dleg{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:11px;color:var(--ink-soft);margin:0 0 8px;}
+.dleg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px;}
+.dleg .r{margin-left:auto;color:var(--ink-faint);}
+.dchart{position:relative;}
+.dchart svg{display:block;width:100%;height:auto;overflow:visible;}
+.dchart text{font-family:var(--f-display);}
+.dtip{position:absolute;pointer-events:none;background:var(--panel-3);border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:11.5px;line-height:1.6;
+  color:var(--ink);box-shadow:0 8px 24px rgba(0,0,0,.45);opacity:0;transition:opacity .08s;z-index:5;max-width:340px;}
+.dtip b{font-weight:400;display:block;margin-bottom:2px;font-size:12.5px;}
+.dtip .row{display:flex;justify-content:space-between;gap:18px;font-variant-numeric:tabular-nums;}
+.dtip .row span:first-child{color:var(--ink-soft);}
+.dtip i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;}
+.dtbl{width:100%;border-collapse:collapse;}
+.dtbl th,.dtbl td{text-align:right;padding:9px 10px;white-space:nowrap;border-bottom:1px solid var(--line-soft);font-variant-numeric:tabular-nums;}
+.dtbl th{font-size:9.5px;font-weight:400;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-faint);vertical-align:bottom;line-height:1.5;}
+.dtbl td{font-size:13px;}
+.dtbl th:first-child,.dtbl td:first-child{text-align:left;padding-left:16px;}
+.dtbl th:last-child,.dtbl td:last-child{padding-right:16px;}
+.dtbl tr.total td{border-top:1px solid var(--line);border-bottom:none;color:var(--ink-soft);}
+.dtbl .big{font-size:15px;color:var(--ink);}
+.less details{border-top:1px solid var(--line-soft);}
+.less details:first-child{border-top:none;}
+.less summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:10px 0;font-size:14px;}
+.less summary::-webkit-details-marker{display:none;}
+.less summary::before{content:"▸";color:var(--accent);margin-right:8px;font-size:11px;}
+.less details[open] summary::before{content:"▾";}
+.less summary .nm{flex:1;}
+.less summary .n{font-size:13px;color:var(--ink-soft);}
+.less summary .n.hi{color:var(--watch);}
+.less .none summary{color:var(--ink-faint);cursor:default;}
+.less .none summary::before{color:transparent;}
+.lrow{display:grid;grid-template-columns:minmax(120px,1fr) 120px 120px 130px;gap:10px;padding:6px 0 6px 19px;font-size:12.5px;font-variant-numeric:tabular-nums;color:var(--ink-soft);}
+.lrow span:not(:first-child){text-align:right;}
+.lrow.h{font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-faint);padding-top:2px;}
+.lrow .nw{color:var(--down);}
+@media(max-width:560px){.lrow{grid-template-columns:1fr 70px 70px;} .lrow span:last-child{display:none;}}
+.dtbl .up{color:var(--up);} .dtbl .down{color:var(--down);}
+.dempty{padding:22px 16px;text-align:center;color:var(--ink-faint);font-size:12px;}
 </style>
 </head>
 <body class="locked">
@@ -260,6 +307,7 @@ body.locked{overflow:hidden;}
   </div>
 
   <div class="proj" id="proj" style="display:none"></div>
+  <div class="deep" id="deep"></div>
 
   <details class="coaches" id="coveragePanel">
     <summary id="coverageSummary">Coverage</summary>
@@ -640,6 +688,230 @@ function coachRows(p,target,tip){
 }
 /* ---------- formatting ---------- */
 function fmtInt(v){ return v==null?"—":Math.round(v).toLocaleString("en-US"); }
+/* ---------- client-level panels ----------
+   Worked out from each client's row on the coach sheets, day by day (cl in the live data):
+   one character a day - "1" a session, "h" an online half, "2"-"9" that many, "x" anything else
+   positive, "0" cancelled, "." nothing. Kept for the month running and the twelve before it. */
+var FREQ=[["under 1","var(--down)"],["1 to 2","var(--watch)"],["2 to 3","#3987e5"],["3 or more","var(--up)"]];
+function dEsc(t){ return String(t==null?"":t).replace(/[&<>"']/g,function(ch){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]; }); }
+function clOf(p,c){ var v=LIVE&&LIVE.periods&&LIVE.periods[p]&&LIVE.periods[p][c]; return (v&&v.cl)||null; }
+function hasCl(p){ return !!(LIVE&&LIVE.periods&&LIVE.periods[p]&&Object.keys(LIVE.periods[p]).some(function(c){ return LIVE.periods[p][c].cl; })); }
+// The last day that has happened: today for the month running (bookings ahead left out), else the month's end.
+function lastDay(p){
+  if(p!==currentPeriod()) return monthDays(p);
+  var md=null; Object.keys(DATA[p]||{}).forEach(function(c){ var d=DATA[p][c]; if(d&&d.md!=null) md=d.md; });
+  return md||dayOfMonth();
+}
+function wOf(ch){ return ch==="1"||ch==="x"?1:ch==="h"?0.5:(ch>="2"&&ch<="9")?+ch:0; }
+// The same client across months: the name without package notes in brackets or punctuation.
+function nameKey(n){ return String(n).toLowerCase().replace(/\([^)]*\)/g," ").replace(/[^a-z0-9؀-ۿ]+/g," ").trim(); }
+function clientsIn(p,c){
+  var rows=clOf(p,c); if(!rows) return null;
+  var upto=lastDay(p);
+  return rows.map(function(r){
+    var s=0, m=String(r[2]||""); for(var i=0;i<Math.min(upto,m.length);i++) s+=wOf(m[i]);
+    return {name:r[0], key:nameKey(r[0]), price:r[1], s:s, m:m};
+  });
+}
+function pIso(p,d){ return p+"-"+(d<10?"0":"")+d; }
+function addDaysIso(iso,n){ var t=Date.UTC(+iso.slice(0,4),+iso.slice(5,7)-1,+iso.slice(8,10))+n*864e5; return new Date(t).toISOString().slice(0,10); }
+function prevP(p,n){ var y=+p.slice(0,4), m=+p.slice(5,7)-n; while(m<1){ m+=12; y--; } return y+"-"+(m<10?"0":"")+m; }
+
+/* tooltip */
+var dtip=null;
+function dShow(host,html,x,y){
+  if(!dtip){ dtip=document.createElement("div"); dtip.className="dtip"; document.body.appendChild(dtip); }
+  dtip.innerHTML=html; dtip.style.opacity="1";
+  var r=host.getBoundingClientRect(), tw=dtip.offsetWidth, th=dtip.offsetHeight;
+  var left=r.left+window.scrollX+x-tw/2, top=r.top+window.scrollY+y-th-12;
+  left=Math.max(8,Math.min(left,window.scrollX+document.documentElement.clientWidth-tw-8));
+  if(top<window.scrollY+8) top=r.top+window.scrollY+y+16;
+  dtip.style.left=left+"px"; dtip.style.top=top+"px";
+}
+function dHide(){ if(dtip) dtip.style.opacity="0"; }
+function dRow(l,v,col){ return '<div class="row"><span>'+(col?'<i style="background:'+col+'"></i>':"")+l+"</span><span>"+v+"</span></div>"; }
+function dHits(host,areas){
+  var svg=host.querySelector("svg"), NS="http://www.w3.org/2000/svg";
+  areas.forEach(function(a){
+    var r=document.createElementNS(NS,"rect");
+    ["x","y","width","height"].forEach(function(k,i){ r.setAttribute(k,[a.x,a.y,a.w,a.h][i]); }); r.setAttribute("fill","transparent");
+    function on(){ dShow(host,a.html,a.ax,a.ay); }
+    r.addEventListener("mouseenter",on); r.addEventListener("mousemove",on); r.addEventListener("touchstart",on,{passive:true});
+    r.addEventListener("mouseleave",dHide);
+    svg.appendChild(r);
+  });
+}
+function dTxt(x,y,t,o){ o=o||{}; return '<text x="'+x+'" y="'+y+'" text-anchor="'+(o.a||"start")+'" style="font-size:'+(o.s||11)+"px;fill:"+(o.c||"var(--ink-soft)")+'">'+t+"</text>"; }
+function dCard(k,t,u,body){ return '<div class="dcard"><div class="dcard-h"><div><div class="k">'+k+'</div><div class="t">'+t+'</div></div><span class="u">'+(u||"")+'</span></div>'+body+"</div>"; }
+
+/* 1. How often each coach's clients train */
+function freqData(p){
+  var upto=lastDay(p), weeks=upto/7;
+  return coachesIn(p).map(function(c){
+    var cl=clientsIn(p,c); if(!cl) return null;
+    var tr=cl.filter(function(x){ return x.s>0; }), b=[[],[],[],[]], tot=0;
+    tr.forEach(function(x){ var w=x.s/weeks; x.pw=w; tot+=x.s; b[w<1?0:w<2?1:w<3?2:3].push(x); });
+    return {c:c, n:tr.length, b:b, avg:tr.length?tot/tr.length/weeks:null, list:tr};
+  }).filter(function(x){ return x&&x.n; }).sort(function(a,b){ return b.avg-a.avg; });
+}
+function panelFreq(p){
+  var rows=freqData(p), upto=lastDay(p), host;
+  if(!rows.length) return "";
+  var id="dFreq";
+  var html=dCard("Training frequency","How often each coach's clients train",(p===currentPeriod()?"day 1 to "+upto+" of "+label(p):label(p))+" · clients, by sessions a week",
+    '<div class="dcard-b"><div class="dleg">'+FREQ.map(function(f){ return '<span><i style="background:'+f[1]+'"></i>'+f[0]+"</span>"; }).join("")+
+    '<span class="r">right: sessions a week, average per client</span></div><div class="dchart" id="'+id+'"></div>'+
+    '<p class="dnote">Sessions a week = the client\'s sessions this month ÷ the weeks that have passed ('+(upto/7).toFixed(1)+'). 3 a week is the standard. A client who joined or stopped part-way through the month reads lower than they train.'+
+    (upto<10?" Only "+upto+" days of this month have passed, so these are rough until the second week.":"")+" Hover a bar for the clients in it.</p></div>");
+  setTimeout(function(){ drawFreq(p,rows,id); },0);
+  return html;
+}
+function drawFreq(p,rows,id){
+  var host=document.getElementById(id); if(!host) return;
+  var W=Math.max(320,host.clientWidth||600), narrow=W<600, rh=32, H=rows.length*rh+6, L=narrow?76:100, R=narrow?78:210, mx=Math.max.apply(null,rows.map(function(r){ return r.n; }));
+  var sx=function(v){ return (W-L-R)*v/mx; }, s='<svg viewBox="0 0 '+W+" "+H+'" role="img" aria-label="Clients by sessions a week">', areas=[];
+  rows.forEach(function(r,i){
+    var y0=i*rh+3, bh=18, yb=y0+(rh-bh)/2, x=L;
+    s+=dTxt(L-10,y0+rh/2+4,dEsc(r.c),{a:"end",s:12});
+    r.b.forEach(function(list,j){
+      if(!list.length) return; var w=sx(list.length);
+      s+='<rect x="'+x+'" y="'+yb+'" width="'+Math.max(1,w-2)+'" height="'+bh+'" rx="3" fill="'+FREQ[j][1]+'"/>';
+      if(w>=18) s+=dTxt(x+w/2-1,yb+bh/2+4,list.length,{a:"middle",s:11,c:"#120800"});
+      areas.push({x:x,y:y0,w:w,h:rh,ax:x+w/2,ay:yb,html:"<b>"+dEsc(r.c)+" · "+FREQ[j][0]+" a week</b>"+list.slice().sort(function(a,b){ return b.pw-a.pw; }).map(function(cx){
+        return dRow(dEsc(cx.name),cx.pw.toFixed(1)+" a week · "+(cx.s%1?cx.s.toFixed(1):cx.s)+" sessions"); }).join("")});
+      x+=w;
+    });
+    s+=dTxt(W-R+10,y0+rh/2+4,r.avg.toFixed(1)+(narrow?"/wk":" a week"),{s:12,c:r.avg>=3?"var(--up)":r.avg<2?"var(--down)":"var(--ink)"});
+    if(!narrow) s+=dTxt(W-6,y0+rh/2+4,r.b[3].length+" of "+r.n+" at 3+",{a:"end",s:10.5,c:"var(--ink-faint)"});
+  });
+  host.innerHTML=s+"</svg>"; dHits(host,areas);
+}
+
+/* 2. Load: sessions this month against the coach's own best and recent average */
+function panelLoad(p){
+  var now=(p===currentPeriod()), md=lastDay(p), days=monthDays(p);
+  var rows=coachesIn(p).map(function(c){
+    var d=(DATA[p]||{})[c]; if(!d) return null;
+    var cur=now?(d.ms!=null&&md?d.ms/md*days:null):d.s;
+    var past=prevPeriods(p,12).map(function(q){ var x=(DATA[q]||{})[c]; return x&&x.s!=null?{q:q,s:x.s}:null; }).filter(Boolean);
+    if(cur==null||!past.length) return null;
+    var best=past.reduce(function(a,b){ return b.s>a.s?b:a; }), last3=past.slice(-3), avg3=last3.reduce(function(t,x){ return t+x.s; },0)/last3.length;
+    return {c:c, cur:cur, sofar:now?d.ms:null, best:best, avg3:avg3, n3:last3.length};
+  }).filter(Boolean).sort(function(a,b){ return b.cur/b.best.s-a.cur/a.best.s; });
+  if(!rows.length) return "";
+  setTimeout(function(){ drawLoad(rows,now,md,days); },0);
+  return dCard("Load","Sessions this month against what each coach has already shown they can do",now?"on pace for the month, from day "+md:"sessions",
+    '<div class="dcard-b"><div class="dleg"><span><i style="background:var(--accent)"></i>'+(now?"this month, on pace":"this month")+'</span><span><i style="background:var(--panel-3);outline:1px solid var(--line)"></i>best month in the 12 before</span><span><i style="background:var(--ink);width:3px"></i>average of the 3 months before</span></div>'+
+    '<div class="dchart" id="dLoad"></div><p class="dnote">A coach well under their own best month has room for more sessions with the clients they already have. '+
+    (now?"On pace = sessions so far ÷ "+md+" days × "+days+". ":"")+"Leave and holidays are not taken out: read a low month with that in mind.</p></div>");
+}
+function drawLoad(rows,now,md,days){
+  var host=document.getElementById("dLoad"); if(!host) return;
+  var W=Math.max(320,host.clientWidth||600), rh=32, H=rows.length*rh+6, L=W<600?76:100, R=W<600?120:150;
+  var mx=Math.max.apply(null,rows.map(function(r){ return Math.max(r.cur,r.best.s); }))*1.04;
+  var sx=function(v){ return (W-L-R)*v/mx; }, s='<svg viewBox="0 0 '+W+" "+H+'" role="img" aria-label="Sessions against best month">', areas=[];
+  rows.forEach(function(r,i){
+    var y0=i*rh+3, c=y0+rh/2, ratio=r.cur/r.best.s;
+    s+=dTxt(L-10,c+4,dEsc(r.c),{a:"end",s:12});
+    s+='<rect x="'+L+'" y="'+(c-10)+'" width="'+sx(r.best.s)+'" height="20" rx="4" fill="var(--panel-3)"/>';
+    s+='<rect x="'+L+'" y="'+(c-5)+'" width="'+sx(r.cur)+'" height="10" rx="3" fill="var(--accent)"/>';
+    s+='<rect x="'+(L+sx(r.avg3)-1)+'" y="'+(c-12)+'" width="2.5" height="24" rx="1" fill="var(--ink)"/>';
+    s+=dTxt(L+Math.max(sx(r.best.s),sx(r.cur))+10,c+4,Math.round(r.cur)+" of "+Math.round(r.best.s)+" · "+Math.round(ratio*100)+"%",{s:11.5,c:ratio<.75?"var(--down)":ratio>=.95?"var(--up)":"var(--ink)"});
+    areas.push({x:0,y:y0,w:W,h:rh,ax:L+sx(r.cur),ay:c-10,html:"<b>"+dEsc(r.c)+"</b>"+
+      (now?dRow("So far, to day "+md,fmtSess(r.sofar))+dRow("On pace for the month",Math.round(r.cur)):dRow("This month",fmtSess(r.cur)))+
+      dRow("Best month: "+label(r.best.q),fmtSess(r.best.s))+dRow("Average of the "+r.n3+" months before",Math.round(r.avg3))});
+  });
+  host.innerHTML=s+"</svg>"; dHits(host,areas);
+}
+
+/* 3. Revenue per client */
+function panelRpc(p){
+  var upto=lastDay(p), weeks=upto/7, now=(p===currentPeriod()), T={n:0,s:0,r:0};
+  var rows=coachesIn(p).map(function(c){
+    var cl=clientsIn(p,c); if(!cl) return null;
+    var tr=cl.filter(function(x){ return x.s>0; }); if(!tr.length) return null;
+    var s=0,r=0; tr.forEach(function(x){ s+=x.s; r+=x.s*(x.price||0); });
+    T.n+=tr.length; T.s+=s; T.r+=r;
+    return {c:c,n:tr.length,s:s,r:r};
+  }).filter(Boolean).sort(function(a,b){ return b.r/b.n-a.r/a.n; });
+  if(!rows.length) return "";
+  function line(x,cls){
+    var spw=x.s/x.n/weeks;
+    return '<tr'+(cls?' class="'+cls+'"':"")+"><td>"+x.c+"</td><td>"+x.n+"</td><td>"+(x.s/x.n).toFixed(1)+'</td><td class="'+(spw>=3?"up":spw<2?"down":"")+'">'+spw.toFixed(1)+"</td><td>"+(x.s?fmtInt(x.r/x.s):"—")+'</td><td class="big">'+fmtInt(x.r/x.n)+"</td></tr>";
+  }
+  var body=rows.map(function(x){ return line(x); }).join("")+line({c:"Team",n:T.n,s:T.s,r:T.r},"total");
+  return dCard("Revenue per client","What each client is worth to the coach",(now?"day 1 to "+upto+" of "+label(p):label(p))+" · AED without VAT",
+    '<div style="overflow-x:auto"><table class="dtbl"><thead><tr><th>Coach</th><th>Clients<br>trained</th><th>Sessions<br>per client</th><th>Sessions a week<br>per client</th><th>Average<br>rate</th><th>Revenue<br>per client</th></tr></thead><tbody>'+body+
+    '</tbody></table></div><div class="dcard-b" style="padding-top:4px"><p class="dnote" style="margin:0">Revenue per client = the revenue from client sessions ÷ the clients who trained at least once. High means fewer clients training often or at a higher rate; low means many light clients. '+
+    "The two columns before it show which."+(now?" The month is still running, so these grow until it ends.":"")+"</p></div>");
+}
+
+/* 4. Training less often: clients well below their own usual */
+function lessData(p){
+  var upto=lastDay(p), anchor=pIso(p,upto), from=addDaysIso(anchor,-76), out=[];
+  var months=[prevP(p,3),prevP(p,2),prevP(p,1),p];
+  coachesIn(p).forEach(function(c){
+    var cur=clientsIn(p,c); if(!cur) return;
+    var onSheet={}; cur.forEach(function(x){ onSheet[x.key]=x.name; });
+    var days={};
+    months.forEach(function(q){
+      var cl=clOf(q,c); if(!cl) return;
+      var last=(q===p)?upto:monthDays(q);
+      cl.forEach(function(r){
+        var k=nameKey(r[0]); if(!(k in onSheet)) return;
+        var m=String(r[2]||""), d=days[k]||(days[k]={});
+        for(var i=0;i<Math.min(last,m.length);i++){ var w=wOf(m[i]); if(w){ var iso=pIso(q,i+1); if(iso>=from&&iso<=anchor) d[iso]=(d[iso]||0)+w; } }
+      });
+    });
+    var flagged=[], watched=0;
+    Object.keys(onSheet).forEach(function(k){
+      var d=days[k]||{}, ds=Object.keys(d).sort(); if(!ds.length) return;
+      var cut=addDaysIso(anchor,-20), recent=0, base=0;
+      ds.forEach(function(iso){ if(iso>=cut) recent+=d[iso]; else base+=d[iso]; });
+      var usual=base/8, nowW=recent/3;
+      // At least six weeks on record before the last three, and a usual of 1.5 a week or more.
+      if(ds[0]>addDaysIso(anchor,-62)||usual<1.5) return;
+      watched++;
+      if(nowW<=usual*0.5) flagged.push({name:onSheet[k],usual:usual,now:nowW,last:ds.filter(function(x){ return d[x]>0; }).pop()});
+    });
+    out.push({c:c,list:flagged.sort(function(a,b){ return a.now/a.usual-b.now/b.usual; }),watched:watched});
+  });
+  return out.sort(function(a,b){ return b.list.length-a.list.length||a.c.localeCompare(b.c); });
+}
+function panelLess(p){
+  var rows=lessData(p), upto=lastDay(p), anchor=pIso(p,upto);
+  if(!rows.length) return "";
+  var total=rows.reduce(function(t,r){ return t+r.list.length; },0);
+  var body=rows.map(function(r){
+    var n=r.list.length;
+    if(!n) return '<details class="none"><summary><span class="nm">'+r.c+'</span><span class="n">none · '+r.watched+" watched</span></summary></details>";
+    return '<details><summary><span class="nm">'+r.c+'</span><span class="n'+(n>=3?" hi":"")+'">'+n+(n===1?" client":" clients")+" · "+r.watched+' watched</span></summary>'+
+      '<div class="lrow h"><span>Client</span><span>Usual a week</span><span>Last 3 weeks</span><span>Last session</span></div>'+
+      r.list.map(function(x){ return '<div class="lrow"><span>'+dEsc(x.name)+"</span><span>"+x.usual.toFixed(1)+'</span><span class="nw">'+x.now.toFixed(1)+"</span><span>"+(x.last?fmtDay(x.last):"—")+"</span></div>"; }).join("")+"</details>";
+  }).join("");
+  return dCard("Training less often",total+(total===1?" client is":" clients are")+" training well below their own usual","the 3 weeks to "+fmtDay(anchor)+" against the 8 weeks before",
+    '<div class="dcard-b less">'+body+'<p class="dnote">Each client is compared with themselves, not with a fixed number, so a client who always trains once a week is never listed. '+
+    "Listed: a usual of 1.5 a week or more, at least 6 weeks on record, and the last 3 weeks at half their usual or less. Only clients still on this month's sheet; names as the coach typed them. "+
+    "Watched = clients with enough history to judge. Holidays and travel are not taken out, so ask before reading a drop as a problem.</p></div>");
+}
+function fmtDay(iso){ return +iso.slice(8,10)+" "+MONTHS[+iso.slice(5,7)-1]; }
+
+var deepT; window.addEventListener("resize",function(){ clearTimeout(deepT); deepT=setTimeout(function(){ if(ui.month&&DATA[ui.month]) renderDeep(ui.month); },200); });
+document.addEventListener("scroll",function(){ dHide(); },{passive:true});
+function renderDeep(p){
+  var el=document.getElementById("deep"); if(!el) return;
+  if(!p){ el.innerHTML=""; return; }
+  var load=panelLoad(p);
+  if(!hasCl(p)){
+    var oldest=prevP(currentPeriod(),12);
+    el.innerHTML=load+dCard("Clients","Training frequency, revenue per client and training less often","",
+      '<div class="dempty">'+(p<oldest?"Each client's day-by-day row is kept for the last 13 months only, so these panels start at "+label(oldest)+".":
+        "These panels need each client's day-by-day row, which the next refresh reads. Press Refresh now, or wait for the next scheduled read.")+"</div>");
+    return;
+  }
+  el.innerHTML=panelFreq(p)+load+panelRpc(p)+panelLess(p);
+}
+
 // Online 1+1 sessions are counted as a half, so a session count can legitimately end in .5.
 // Rounding it away loses real work: 133.5 is not 134. Whole numbers still print whole.
 function fmtSess(v){
@@ -711,7 +983,7 @@ function render(){
     : ("Whole month \u00b7 includes bookings ahead");
 
   var list=coachesIn(p);
-  if(!list.length){ tbl.innerHTML=""; empty.style.display=""; renderTiles(p); renderProj(p); return; }
+  if(!list.length){ tbl.innerHTML=""; empty.style.display=""; renderTiles(p); renderProj(p); renderDeep(p); return; }
   empty.style.display="none";
 
   var team=teamTotals(p,false);
@@ -798,6 +1070,7 @@ function render(){
   });
   renderTiles(p);
   renderProj(p);
+  renderDeep(p);
 }
 // How much of the team is carrying its equal share: how many coaches sit at or above 100%,
 // as a percentage of those with revenue this month.

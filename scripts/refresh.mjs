@@ -25,7 +25,7 @@ const ORDER = (env.FETCH_STRATEGIES || "badger,od,odkey,spshares,zip,rest,browse
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
-console.log("refresh build 2026-11-13a (Clients page v2, amounts without VAT)");  // proves which version the job is running
+console.log("refresh build 2026-11-13c (each client's days read for the Performance panels)");  // proves which version the job is running
 
 // One typed character of difference, so "Shayla" finds "Shyla".
 function near(a, b) {
@@ -156,6 +156,8 @@ async function main() {
   // Files in the main folder are read first, so that where the same coach also has a file in
   // a subfolder ("Inactive"), the main one wins for any month they both hold. The subfolder
   // copy still fills in months the main file does not cover.
+  // Day-by-day client rows are kept for the month running and the twelve before it.
+  const CL_FROM = (() => { const [y, m] = now.split("-").map(Number); const d = new Date(Date.UTC(y, m - 1 - 12, 1)); return d.toISOString().slice(0, 7); })();
   const coachFiles = files.filter((x) => COACH_FILE.test(x.name))
     .sort((a, b) => (a.folder ? 1 : 0) - (b.folder ? 1 : 0));
   // A coach with a file in the main folder is read from there and nowhere else: their
@@ -215,6 +217,9 @@ async function main() {
       // ps/pr: the month's projected sessions and revenue. Only on sheets that carry the columns;
       // a 0 means the columns are there but nothing has been typed in them yet.
       if (r.projection) { bucket[coach].ps = r.projection.s; bucket[coach].pr = r.projection.r; bucket[coach].pm = r.projection.missing; }
+      // cl: each client's row day by day, for the last 13 months only. Names as the coach typed
+      // them; this file is encrypted with the Performance passphrase like everything in it.
+      if (r.people && r.people.length && t.p >= CL_FROM) bucket[coach].cl = r.people.map((x) => [x.n, x.p, x.m]);
       entry.months.push(t.p);
     }
   }

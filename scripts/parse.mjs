@@ -271,6 +271,11 @@ export function parseCoachSheet(arr, opts) {
   //    sheet, so it ends the client block.
   let sumS = 0, sumR = 0, sumC = 0, sumPS = 0, maxPrice = 0, clients = 0;
   let projS = 0, projR = 0, projPS = 0, projClients = 0, projActive = 0, projMissing = 0;
+  // Each client's own row, day by day: what training frequency and "training less often" are
+  // worked out from. One character per day of the month: "." nothing, "1" a session,
+  // "h" an online half, "0" cancelled, "2"-"9" that many sessions, "x" anything else positive.
+  const people = [];
+  const markOf = (v) => (v == null || v < 0 ? "." : v === 0 ? "0" : v === 0.5 ? "h" : Number.isInteger(v) && v <= 9 ? String(v) : "x");
   for (let r = headerRowIdx + 1; r < clientEnd; r++) {
     const row = arr[r]; if (!row) continue;
     const nm = norm(row[nameCol]);
@@ -280,6 +285,11 @@ export function parseCoachSheet(arr, opts) {
     // the parser did not recognise is added on top of the clients it already totals.
     if (!isClientRow(row)) continue;
     clients++;
+    if (dayCols.length) {
+      const m = Array(31).fill(".");
+      for (const { c, d } of dayCols) if (d >= 1 && d <= 31) m[d - 1] = markOf(num(row[c]));
+      people.push({ n: String(row[nameCol]).trim().replace(/\s+/g, " "), p: num(row[ppsCol]), m: m.join("") });
+    }
     const s = num(row[sessionsCol]); if (s != null) sumS += s;
     const rv = num(row[moneyCol]); if (rv != null) sumR += rv;
     const p = num(row[ppsCol]);
@@ -442,5 +452,5 @@ export function parseCoachSheet(arr, opts) {
     }
   }
 
-  return { sessions, revenue, cancelled, rate, clients, derived, dayCols: dayCols.length, dayRow: dayRowIdx, mtd, projection, warnings };
+  return { sessions, revenue, cancelled, rate, clients, derived, dayCols: dayCols.length, dayRow: dayRowIdx, mtd, projection, people, warnings };
 }

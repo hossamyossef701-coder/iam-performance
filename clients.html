@@ -155,15 +155,16 @@ tr.all td{border-bottom:1px solid var(--line);}
 .mrow.first .rk,.mrow.first .sc{color:var(--accent-2);}
 
 /* mix and source */
-.mix{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px 26px;}
+.mix{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px 40px;}
 .mix h3{font-size:9.5px;font-weight:400;letter-spacing:.17em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:7px;}
-.xrow{display:grid;grid-template-columns:minmax(70px,110px) 1fr 28px 40px;gap:9px;align-items:center;padding:3px 0;font-size:12.5px;font-variant-numeric:tabular-nums;}
+.xrow{display:grid;grid-template-columns:minmax(80px,130px) 1fr 74px 40px;gap:9px;align-items:center;padding:3px 0;font-size:12.5px;font-variant-numeric:tabular-nums;}
 .xrow .lab{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .xrow .lab.nr{color:var(--ink-faint);}
-.xrow .trk{height:7px;border-radius:3px;background:var(--panel-3);position:relative;overflow:hidden;}
+.xrow .trk{height:8px;border-radius:3px;background:var(--panel-3);position:relative;}
 .xrow .trk span{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--accent);}
-.xrow .trk em{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink);}
-.xrow .n{text-align:right;color:var(--ink);}
+.xrow .trk em{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;border-radius:1px;background:var(--ink);}
+.xrow .n{text-align:right;color:var(--ink);white-space:nowrap;}
+.xrow .n span{color:var(--ink-faint);}
 .xrow .d{text-align:right;font-size:11px;}
 
 /* checks and notes */
@@ -227,64 +228,72 @@ body.locked{overflow:hidden;}
       <option value="3">Last 3 months</option><option value="6">Last 6 months</option>
       <option value="12">Last 12 months</option><option value="y">This year</option>
     </select>
+    <span class="seg" id="segPer"><button data-v="m">Month</button><button data-v="q">Quarter</button><button data-v="y">Year</button></span>
     <button id="btnReload">Reload</button>
   </div>
+  <p class="defline" id="winNote" style="margin-top:-8px"></p>
 
   <div class="tiles" id="tiles"></div>
   <p class="defline" id="defline"></p>
 
-  <div class="grid2">
-    <div class="card">
-      <div class="card-h"><div><div class="k">Movement</div><div class="t">Clients gained and lost each month</div></div><span class="unit">clients</span></div>
-      <div class="card-b">
-        <div class="legend"><span><i style="background:var(--s-new)"></i>new</span><span><i style="background:var(--s-ret)"></i>came back</span><span><i style="background:var(--s-lost)"></i>package ran out</span><span class="r">top line: active at start → end</span></div>
-        <div class="chart" id="chMove"></div>
-        <p class="note">Active at the start + new + came back − ran out = active at the end. “Came back” is a client whose package had run out and who bought again.</p>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-h"><div><div class="k">Purchases</div><div class="t">New clients and renewals</div></div>
-        <span class="seg sm" id="segPer"><button data-v="m" class="on">Month</button><button data-v="q">Quarter</button><button data-v="y">Year</button></span></div>
-      <div class="card-b">
-        <div class="legend"><span><i style="background:var(--accent)"></i>renewals</span><span><i style="background:var(--s-ret)"></i>new + returning clients</span><span class="r">number of packages</span></div>
-        <div class="chart" id="chBuy"></div>
-      </div>
+  <div class="card section">
+    <div class="card-h"><div><div class="k">Movement</div><div class="t">Clients gained and lost</div></div><span class="unit">clients</span></div>
+    <div class="card-b">
+      <div class="legend"><span><i style="background:var(--s-new)"></i>new</span><span><i style="background:var(--s-ret)"></i>came back</span><span><i style="background:var(--s-lost)"></i>package ended · left</span><span><i style="background:#8a6f86"></i>package ended · renewed later</span><span><i style="background:var(--panel-3);outline:1px solid var(--ink-faint)"></i>package ended · still deciding</span><span class="r">top line: active at start → end</span></div>
+      <div class="chart" id="chMove"></div>
+      <p class="note">Active at the start + new + came back − package ended = active at the end. “Package ended” means the client stopped being active: the package ran out with nothing new yet. They then either buy again within <span class="g"></span> days (renewed later, and counted again as “came back” in the month they buy), or they left. Until <span class="g"></span> days have passed, they are still deciding.</p>
     </div>
   </div>
 
-  <div class="grid2">
-    <div class="card">
-      <div class="card-h"><div><div class="k">Package sales</div><div class="t">What clients paid for packages</div></div><span class="unit">AED, without VAT</span></div>
-      <div class="card-b">
-        <div class="legend"><span><i style="background:var(--accent)"></i>renewal</span><span><i style="background:var(--s-ret)"></i>new</span><span><i style="background:var(--s-lost)"></i>returning</span></div>
-        <div class="chart" id="chSales"></div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-h"><div><div class="k">Up for renewal</div><div class="t">Value waiting to be renewed, per coach</div></div><span class="unit">AED · clients · right now</span></div>
-      <div class="card-b">
-        <div class="legend"><span><i style="background:var(--watch)"></i>ends in the next 30 days</span><span><i style="background:var(--s-lost)"></i>already ran out</span></div>
-        <div class="chart" id="chUp"></div>
-      </div>
+  <div class="card section">
+    <div class="card-h"><div><div class="k">Renewal rate</div><div class="t">Of the clients whose package ran out, how many bought again</div></div><span class="unit">clients · within the grace period, with any coach</span></div>
+    <div class="card-b">
+      <div class="legend"><span><i style="background:var(--up)"></i>renewed</span><span><i style="background:var(--s-lost)"></i>left</span><span><i style="background:var(--panel-3);outline:1px solid var(--ink-faint)"></i>still deciding</span><span class="r">% = renewed of those decided · grey % = so far, too early to call</span></div>
+      <div class="chart" id="chRate"></div>
+      <p class="note">This is the figure to watch for real decline. It does not depend on package size: a client on a 24-session package counts once, the same as a client on a 6-session one.</p>
     </div>
   </div>
 
-  <div class="grid2">
-    <div class="card">
-      <div class="card-h"><div><div class="k">After each package</div><div class="t">What clients did when a package finished</div></div><span class="unit" id="ladUnit"></span></div>
-      <div class="card-b">
-        <div class="legend"><span><i style="background:var(--up)"></i>bought bigger</span><span><i style="background:var(--accent)"></i>same size</span><span><i style="background:var(--s-ret)"></i>smaller</span><span><i style="background:var(--s-lost)"></i>left</span></div>
-        <div class="chart" id="chLadder"></div>
-        <p class="note">Each bar is the packages of that size that finished in the period. “Left” means no new package within the grace period. Sizes with fewer than 5 finished packages are not shown.</p>
-      </div>
+  <div class="card section">
+    <div class="card-h"><div><div class="k">Purchases</div><div class="t">New clients and renewals</div></div><span class="unit">number of packages · hover for sessions bought</span></div>
+    <div class="card-b">
+      <div class="legend"><span><i style="background:var(--accent)"></i>renewals</span><span><i style="background:var(--s-ret)"></i>new + returning clients</span></div>
+      <div class="chart" id="chBuy"></div>
+      <p class="note" id="buyNote"></p>
     </div>
-    <div class="card">
-      <div class="card-h"><div><div class="k">How long new clients stay</div><div class="t">Out of every 100 new clients, how many are still clients</div></div><span class="unit">months after their first package</span></div>
-      <div class="card-b">
-        <div class="chips" id="survChips"></div>
-        <div class="chart" id="chSurv"></div>
-        <p class="note" id="survNote"></p>
-      </div>
+  </div>
+
+  <div class="card section">
+    <div class="card-h"><div><div class="k">Package sales</div><div class="t">What clients paid for packages</div></div><span class="unit">AED, without VAT</span></div>
+    <div class="card-b">
+      <div class="legend"><span><i style="background:var(--accent)"></i>renewal</span><span><i style="background:var(--s-ret)"></i>new</span><span><i style="background:var(--s-lost)"></i>returning</span></div>
+      <div class="chart" id="chSales"></div>
+    </div>
+  </div>
+
+  <div class="card section">
+    <div class="card-h"><div><div class="k">Up for renewal</div><div class="t">Value waiting to be renewed, per coach</div></div><span class="unit">AED · clients · right now</span></div>
+    <div class="card-b">
+      <div class="legend"><span><i style="background:var(--watch)"></i>ends in the next 30 days</span><span><i style="background:var(--s-lost)"></i>already ran out</span></div>
+      <div class="chart" id="chUp"></div>
+    </div>
+  </div>
+
+  <div class="card section">
+    <div class="card-h"><div><div class="k">After each package</div><div class="t">What clients did when a package finished</div></div><span class="unit" id="ladUnit"></span></div>
+    <div class="card-b">
+      <div class="legend"><span><i style="background:var(--up)"></i>bought bigger</span><span><i style="background:var(--accent)"></i>same size</span><span><i style="background:var(--s-ret)"></i>smaller</span><span><i style="background:var(--s-lost)"></i>left</span></div>
+      <div class="chart" id="chLadder"></div>
+      <p class="note">Each bar is the packages of that size that finished in the period, with the decision known. “Left” means no new package within the grace period.</p>
+    </div>
+  </div>
+
+  <div class="card section">
+    <div class="card-h"><div><div class="k">How long new clients stay</div><div class="t">Out of every 100 new clients, how many are still clients</div></div><span class="unit">months after their first package</span></div>
+    <div class="card-b">
+      <div class="chips" id="survChips"></div>
+      <div class="chart" id="chSurv"></div>
+      <p class="note" id="survNote"></p>
     </div>
   </div>
 
@@ -294,32 +303,30 @@ body.locked{overflow:hidden;}
     <div class="card-b" style="padding-top:4px"><div class="legend" style="margin:0"><span><i style="background:var(--up)"></i>stayed with the coach</span><span><i style="background:var(--s-ret)"></i>renewed with another coach</span><span><i style="background:var(--s-lost)"></i>left: no new package within the grace period</span></div></div>
   </div>
 
-  <div class="grid2">
-    <div class="card">
-      <div class="card-h"><div><div class="k">Coach × client type</div><div class="t">Clients who stayed with their coach, by type</div></div><span class="unit">% stayed · (clients)</span></div>
-      <div class="card-b" style="padding-bottom:4px"><div class="chips" id="xtPick"></div></div>
-      <div class="scroll"><table class="xt" id="xtTbl"></table></div>
-      <div class="card-b" style="padding-top:6px"><p class="note" style="margin:0" id="xtNote"></p></div>
-    </div>
-    <div class="card">
-      <div class="card-h"><div><div class="k">Next-client match</div><div class="t">Who should take the next client</div></div></div>
-      <div class="card-b">
-        <div class="mf" id="mf"></div>
-        <div id="matchList"></div>
-        <p class="note" id="matchNote"></p>
-      </div>
+  <div class="card section">
+    <div class="card-h"><div><div class="k">Coach × client type</div><div class="t">Of each group, the share who stayed with their coach</div></div><span class="unit">% stayed · (clients in the group)</span></div>
+    <div class="card-b" style="padding-bottom:4px"><div class="chips" id="xtPick"></div></div>
+    <div class="scroll"><table class="xt" id="xtTbl"></table></div>
+    <div class="card-b" style="padding-top:6px"><p class="note" style="margin:0" id="xtNote"></p></div>
+  </div>
+
+  <div class="card section">
+    <div class="card-h"><div><div class="k">Next-client match</div><div class="t">Who should take the next client</div></div></div>
+    <div class="card-b">
+      <div class="mf" id="mf"></div>
+      <div id="matchList"></div>
+      <p class="note" id="matchNote"></p>
     </div>
   </div>
 
-  <div class="grid2">
-    <div class="card">
-      <div class="card-h"><div><div class="k">Value by source</div><div class="t">What a new client from each channel is worth so far</div></div><span class="unit">new clients since <span id="srcSince"></span></span></div>
-      <div class="scroll"><table id="srcTbl"></table></div>
-    </div>
-    <div class="card">
-      <div class="card-h"><div><div class="k">Client mix</div><div class="t">Who the active clients are, against six months ago</div></div><span class="unit">bar: now · line: six months ago</span></div>
-      <div class="card-b"><div class="mix" id="mix"></div></div>
-    </div>
+  <div class="card section">
+    <div class="card-h"><div><div class="k">Value by source</div><div class="t">What a new client from each channel is worth so far</div></div><span class="unit">new clients since <span id="srcSince"></span></span></div>
+    <div class="scroll"><table id="srcTbl"></table></div>
+  </div>
+
+  <div class="card section">
+    <div class="card-h"><div><div class="k">Client mix</div><div class="t" id="mixTitle">Who the active clients are</div></div><span class="unit">bar: now · white mark: at the start of the period</span></div>
+    <div class="card-b"><div class="mix" id="mix"></div></div>
   </div>
 
   <details class="more" id="checksPanel"><summary id="checksSummary">Checks on the file</summary><div class="body"><ul class="checks" id="checks"></ul></div></details>
@@ -336,12 +343,11 @@ window.addEventListener("unhandledrejection",function(e){console.error("[clients
 
 var GH_OWNER="hossamyossef701-coder", GH_REPO="iam-performance", GH_BRANCH="main";
 // Its own passphrase, kept apart from the Performance page's: opening one never opens the other.
-var PASS_KEY="iamclients:pass", CFG_KEY="iamlive:cfg", UI_KEY="iamclients:ui2";
+var PASS_KEY="iamclients:pass", CFG_KEY="iamlive:cfg", UI_KEY="iamclients:ui3";
 var MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 // Fixed colour per coach, in the order coaches are listed - never re-assigned by a filter.
 var PAL=["#ef691d","#3987e5","#5eb87a","#b8578a","#e0a63c","#8f7ee0","#4cb7b0","#d36a6a","#a39e96","#c08a5b","#6f9fd8","#9cc36b"];
-var MIN_N=5;
-var M=null, ui={win:"12", per:"m", xt:"age", surv:null, m:{g:"",age:"",svc:"",pkg:""}};
+var M=null, ui={win:"6", per:"m", xt:"age", surv:null, m:{g:"",age:"",svc:"",pkg:""}};
 try{ var sv=JSON.parse(localStorage.getItem(UI_KEY)||"{}"); for(var k in sv) ui[k]=sv[k]; }catch(e){}
 function saveUi(){ try{ localStorage.setItem(UI_KEY,JSON.stringify(ui)); }catch(e){} }
 function cfg(){ try{ return JSON.parse(localStorage.getItem(CFG_KEY)||"{}"); }catch(e){ return {}; } }
@@ -382,9 +388,14 @@ function aed(v){ if(v==null) return "—"; var a=Math.abs(v); return a>=999500?(
 function full(v){ return Math.round(v).toLocaleString("en-US"); }
 function pct(a,b){ return b?Math.round(a/b*100)+"%":"—"; }
 
-/* ---------- the period picked at the top ---------- */
+/* ---------- the period and the step picked at the top: they drive every chart ---------- */
 function since(){ return ui.win==="y"?M.today.slice(0,4)+"-01-01":addMonths(M.today,-(+ui.win)); }
-function winLabel(){ return ui.win==="y"?"this year":"last "+ui.win+" months"; }
+function winLabel(){ return ui.win==="y"?"this year":"in the last "+ui.win+" months"; }
+// The months the period covers, from the month it starts in.
+function winMonths(){ var s=since().slice(0,7); return M.months.filter(function(m){ return m.p>=s; }); }
+function bucketOf(p){ var y=p.slice(0,4), m=+p.slice(5,7); return ui.per==="m"?p.slice(0,7):ui.per==="q"?y+" Q"+Math.ceil(m/3):y; }
+function bucketLabel(key){ return ui.per==="m"?monthLabel(key,true):key; }
+function bucketLong(key){ return ui.per==="m"?monthLabel(key):key; }
 
 /* ---------- tooltip ---------- */
 var tip=$("tip");
@@ -415,7 +426,8 @@ function hits(host,areas){
   });
 }
 function niceMax(v){ if(v<=5) return 5; var p=Math.pow(10,Math.floor(Math.log10(v))), n=v/p; return (n<=1.2?1.2:n<=1.5?1.5:n<=2?2:n<=2.5?2.5:n<=3?3:n<=4?4:n<=5?5:n<=6?6:n<=8?8:10)*p; }
-function width(host){ return host.clientWidth&&host.clientWidth<520?400:600; }
+// Drawn at the size it is shown, so text stays the same size on any screen.
+function width(host){ return Math.max(320,Math.round(host.clientWidth||600)); }
 // A bar with 4px rounding on the end away from the baseline.
 function bar(x,y,w,h,fill,down){
   if(h<=0.4) return "";
@@ -439,15 +451,22 @@ function stayedLeft(list){
   return o;
 }
 function decIn(){ var s=since(); return M.dec.filter(function(d){ return d.o!=="pending"&&d.E>=s&&d.E<=M.today; }); }
+// Packages that ran out in the period less than the grace period ago: nobody knows yet.
+function pendIn(coach){
+  var s=since(), seen={};
+  M.dec.forEach(function(d){ if(d.o==="pending"&&d.E>=s&&d.E<=M.today&&(!coach||d.c===coach)) seen[d.k]=1; });
+  return Object.keys(seen).length;
+}
 function tiles(){
   var k=M.kpi, d=k.active-k.active30, all=decIn();
   // Company figure: one outcome per client, whichever coach they were with.
   var last={}; all.forEach(function(x){ if(!last[x.k]||last[x.k].E<=x.E) last[x.k]=x; });
   var st=0,lf=0; for(var i in last){ if(last[i].o==="lost") lf++; else st++; }
+  var pend=pendIn();
   var T=[
     {k:"Active clients",v:k.active,lead:1,sub:(d===0?"same as 30 days ago":'<span class="'+(d>0?"up":"down")+'">'+(d>0?"+":"")+d+"</span> vs 30 days ago")},
     {k:"Up for renewal",v:aed(M.up.aed)+"<small>AED</small>",sub:'<span class="watch">'+(M.up.soon+M.up.due)+" clients</span> · "+M.up.due+" already ran out"},
-    {k:"Clients kept, "+winLabel(),v:st+"<small>of "+(st+lf)+"</small>",sub:'<span class="down">'+lf+" left</span> · "+pct(st,st+lf)+" stayed"},
+    {k:"Clients kept, "+winLabel().replace("in the ",""),v:st+"<small>of "+(st+lf)+" decided</small>",sub:'<span class="down">'+lf+" left</span> · "+pend+" still deciding"},
     {k:"New clients "+M.today.slice(0,4),v:k.newYear,sub:"first package ever"},
     {k:"Package sales, "+MONTHS[+M.today.slice(5,7)-1],v:aed(k.salesMonth)+"<small>AED</small>",sub:k.nwMonth+" new · "+k.renMonth+" renewals · without VAT"}
   ];
@@ -455,97 +474,158 @@ function tiles(){
     return '<div class="tile'+(t.lead?" lead":"")+'"><div class="k">'+t.k+'</div><div class="v">'+t.v+'</div><div class="sub">'+t.sub+"</div></div>";
   }).join("");
   $("defline").textContent="Up for renewal = "+M.up.soon+" packages ending in the next "+M.up.days+" days + "+M.up.due+" that ran out in the last "+M.settings.grace+
-    " days with nothing new. Value = each client's last package. Kept = clients whose package ran out "+winLabel()+" and who bought again within "+M.settings.grace+" days, with any coach.";
+    " days with nothing new. Value = each client's last package. Kept = clients whose package ran out "+winLabel()+" and who bought again within "+M.settings.grace+
+    " days, with any coach. Still deciding = their package ran out less than "+M.settings.grace+" days ago, so it is too early to call them gone.";
+  $("winNote").textContent="Period and step apply to every chart on the page. * = still running."+(since()<M.settings.loggedFrom?" Purchases are fully logged from "+fmtDate(M.settings.loggedFrom)+
+    ", so this period starts there: the last 12 months and this year show the same figures until January "+(+M.settings.loggedFrom.slice(0,4)+1)+".":"");
 }
+
+/* ---------- periods: the months in the period, grouped by the step picked ---------- */
+function periods(){
+  var out=[], idx={};
+  winMonths().forEach(function(d){
+    var key=bucketOf(d.p);
+    if(!(key in idx)){ idx[key]=out.length; out.push({key:key,label:bucketLabel(key),start:d.start,end:d.end,nw:0,back:0,out:0,outBack:0,outLeft:0,outWait:0,
+      pk:{ren:0,nw:0,ret:0},aed:{ren:0,nw:0,ret:0},ses:{ren:0,nw:0,ret:0},partial:false}); }
+    var o=out[idx[key]];
+    o.end=d.end; ["nw","back","out","outBack","outLeft","outWait"].forEach(function(f){ o[f]+=d[f]||0; });
+    ["ren","nw","ret"].forEach(function(t){ o.pk[t]+=d.pk[t]; o.aed[t]+=d.aed[t]; o.ses[t]+=(d.ses&&d.ses[t])||0; });
+    if(d.partial) o.partial=true;
+  });
+  return out;
+}
+function frame(W,H,L,R,T,B,mx,ticks,fmt,y){
+  var s='<rect class="hl" rx="6" fill="rgba(255,255,255,.035)" style="opacity:0"/>';
+  s+='<g class="grid">'+ticks.filter(function(t){ return t; }).map(function(t){ return '<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(t)+'" y2="'+y(t)+'"/>'; }).join("")+"</g>";
+  s+='<g class="axis">'+ticks.map(function(t){ return '<text x="'+(L-8)+'" y="'+(y(t)+3)+'" text-anchor="end">'+fmt(t)+"</text>"; }).join("")+"</g>";
+  return s;
+}
+function xLabels(data,L,step,H){ return '<g class="axis">'+data.map(function(d,i){ return '<text x="'+(L+step*(i+.5))+'" y="'+(H-6)+'" text-anchor="middle">'+d.label+(d.partial?"*":"")+"</text>"; }).join("")+"</g>"; }
 
 /* ---------- movement ---------- */
 function chartMove(){
-  var host=$("chMove"), data=M.months.slice(host.clientWidth&&host.clientWidth<520?-5:-8);
-  if(!data.length){ host.innerHTML='<div class="empty">No months yet.</div>'; return; }
-  var W=width(host),H=270,L=30,R=8,T=34,B=24, step=(W-L-R)/data.length, bw=Math.min(40,step*.56);
+  var host=$("chMove"), data=periods();
+  if(!data.length){ host.innerHTML='<div class="empty">No months in this period.</div>'; return; }
+  var W=width(host),H=320,L=36,R=10,T=34,B=26, step=(W-L-R)/data.length, bw=Math.min(54,step*.5);
   var up=Math.max.apply(null,data.map(function(d){ return d.nw+d.back; })), dn=Math.max.apply(null,data.map(function(d){ return d.out; }));
-  var mx=niceMax(Math.max(up,dn,4)*1.15), mid=T+(H-T-B)*mx/(2*mx), half=(H-T-B)/2;
+  var mx=niceMax(Math.max(up,dn,4)*1.18), half=(H-T-B)/2, mid=T+half;
   var y=function(v){ return mid-half*v/mx; }, x=function(i){ return L+step*i+(step-bw)/2; };
-  var s='<svg viewBox="0 0 '+W+" "+H+'" role="img" aria-label="Clients gained and lost each month">';
-  s+='<rect class="hl" rx="6" fill="rgba(255,255,255,.035)" style="opacity:0"/>';
-  s+='<g class="grid">'+[-mx/2,mx/2].map(function(t){ return '<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(t)+'" y2="'+y(t)+'"/>'; }).join("")+"</g>";
-  s+='<line class="base" x1="'+L+'" x2="'+(W-R)+'" y1="'+mid+'" y2="'+mid+'"/>';
-  s+='<g class="axis">'+[-mx/2,0,mx/2].map(function(t){ return '<text x="'+(L-7)+'" y="'+(y(t)+3)+'" text-anchor="end">'+(t>0?"+":"")+Math.round(t)+"</text>"; }).join("")+
-    data.map(function(d,i){ return '<text x="'+(x(i)+bw/2)+'" y="'+(H-6)+'" text-anchor="middle">'+monthLabel(d.p,true)+"</text>"; }).join("")+"</g>";
+  var s='<svg viewBox="0 0 '+W+" "+H+'" role="img" aria-label="Clients gained and lost">'+frame(W,H,L,R,T,B,mx,[-mx/2,0,mx/2],function(t){ return (t>0?"+":"")+Math.round(t); },y);
+  s+='<line class="base" x1="'+L+'" x2="'+(W-R)+'" y1="'+mid+'" y2="'+mid+'"/>'+xLabels(data,L,step,H);
   var areas=[];
   data.forEach(function(d,i){
-    var x0=x(i), hN=half*d.nw/mx, hB=half*d.back/mx, hO=half*d.out/mx, net=d.end-d.start;
+    var x0=x(i), hN=half*d.nw/mx, hB=half*d.back/mx, net=d.end-d.start, c=x0+bw/2;
     s+=bar(x0,mid-hN,bw,Math.max(0,hN-(hB>.4?1:0)),"var(--s-new)");
     s+=bar(x0,mid-hN-hB-(hN>.4?1:0),bw,hB,"var(--s-ret)");
-    s+=bar(x0,mid+1,bw,hO,"var(--s-lost)",true);
-    var g=d.nw+d.back;
-    if(g) s+=txt(x0+bw/2,mid-hN-hB-6,"+"+g,{c:"var(--ink)"});
-    if(d.out) s+=txt(x0+bw/2,mid+hO+14,"−"+d.out,{c:"var(--ink)"});
-    s+=txt(x0+bw/2,14,d.start+" → "+d.end,{c:net>0?"var(--up)":net<0?"var(--down)":"var(--ink-soft)",s:10});
-    areas.push({x:L+step*i,y:T-6,w:step,h:H-T-B+6,ax:x0+bw/2,ay:mid-hN-hB,
-      html:"<b>"+monthLabel(d.p)+(d.partial?" (so far)":"")+"</b>"+trow("Active at the start",d.start)+trow("New",d.nw,"var(--s-new)")+
-        trow("Came back",d.back,"var(--s-ret)")+trow("Package ran out",d.out,"var(--s-lost)")+
-        '<div class="sep">'+trow("Active at the end",d.end)+trow("Gained for every one lost",d.out?((d.nw+d.back)/d.out).toFixed(1):"—")+"</div>"});
+    // Below the line, from the line down: renewed later, left, still deciding.
+    var yy=mid+1, segs=[[d.outBack,"#8a6f86"],[d.outLeft,"var(--s-lost)"],[d.outWait,"var(--panel-3)"]].filter(function(p){ return p[0]>0; });
+    segs.forEach(function(p,j){
+      var h=half*p[0]/mx, last=j===segs.length-1;
+      s+=last?bar(x0,yy,bw,h,p[1],true):'<rect x="'+x0+'" y="'+yy+'" width="'+bw+'" height="'+Math.max(0,h-2)+'" fill="'+p[1]+'"/>';
+      if(p[1]==="var(--panel-3)") s+='<rect x="'+(x0+.5)+'" y="'+(yy+.5)+'" width="'+(bw-1)+'" height="'+Math.max(0,h-1)+'" rx="3" fill="none" stroke="var(--ink-faint)" stroke-dasharray="3 3"/>';
+      yy+=h;
+    });
+    var g=d.nw+d.back, hO=half*d.out/mx;
+    if(g) s+=txt(c,mid-hN-hB-7,"+"+g,{c:"var(--ink)",s:11});
+    if(d.out) s+=txt(c,mid+hO+15,"−"+d.out,{c:"var(--ink)",s:11});
+    if(step>=64||data.length<=6) s+=txt(c,16,d.start+" → "+d.end,{c:net>0?"var(--up)":net<0?"var(--down)":"var(--ink-soft)",s:11});
+    else s+=txt(c,16,(net>0?"+":"")+net,{c:net>0?"var(--up)":net<0?"var(--down)":"var(--ink-soft)",s:11});
+    areas.push({x:L+step*i,y:T-8,w:step,h:H-T-B+8,ax:c,ay:mid-hN-hB,
+      html:"<b>"+esc(bucketLong(d.key))+(d.partial?" (so far)":"")+"</b>"+trow("Active at the start",d.start)+trow("New",d.nw,"var(--s-new)")+
+        trow("Came back",d.back,"var(--s-ret)")+trow("Package ended",d.out)+trow("&nbsp;&nbsp;renewed later",d.outBack,"#8a6f86")+
+        trow("&nbsp;&nbsp;left",d.outLeft,"var(--s-lost)")+trow("&nbsp;&nbsp;still deciding",d.outWait,"var(--panel-3)")+
+        '<div class="sep">'+trow("Active at the end",d.end)+trow("Gained for every one who left",d.outLeft?((d.nw+d.back)/d.outLeft).toFixed(1):"—")+"</div>"});
+  });
+  host.innerHTML=s+"</svg>"; hits(host,areas);
+}
+
+/* ---------- renewal rate ---------- */
+function chartRate(){
+  var host=$("chRate"), s0=since(), by={}, order=[];
+  // One outcome per client per step: the last time their package ran out in it.
+  M.dec.forEach(function(d){
+    if(d.E<s0||d.E>M.today) return;
+    var key=bucketOf(d.E);
+    if(!by[key]){ by[key]={}; order.push(key); }
+    var o=by[key]; if(!o[d.k]||o[d.k].E<=d.E) o[d.k]=d;
+  });
+  order.sort();
+  var data=order.map(function(key){
+    var r={key:key,label:bucketLabel(key),ren:0,left:0,wait:0,kept:0,moved:0};
+    for(var k in by[key]){ var o=by[key][k].o; if(o==="pending") r.wait++; else if(o==="lost") r.left++; else { r.ren++; r[o]++; } }
+    r.n=r.ren+r.left+r.wait; return r;
+  });
+  if(!data.length){ host.innerHTML='<div class="empty">No packages ran out in this period.</div>'; return; }
+  var W=width(host),H=260,L=36,R=10,T=22,B=26, step=(W-L-R)/data.length, bw=Math.min(54,step*.5);
+  var y=function(v){ return T+(H-T-B)*(1-v); };
+  var s='<svg viewBox="0 0 '+W+" "+H+'" role="img" aria-label="Renewal rate">'+frame(W,H,L,R,T,B,1,[0,.5,1],function(t){ return Math.round(t*100)+"%"; },y)+xLabels(data,L,step,H);
+  var areas=[];
+  data.forEach(function(d,i){
+    var x0=L+step*i+(step-bw)/2, c=x0+bw/2, b=0;
+    [[d.ren,"var(--up)"],[d.left,"var(--s-lost)"],[d.wait,"var(--panel-3)"]].forEach(function(p){
+      if(!p[0]) return; var h=(H-T-B)*p[0]/d.n;
+      s+='<rect x="'+x0+'" y="'+(y(b)-h)+'" width="'+bw+'" height="'+Math.max(0,h-2)+'" rx="3" fill="'+p[1]+'"'+(p[1]==="var(--panel-3)"?' stroke="var(--ink-faint)" stroke-dasharray="3 3"':"")+"/>";
+      b+=p[0]/d.n;
+    });
+    var dec=d.ren+d.left;
+    // While some are still deciding, nobody can have left yet, so the rate can only be read as "so far".
+    s+=txt(c,T-7,dec?Math.round(d.ren/dec*100)+"%"+(d.wait&&step>=80?" so far":""):"—",{c:d.wait?"var(--ink-faint)":"var(--ink)",s:11.5});
+    areas.push({x:L+step*i,y:T-14,w:step,h:H-T-B+14,ax:c,ay:T,html:"<b>"+esc(bucketLong(d.key))+"</b>"+trow("Package ran out",d.n+" clients")+
+      trow("Renewed, same coach",d.kept,"var(--up)")+trow("Renewed, other coach",d.moved,"var(--up)")+trow("Left",d.left,"var(--s-lost)")+trow("Still deciding",d.wait,"var(--panel-3)")+
+      '<div class="sep">'+trow("Renewal rate",dec?pct(d.ren,dec)+" of "+dec+" decided":"—")+"</div>"});
   });
   host.innerHTML=s+"</svg>"; hits(host,areas);
 }
 
 /* ---------- purchases ---------- */
-function periods(){
-  var out=[], idx={};
-  M.months.forEach(function(d){
-    var y=d.p.slice(0,4), m=+d.p.slice(5,7), key=ui.per==="m"?d.p:ui.per==="q"?y+" Q"+Math.ceil(m/3):y;
-    if(!(key in idx)){ idx[key]=out.length; out.push({key:key,label:ui.per==="m"?monthLabel(d.p,true):key,pk:{ren:0,nw:0,ret:0},aed:{ren:0,nw:0,ret:0},partial:false}); }
-    var o=out[idx[key]]; ["ren","nw","ret"].forEach(function(t){ o.pk[t]+=d.pk[t]; o.aed[t]+=d.aed[t]; }); if(d.partial) o.partial=true;
-  });
-  return out;
-}
 function chartBuy(){
   var host=$("chBuy"), data=periods();
-  var W=width(host),H=250,L=30,R=8,T=16,B=24, step=(W-L-R)/data.length, bw=Math.min(26,step*.34);
+  if(!data.length){ host.innerHTML='<div class="empty">No months in this period.</div>'; $("buyNote").textContent=""; return; }
+  var W=width(host),H=280,L=36,R=10,T=16,B=26, step=(W-L-R)/data.length, bw=Math.min(40,step*.3);
   var mx=niceMax(Math.max.apply(null,data.map(function(d){ return Math.max(d.pk.ren,d.pk.nw+d.pk.ret); }))*1.12);
   var y=function(v){ return T+(H-T-B)*(1-v/mx); };
-  var s='<svg viewBox="0 0 '+W+" "+H+'" role="img" aria-label="Packages bought, renewals against new clients">';
-  s+='<rect class="hl" rx="6" fill="rgba(255,255,255,.035)" style="opacity:0"/>';
-  s+='<g class="grid">'+[mx/2,mx].map(function(t){ return '<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(t)+'" y2="'+y(t)+'"/>'; }).join("")+"</g>";
-  s+='<line class="base" x1="'+L+'" x2="'+(W-R)+'" y1="'+y(0)+'" y2="'+y(0)+'"/>';
-  s+='<g class="axis">'+[0,mx/2,mx].map(function(t){ return '<text x="'+(L-7)+'" y="'+(y(t)+3)+'" text-anchor="end">'+Math.round(t)+"</text>"; }).join("")+
-    data.map(function(d,i){ return '<text x="'+(L+step*(i+.5))+'" y="'+(H-6)+'" text-anchor="middle">'+d.label+"</text>"; }).join("")+"</g>";
+  var s='<svg viewBox="0 0 '+W+" "+H+'" role="img" aria-label="Packages bought">'+frame(W,H,L,R,T,B,mx,[0,mx/2,mx],function(t){ return Math.round(t); },y);
+  s+='<line class="base" x1="'+L+'" x2="'+(W-R)+'" y1="'+y(0)+'" y2="'+y(0)+'"/>'+xLabels(data,L,step,H);
   var areas=[];
   data.forEach(function(d,i){
     var c=L+step*(i+.5), a=d.pk.ren, b=d.pk.nw+d.pk.ret;
     s+=bar(c-bw-1,y(a),bw,y(0)-y(a),"var(--accent)")+bar(c+1,y(b),bw,y(0)-y(b),"var(--s-ret)");
-    if(step>34){ s+=txt(c-bw/2-1,y(a)-5,a,{s:9.5})+txt(c+bw/2+1,y(b)-5,b,{s:9.5}); }
+    s+=txt(c-bw/2-1,y(a)-6,a,{s:10.5})+txt(c+bw/2+1,y(b)-6,b,{s:10.5});
     areas.push({x:L+step*i,y:T,w:step,h:H-T-B,ax:c,ay:y(Math.max(a,b)),
-      html:"<b>"+esc(ui.per==="m"?monthLabel(M.months.filter(function(m){return m.p===d.key;})[0].p):d.label)+(d.partial?" (so far)":"")+"</b>"+
-        trow("Renewals",a,"var(--accent)")+trow("New clients",d.pk.nw,"var(--s-ret)")+trow("Returning clients",d.pk.ret,"var(--s-ret)")});
+      html:"<b>"+esc(bucketLong(d.key))+(d.partial?" (so far)":"")+"</b>"+trow("Renewals",a+" packages · "+full(d.ses.ren)+" sessions","var(--accent)")+
+        trow("&nbsp;&nbsp;average renewal",a?(d.ses.ren/a).toFixed(1)+" sessions":"—")+
+        trow("New clients",d.pk.nw+" packages · "+full(d.ses.nw)+" sessions","var(--s-ret)")+trow("Returning clients",d.pk.ret+" packages · "+full(d.ses.ret)+" sessions","var(--s-ret)")});
   });
   host.innerHTML=s+"</svg>"; hits(host,areas);
+  // Fewer renewals can mean fewer clients renewing, or the same clients buying bigger packages.
+  var done=data.filter(function(d){ return !d.partial; }), pair=done.length>=2?done.slice(-2):data.length>=2?data.slice(-2):null;
+  if(!pair){ $("buyNote").textContent=""; return; }
+  var a=pair[0], b=pair[1], ch=function(x,y){ return x?(y>=x?"+":"−")+Math.abs(Math.round((y-x)/x*100))+"%":"—"; };
+  $("buyNote").textContent="Renewal packages, "+bucketLong(a.key)+" → "+bucketLong(b.key)+": "+a.pk.ren+" → "+b.pk.ren+" ("+ch(a.pk.ren,b.pk.ren)+"). Sessions in them: "+
+    full(a.ses.ren)+" → "+full(b.ses.ren)+" ("+ch(a.ses.ren,b.ses.ren)+"). Average renewal: "+(a.pk.ren?(a.ses.ren/a.pk.ren).toFixed(1):"—")+" → "+(b.pk.ren?(b.ses.ren/b.pk.ren).toFixed(1):"—")+
+    " sessions. When packages fall but sessions hold, clients are moving to bigger packages; whether fewer clients are renewing shows in the renewal rate.";
 }
 
 /* ---------- package sales ---------- */
 function chartSales(){
   var host=$("chSales"), data=periods();
-  var W=width(host),H=250,L=38,R=8,T=18,B=24, step=(W-L-R)/data.length, bw=Math.min(34,step*.58);
+  if(!data.length){ host.innerHTML='<div class="empty">No months in this period.</div>'; return; }
+  var W=width(host),H=280,L=44,R=10,T=20,B=26, step=(W-L-R)/data.length, bw=Math.min(54,step*.5);
   var tot=function(d){ return d.aed.ren+d.aed.nw+d.aed.ret; };
   var mx=niceMax(Math.max.apply(null,data.map(tot))*1.12), y=function(v){ return T+(H-T-B)*(1-v/mx); };
-  var s='<svg viewBox="0 0 '+W+" "+H+'" role="img" aria-label="Package sales by period">';
-  s+='<rect class="hl" rx="6" fill="rgba(255,255,255,.035)" style="opacity:0"/>';
-  s+='<g class="grid">'+[mx/2,mx].map(function(t){ return '<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(t)+'" y2="'+y(t)+'"/>'; }).join("")+"</g>";
-  s+='<line class="base" x1="'+L+'" x2="'+(W-R)+'" y1="'+y(0)+'" y2="'+y(0)+'"/>';
-  s+='<g class="axis">'+[0,mx/2,mx].map(function(t){ return '<text x="'+(L-7)+'" y="'+(y(t)+3)+'" text-anchor="end">'+aed(t)+"</text>"; }).join("")+
-    data.map(function(d,i){ return '<text x="'+(L+step*(i+.5))+'" y="'+(H-6)+'" text-anchor="middle">'+d.label+"</text>"; }).join("")+"</g>";
+  var s='<svg viewBox="0 0 '+W+" "+H+'" role="img" aria-label="Package sales">'+frame(W,H,L,R,T,B,mx,[0,mx/2,mx],aed,y);
+  s+='<line class="base" x1="'+L+'" x2="'+(W-R)+'" y1="'+y(0)+'" y2="'+y(0)+'"/>'+xLabels(data,L,step,H);
   var areas=[];
   data.forEach(function(d,i){
     var x0=L+step*i+(step-bw)/2, base=0, parts=[["ren","var(--accent)"],["nw","var(--s-ret)"],["ret","var(--s-lost)"]].filter(function(p){ return d.aed[p[0]]>0; });
     parts.forEach(function(p,j){
       var v=d.aed[p[0]], top=j===parts.length-1, h=y(base)-y(base+v);
-      s+=top?bar(x0,y(base+v),bw,h-(j?2:0),p[1]):'<rect x="'+x0+'" y="'+(y(base+v)+(j?0:0))+'" width="'+bw+'" height="'+Math.max(0,h-(j?2:0))+'" fill="'+p[1]+'"/>';
+      s+=top?bar(x0,y(base+v),bw,Math.max(0,h-(j?2:0)),p[1]):'<rect x="'+x0+'" y="'+y(base+v)+'" width="'+bw+'" height="'+Math.max(0,h-(j?2:0))+'" fill="'+p[1]+'"/>';
       base+=v;
     });
-    if(step>30) s+=txt(x0+bw/2,y(tot(d))-5,aed(tot(d)),{s:9.5});
+    s+=txt(x0+bw/2,y(tot(d))-6,aed(tot(d)),{s:10.5});
     areas.push({x:L+step*i,y:T,w:step,h:H-T-B,ax:x0+bw/2,ay:y(tot(d)),
-      html:"<b>"+esc(d.label)+(d.partial?" (so far)":"")+"</b>"+trow("Renewals","AED "+full(d.aed.ren),"var(--accent)")+trow("New clients","AED "+full(d.aed.nw),"var(--s-ret)")+
+      html:"<b>"+esc(bucketLong(d.key))+(d.partial?" (so far)":"")+"</b>"+trow("Renewals","AED "+full(d.aed.ren),"var(--accent)")+trow("New clients","AED "+full(d.aed.nw),"var(--s-ret)")+
         trow("Returning clients","AED "+full(d.aed.ret),"var(--s-lost)")+'<div class="sep">'+trow("Total, without VAT","AED "+full(tot(d)))+"</div>"});
   });
   host.innerHTML=s+"</svg>"; hits(host,areas);
@@ -556,7 +636,7 @@ function chartUp(){
   var host=$("chUp"), rows=Object.keys(M.up.coach).map(function(c){ var o=M.up.coach[c]; return {c:c,n:o.n,aed:o.aed,due:o.due}; })
     .sort(function(a,b){ return b.aed-a.aed; });
   if(!rows.length){ host.innerHTML='<div class="empty">Nothing is up for renewal.</div>'; return; }
-  var W=width(host),rh=28,T=4,H=T+rows.length*rh+4,L=86,R=128, mx=Math.max.apply(null,rows.map(function(r){ return r.aed; }))||1;
+  var W=width(host),rh=30,T=4,H=T+rows.length*rh+4,L=96,R=150, mx=Math.max.apply(null,rows.map(function(r){ return r.aed; }))||1;
   var sx=function(v){ return (W-L-R)*v/mx; };
   var s='<svg viewBox="0 0 '+W+" "+H+'" role="img" aria-label="Value up for renewal per coach">', areas=[];
   s+='<rect class="hl" rx="6" fill="rgba(255,255,255,.035)" style="opacity:0"/>';
@@ -583,10 +663,10 @@ function chartLadder(){
     var k=d.o==="lost"?"left":d.nsz==null||d.nsz===d.sz?"same":d.nsz>d.sz?"up":"down";
     o[k]++; o.n++;
   });
-  var sizes=Object.keys(by).map(Number).filter(function(z){ return by[z].n>=MIN_N; }).sort(function(a,b){ return a-b; });
+  var sizes=Object.keys(by).map(Number).sort(function(a,b){ return a-b; });
   $("ladUnit").textContent=winLabel()+" · % of finished packages";
   if(!sizes.length){ host.innerHTML='<div class="empty">Too few finished packages in this period.</div>'; return; }
-  var W=width(host),rh=40,T=4,H=T+sizes.length*rh,L=92,R=88,bw=W-L-R, areas=[];
+  var W=width(host),rh=42,T=4,H=T+sizes.length*rh,L=100,R=100,bw=W-L-R, areas=[];
   var K=[["up","var(--up)","bought bigger"],["same","var(--accent)","same size"],["down","var(--s-ret)","smaller"],["left","var(--s-lost)","left"]];
   var s='<svg viewBox="0 0 '+W+" "+H+'" role="img" aria-label="What clients did when a package finished">';
   s+='<rect class="hl" rx="6" fill="rgba(255,255,255,.035)" style="opacity:0"/>';
@@ -622,7 +702,7 @@ function km(rows){
 function coachColor(c){ var i=M.coaches.map(function(x){ return x.c; }).indexOf(c); return PAL[(i<0?M.coaches.length:i)%PAL.length]; }
 function survCoaches(){
   var n={}; M.cohort.forEach(function(r){ n[r.c]=(n[r.c]||0)+1; });
-  return M.coaches.filter(function(c){ return (n[c.c]||0)>=MIN_N; }).map(function(c){ return {c:c.c,n:n[c.c]}; });
+  return M.coaches.filter(function(c){ return (n[c.c]||0)>0; }).map(function(c){ return {c:c.c,n:n[c.c]}; });
 }
 function survChips(){
   var list=survCoaches();
@@ -637,9 +717,9 @@ function survChips(){
 }
 function chartSurv(){
   var host=$("chSurv"), all=km(M.cohort);
-  if(all.n<MIN_N){ host.innerHTML='<div class="empty">Too few new clients yet.</div>'; return; }
+  if(!all.n){ host.innerHTML='<div class="empty">Too few new clients yet.</div>'; return; }
   var maxD=Math.max.apply(null,M.cohort.map(function(r){ return r.stay; })), mMax=Math.max(3,Math.min(12,Math.floor(maxD/30.44)));
-  var W=width(host),H=250,L=34,R=12,T=10,B=34, X=function(d){ return L+(W-L-R)*Math.min(d,mMax*30.44)/(mMax*30.44); }, Y=function(v){ return T+(H-T-B)*(1-v); };
+  var W=width(host),H=300,L=40,R=16,T=12,B=36, X=function(d){ return L+(W-L-R)*Math.min(d,mMax*30.44)/(mMax*30.44); }, Y=function(v){ return T+(H-T-B)*(1-v); };
   var s='<svg viewBox="0 0 '+W+" "+H+'" role="img" aria-label="Share of new clients still with us, by months since their first package">';
   s+='<line class="hl" stroke="var(--line)" stroke-width="1" style="opacity:0"/>';
   s+='<g class="grid">'+[.5,1].map(function(v){ return '<line x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(v)+'" y2="'+Y(v)+'"/>'; }).join("")+"</g>";
@@ -660,7 +740,7 @@ function chartSurv(){
   });
   lines.forEach(function(l){ s+=path(l.k,l.col,1.6); });
   all.rows=M.cohort; s+=path(all,"var(--ink)",2.6);
-  [1,3,6].filter(function(m){ return m<=mMax&&all.risk(m*30.44)>=MIN_N; }).forEach(function(m){
+  [1,3,6].filter(function(m){ return m<=mMax&&all.risk(m*30.44)>0; }).forEach(function(m){
     var v=all.at(m*30.44), px=X(m*30.44), py=Y(v);
     s+='<circle cx="'+px+'" cy="'+py+'" r="4.5" fill="var(--ink)" stroke="var(--panel)" stroke-width="2"/>';
     s+=txt(px+8,py-9,Math.round(v*100)+" still here after "+m+(m===1?" month":" months"),{a:"start",s:10.5,c:"var(--ink)",halo:1});
@@ -670,18 +750,18 @@ function chartSurv(){
   for(var mm=0;mm<=mMax;mm++)(function(mm){
     var d=mm*30.44, x0=X(Math.max(0,d-15.2)), x1=X(Math.min(mMax*30.44,d+15.2));
     var html="<b>"+mm+(mm===1?" month":" months")+" after the first package</b>"+trow("All coaches",Math.round(all.at(d)*100)+" of 100 · "+all.risk(d)+" watched","var(--ink)")+
-      lines.map(function(l){ var r=l.k.risk(d); return trow(esc(l.c),r>=MIN_N?Math.round(l.k.at(d)*100)+" of 100 · "+r+" watched":"too few watched",l.col); }).join("");
+      lines.map(function(l){ var r=l.k.risk(d); return trow(esc(l.c),r?Math.round(l.k.at(d)*100)+" of 100 · "+r+" watched":"nobody watched this long yet",l.col); }).join("");
     areas.push({x:x0,y:T,w:x1-x0,h:H-T-B,ax:X(d),ay:Y(all.at(d)),html:html});
   })(mm);
   hits(host,areas);
   $("survNote").textContent="Covers the "+all.n+" new clients since "+fmtDate(M.settings.loggedFrom)+". A client counts as gone when a package runs out with nothing new within "+
-    M.settings.grace+" days. Clients still with us count for as long as we have watched them, so recent joiners do not drag the line down. Coaches with fewer than "+MIN_N+" new clients are not listed.";
+    M.settings.grace+" days. Clients still with us count for as long as we have watched them, so recent joiners do not drag the line down.";
 }
 
 /* ---------- coaches table ---------- */
 function survAt(c,m){
-  var rows=M.cohort.filter(function(r){ return r.c===c; }); if(rows.length<MIN_N) return null;
-  var k=km(rows), d=m*30.44; if(k.risk(d)<3&&k.at(d)===1) return null;
+  var rows=M.cohort.filter(function(r){ return r.c===c; }); if(!rows.length) return null;
+  var k=km(rows), d=m*30.44; if(!k.risk(d)&&k.at(d)===1) return null;
   return {v:k.at(d),n:rows.length};
 }
 function coaches(){
@@ -694,28 +774,28 @@ function coaches(){
     var ren=mine.filter(function(d){ return d.o!=="lost"; }), early=ren.filter(function(d){ return d.early; }).length;
     var up=M.up.coach[r.c]||{n:0,aed:0};
     // New clients and sales by calendar month, from the month the period starts in.
-    var nw=0, sales=0; M.months.forEach(function(m){ if(m.p+"-01">=s0.slice(0,7)+"-01"&&m.coach[r.c]){ nw+=m.coach[r.c].n; sales+=m.coach[r.c].s; } });
-    if(!r.active&&!n&&!up.n&&!nw) return "";
+    var nw=0, sales=0; winMonths().forEach(function(m){ if(m.coach[r.c]){ nw+=m.coach[r.c].n; sales+=m.coach[r.c].s; } });
+    if(!r.active&&!n&&!up.n&&!nw&&!pendIn(r.c)) return "";
     tot.a+=r.active; tot.up+=up.aed; tot.upn+=up.n; tot.kept+=o.kept; tot.moved+=o.moved; tot.lost+=o.lost; tot.nw+=nw; tot.sales+=sales; tot.e+=early; tot.en+=ren.length;
     var W=150, bars=n?[["kept","var(--up)"],["moved","var(--s-ret)"],["lost","var(--s-lost)"]].filter(function(p){ return o[p[0]]; }).map(function(p){
       return '<span style="width:'+(o[p[0]]/n*100)+'%;background:'+p[1]+'"></span>'; }).join(""):"";
     var s3=survAt(r.c,3), s6=survAt(r.c,6);
-    function sv(x){ if(!x) return '<span class="dim">—</span>'; var v=Math.round(x.v*100), few=x.n<10;
-      return '<span class="'+(few?"dim":v>=75?"up":v<45?"down":"")+'" title="'+x.n+' new clients since '+fmtDate(M.settings.loggedFrom)+'">'+v+'%</span> <span class="dim" style="font-size:11px">('+x.n+")</span>"; }
+    function sv(x){ if(!x) return '<span class="dim">—</span>'; var v=Math.round(x.v*100);
+      return '<span class="'+(v>=75?"up":v<45?"down":"")+'" title="'+x.n+' new clients since '+fmtDate(M.settings.loggedFrom)+'">'+v+'%</span> <span class="dim" style="font-size:11px">('+x.n+")</span>"; }
     return '<tr><td class="l">'+esc(r.c)+(r.status==="Former"?' <span class="pill">former</span>':"")+"</td><td>"+r.active+"</td>"+
       "<td>"+(up.n?'<span class="'+(up.aed>=40000?"watch":"")+'">'+aed(up.aed)+'</span> <span class="dim">· '+up.n+"</span>":'<span class="dim">—</span>')+"</td>"+
-      '<td class="l">'+(n?'<span class="sml"><span class="sml-bar">'+bars+'</span><span class="sml-n">'+o.kept+" · "+o.moved+" · "+o.lost+"</span>"+(n<MIN_N?'<span class="dim">few</span>':"")+"</span>":'<span class="dim">none in this period</span>')+"</td>"+
+      '<td class="l">'+(n?'<span class="sml"><span class="sml-bar">'+bars+'</span><span class="sml-n">'+o.kept+" · "+o.moved+" · "+o.lost+"</span>"+(pendIn(r.c)?'<span class="dim">+'+pendIn(r.c)+" deciding</span>":"")+"</span>":(pendIn(r.c)?'<span class="dim">'+pendIn(r.c)+" still deciding</span>":'<span class="dim">none in this period</span>'))+"</td>"+
       "<td>"+(ren.length?pct(early,ren.length)+' <span class="dim">of '+ren.length+"</span>":'<span class="dim">—</span>')+"</td>"+
       "<td>"+sv(s3)+"</td><td>"+sv(s6)+"</td><td>"+(nw||'<span class="dim">0</span>')+"</td><td>"+(sales?aed(sales):'<span class="dim">—</span>')+"</td></tr>";
   }).join("");
   var k3=km(M.cohort), n3=Math.round(k3.at(91.3)*100), n6=Math.round(k3.at(182.6)*100), tn=tot.kept+tot.moved+tot.lost;
-  body+='<tr class="total"><td class="l">Team</td><td>'+tot.a+"</td><td>"+aed(tot.up)+' <span class="dim">· '+tot.upn+'</span></td><td class="l"><span class="sml-n">'+tot.kept+" · "+tot.moved+" · "+tot.lost+"</span> "+
+  body+='<tr class="total"><td class="l">Team</td><td>'+tot.a+"</td><td>"+aed(tot.up)+' <span class="dim">· '+tot.upn+'</span></td><td class="l"><span class="sml-n">'+tot.kept+" · "+tot.moved+" · "+tot.lost+"</span> "+'<span class="dim">+'+pendIn()+" deciding · </span>"+
     '<span class="dim">'+pct(tot.kept+tot.moved,tn)+" stayed</span></td><td>"+pct(tot.e,tot.en)+"</td><td>"+n3+"%</td><td>"+n6+"%</td><td>"+tot.nw+"</td><td>"+aed(tot.sales)+"</td></tr>";
   $("coachTbl").innerHTML=head+"<tbody>"+body+"</tbody>";
 }
 
 /* ---------- coach × client type ---------- */
-var DIMS=[["age","Age"],["g","Gender"],["svc","Service"],["pkg","First package"],["nat","Nationality"],["lang","Language"],["src","Source"]];
+var DIMS=[["age","Age"],["g","Gender"],["svc","Service"],["pkg","Package"],["nat","Nationality"],["lang","Language"],["src","Source"]];
 var AGE=["Under 18","18-29","30-39","40-49","50-59","60+"];
 function groups(dim,rows){
   var n={}; rows.forEach(function(r){ var v=r[dim]||"(not recorded)"; n[v]=(n[v]||0)+1; });
@@ -743,7 +823,7 @@ function xt(){
   function cell(list){
     var n=list.length, y=list.filter(function(r){ return r.kept; }).length;
     if(!n) return '<span class="cell none">·</span>';
-    var v=y/n, cls=n<MIN_N?"few":v>=.75?"hi":v<.45?"lo":"mid";
+    var v=y/n, cls=v>=.75?"hi":v<.45?"lo":"mid";
     return '<span class="cell '+cls+'" title="'+y+" of "+n+' stayed with the coach">'+Math.round(v*100)+'% <span style="opacity:.75">('+n+")</span></span>";
   }
   var coachesWith=M.coaches.filter(function(c){ return rows.some(function(r){ return r.c===c.c; }); });
@@ -755,7 +835,7 @@ function xt(){
     return '<tr><td class="l">'+esc(c.c)+"</td>"+G.order.map(function(g){ return '<td style="text-align:center">'+cell(mine.filter(function(r){ return key(r)===g; }))+"</td>"; }).join("")+"</tr>";
   }).join("");
   $("xtTbl").innerHTML=h+"</tbody>";
-  $("xtNote").textContent="Clients whose package ran out "+winLabel()+", once each per coach. % = the share who stayed with that coach. Brackets: how many clients. Grey: fewer than "+MIN_N+", too few to judge."+
+  $("xtNote").textContent="Each cell is a rate inside its own group: of the male clients whose package ran out "+winLabel()+", the share who stayed with that coach. So a row does not add up to 100%: it compares groups with each other. Brackets: how many clients are in the group, so a 100% (1) weighs far less than a 70% (20)."+
     (dim==="pkg"?" Package = the size that ran out.":"");
 }
 
@@ -812,22 +892,25 @@ function sources(){
       return '<tr'+(nr?' class="dim"':"")+'><td class="l">'+esc(k)+"</td><td>"+o.n+"</td><td>"+aed(o.aed/o.n)+"</td><td>"+(o.d?pct(o.y,o.d)+' <span class="dim">of '+o.d+"</span>":'<span class="dim">—</span>')+"</td></tr>"; }).join("")+"</tbody>";
 }
 
-/* ---------- client mix: now against six months ago ---------- */
+/* ---------- client mix: now against the start of the period ---------- */
 function mix(){
-  var X=M.mix;
-  function block(title,o,order){
-    var keys=Object.keys(Object.assign({},o.then,o.now));
+  var now=M.mix.now, then=M.mix.at[ui.win]||M.mix.at["6"];
+  var nNow=M.kpi.active;
+  $("mixTitle").textContent="Who the active clients are: "+then.n+" on "+fmtDate(then.d)+", "+nNow+" now";
+  function block(title,dim,order){
+    var a0=now[dim]||{}, b0=then[dim]||{};
+    var keys=Object.keys(Object.assign({},b0,a0));
     if(order) keys.sort(function(a,b){ return (order.indexOf(a)+99)%99-(order.indexOf(b)+99)%99; });
-    else keys.sort(function(a,b){ return (a==="(not recorded)")-(b==="(not recorded)")||(o.now[b]||0)-(o.now[a]||0); });
-    keys=keys.slice(0,6);
-    var mx=Math.max.apply(null,keys.map(function(k){ return Math.max(o.now[k]||0,o.then[k]||0); }))||1;
+    else keys.sort(function(a,b){ return (a==="(not recorded)")-(b==="(not recorded)")||((a0[b]||0)+(b0[b]||0))-((a0[a]||0)+(b0[a]||0)); });
+    keys=keys.slice(0,7);
+    var mx=Math.max.apply(null,keys.map(function(k){ return Math.max(a0[k]||0,b0[k]||0); }))||1;
     return "<div><h3>"+title+"</h3>"+keys.map(function(k){
-      var a=o.now[k]||0, b=o.then[k]||0, d=a-b, nr=k==="(not recorded)";
-      return '<div class="xrow"><span class="lab'+(nr?" nr":"")+'" title="'+esc(k)+'">'+esc(k)+'</span><span class="trk"><span style="width:'+(a/mx*100).toFixed(1)+'%"></span><em style="left:'+(b/mx*100).toFixed(1)+'%"></em></span>'+
-        '<span class="n">'+a+'</span><span class="d '+(d>0?"up":d<0?"down":"dim")+'">'+(d>0?"+":"")+(d||"·")+"</span></div>";
+      var a=a0[k]||0, b=b0[k]||0, d=a-b, nr=k==="(not recorded)";
+      return '<div class="xrow" title="'+esc(k)+": "+b+" on "+fmtDate(then.d)+", "+a+' now"><span class="lab'+(nr?" nr":"")+'">'+esc(k)+'</span><span class="trk"><span style="width:'+(a/mx*100).toFixed(1)+'%"></span><em style="left:'+(b/mx*100).toFixed(1)+'%"></em></span>'+
+        '<span class="n"><span>'+b+" →</span> "+a+'</span><span class="d '+(d>0?"up":d<0?"down":"dim")+'">'+(d>0?"+":"")+(d||"·")+"</span></div>";
     }).join("")+"</div>";
   }
-  $("mix").innerHTML=block("Service",X.service)+block("Gender",X.gender)+block("Age",X.age,AGE.concat(["(not recorded)"]))+block("Language",X.lang);
+  $("mix").innerHTML=block("Service","service")+block("Gender","gender")+block("Age","age",AGE.concat(["(not recorded)"]))+block("Language","lang");
 }
 
 /* ---------- checks and definitions ---------- */
@@ -854,9 +937,10 @@ function paint(){
   $("stamp").innerHTML=(gen?"Read "+gen.toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"}):"")+"<br>"+M.kpi.total+" clients on file · AED without VAT";
   $("selWin").value=ui.win;
   Array.prototype.forEach.call($("segPer").querySelectorAll("button"),function(b){ b.classList.toggle("on",b.getAttribute("data-v")===ui.per); });
-  tiles(); chartMove(); chartBuy(); chartSales(); chartUp(); chartLadder(); survChips(); chartSurv(); coaches(); xt(); matchForm(); match(); sources(); mix(); checks();
+  tiles(); chartMove(); chartRate(); chartBuy(); chartSales(); chartUp(); chartLadder(); survChips(); chartSurv(); coaches(); xt(); matchForm(); match(); sources(); mix(); checks();
+  Array.prototype.forEach.call(document.querySelectorAll(".note .g"),function(e){ e.textContent=M.settings.grace; });
 }
-function charts(){ chartMove(); chartBuy(); chartSales(); chartUp(); chartLadder(); chartSurv(); }
+function charts(){ chartMove(); chartRate(); chartBuy(); chartSales(); chartUp(); chartLadder(); chartSurv(); }
 // When there is no clients data yet, the refresh job will have said why on its last run.
 function whyMissing(){
   var api="https://api.github.com/repos/"+GH_OWNER+"/"+GH_REPO, h={Accept:"application/vnd.github+json"};
@@ -912,7 +996,7 @@ function unlock(){
 }
 unlock().then(function(pass){
   paint();
-  $("selWin").addEventListener("change",function(e){ ui.win=e.target.value; saveUi(); tiles(); chartLadder(); coaches(); xt(); });
+  $("selWin").addEventListener("change",function(e){ ui.win=e.target.value; saveUi(); paint(); });
   Array.prototype.forEach.call($("segPer").querySelectorAll("button"),function(b){
     b.addEventListener("click",function(){ ui.per=b.getAttribute("data-v"); saveUi(); paint(); });
   });
