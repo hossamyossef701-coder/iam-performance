@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Overview — I AM Performance</title>
+<meta name="theme-color" content="#050505">
+<meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="./report.webmanifest">
+<link rel="icon" href="./icon-192.png" sizes="192x192">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="stylesheet" href="./fonts/alata.css">
+<link rel="stylesheet" href="./common.css">
+</head>
+<body class="locked">
+
+<div class="gate" id="gate">
+  <div class="gate-box">
+    <div class="eyebrow">I AM Performance</div>
+    <h1>Overview</h1>
+    <form id="gateForm" autocomplete="off">
+      <input type="password" id="gatePass" placeholder="Performance passphrase" autocomplete="current-password" spellcheck="false">
+      <label class="rem"><input type="checkbox" id="gateRemember" checked> Remember on this device</label>
+      <button type="submit" id="gateBtn">Unlock</button>
+    </form>
+    <p class="status" id="gateStatus"></p>
+  </div>
+</div>
+
+<div class="wrap" id="app" style="display:none">
+  <div class="head">
+    <div><div class="eyebrow">I AM Performance</div><h1>Overview</h1></div>
+    <div class="stamp" id="stamp"></div>
+  </div>
+  <div class="bar">
+    <span class="seg"><a href="./report.html">Performance</a><a href="./clients.html">Clients</a><a class="on" href="./overview.html">Overview</a><a href="./coach.html">Coach review</a></span>
+    <span class="grow"></span>
+    <button id="btnNotes">Notes</button>
+    <button id="btnReload">Reload</button>
+  </div>
+
+  <div id="noOv" class="card section" style="display:none"><div class="empty">The coach sheets have not been joined to the Clients file yet. The next refresh does it: press Refresh now on the Performance page.</div></div>
+
+  <div id="main">
+  <div class="card section">
+    <div class="card-h"><div><div class="k">This month</div><div class="t" id="tmTitle"></div></div></div>
+    <div class="card-b"><ul class="sent" id="sent"></ul></div>
+  </div>
+
+  <div class="card section">
+    <div class="card-h"><div><div class="k">Sold and delivered</div><div class="t">Package sales against revenue</div></div><span class="unit">AED, without VAT</span></div>
+    <div class="card-b">
+      <div class="legend"><span><i style="background:var(--accent)"></i>package sales: what clients paid</span><span><i style="background:var(--s-ret)"></i>revenue: sessions delivered × rate</span><span class="r">on top: sold − delivered</span></div>
+      <div class="chart" id="chSold"></div>
+      <p class="note">Sold more than delivered: clients are paying ahead. Delivered more than sold: the month lives off packages sold earlier, which cannot go on for long. The month running counts what has happened so far.</p>
+    </div>
+  </div>
+
+  <div class="card section">
+    <div class="card-h"><div><div class="k">Unused sessions</div><div class="t">Paid for and not yet trained, since <span id="ovFrom"></span></div></div><span class="unit">AED, running total</span></div>
+    <div class="card-b">
+      <div class="chart" id="chUnused"></div>
+      <p class="note">Running total of package sales minus revenue. Rising: selling faster than delivering. Falling: delivering sessions sold earlier. It starts at zero on the first logged month, so it shows the change since then, not the full amount owed (packages bought before then are not in it).</p>
+    </div>
+  </div>
+
+  <div class="card section">
+    <div class="card-h"><div><div class="k">Packages in use</div><div class="t">Where each coach's running packages stand</div></div><span class="unit">clients · open a coach for the names</span></div>
+    <div class="card-b" style="padding-bottom:4px"><div class="legend" id="useTot" style="margin:0"></div></div>
+    <div class="lst" id="useLst"></div>
+    <div class="card-b"><p class="note" style="margin:0">Sessions used = sessions on the coach sheets since the package was bought, all coaches together. Won't finish in time = at the client's pace over the last 4 weeks, more than one session will be left when the package ends. Training on an expired package = sessions in the last 31 days after the package ran out. Nearly used up = 2 sessions or fewer left. Not linked = the client's name on the sheet is not matched yet (see Name check).</p></div>
+  </div>
+
+  <div class="cols2">
+    <div class="card">
+      <div class="card-h"><div><div class="k">Value of a client</div><div class="t">What a new client is worth in their first year</div></div><span class="unit">AED, without VAT</span></div>
+      <div class="card-b"><div class="chart" id="chValue"></div>
+        <p class="note">Months a new client stays in their first year (by the coach of their first package; clients still with us count as long as watched) × the coach's revenue per client per month over the last 3 complete months. Brackets: new clients it is based on.</p></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><div><div class="k">Name check</div><div class="t">Coach-sheet names matched to the Clients file</div></div></div>
+      <div class="card-b" style="padding-bottom:6px"><div class="big3" id="nameBig"></div></div>
+      <div class="lst" id="nameLst"></div>
+      <div class="card-b"><p class="note" style="margin:0" id="nameNote"></p></div>
+    </div>
+  </div>
+  </div>
+</div>
+
+<script src="./common.js"></script>
+<script>
+(function(){
+"use strict";
+var C=window.IAM, $=C.$, esc=C.esc, aed=C.aed, D=null;
+
+function render(){
+  var live=D.live, ov=D.ov;
+  $("stamp").innerHTML="Read "+new Date(ov?ov.generated:live.generated).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"})+"<br>AED without VAT";
+  if(!ov){ $("noOv").style.display=""; $("main").style.display="none"; return; }
+  $("noOv").style.display="none"; $("main").style.display="";
+  $("ovFrom").textContent=C.date(ov.loggedFrom);
+  thisMonth(); chartSold(); chartUnused(); packages(); value(); names();
+}
+
+/* ---- This month ---- */
+function keptOf(c){ var x=D.ov.perCoach[c]; return x?{k:x.kept,n:x.kept+x.moved+x.lost}:{k:0,n:0}; }
+function thisMonth(){
+  var live=D.live, ov=D.ov, p=ov.now, M=ov.months, cur=M[M.length-1], out=[];
+  $("tmTitle").textContent=C.label(p)+", to "+C.day(ov.today);
+  if(cur&&cur.p===p){
+    var done=M.filter(function(m){ return !m.partial; }), streak=0;
+    for(var i=done.length-1;i>=0&&done[i].sales<done[i].rev;i--) streak++;
+    out.push([cur.sales<cur.rev?"var(--down)":"var(--up)","Package sales so far ("+aed(cur.sales)+") are "+(cur.sales<cur.rev?"below":"above")+" revenue so far ("+aed(cur.rev)+")"+
+      (streak?". Sales were below revenue in each of the last "+streak+" complete month"+(streak>1?"s":"")+".":".")]);
+  }
+  if(ov.up) out.push(["var(--watch)",ov.up.n+" clients are up for renewal, worth "+aed(ov.up.aed)+". "+ov.up.due+" of them have already run out."]);
+  var less=0, worst=null;
+  Object.keys(live.periods[p]||{}).forEach(function(c){ var l=C.lessOften(live,p,c); if(l&&l.length){ less+=l.length; if(!worst||l.length>worst.n) worst={c:c,n:l.length}; } });
+  if(less) out.push(["var(--watch)",less+" clients are training well below their own usual"+(worst?". "+worst.c+" has "+worst.n+".":".")]);
+  var short=ov.inUse.filter(function(r){ return r.state==="short"; }).length, exp=ov.inUse.filter(function(r){ return r.state==="expired"; }).length;
+  if(short||exp) out.push([exp?"var(--down)":"var(--watch)",short+" clients won't finish their package in time at their current pace; "+exp+" are training on an expired package."]);
+  var curC=Object.keys(live.periods[p]||{});
+  var ks=Object.keys(ov.perCoach).filter(function(c){ return curC.indexOf(c)>=0; }).map(function(c){ var k=keptOf(c); return {c:c,k:k.k,n:k.n}; }).filter(function(x){ return x.n>=5; }).sort(function(a,b){ return b.k/b.n-a.k/a.n; });
+  if(ks.length>1) out.push(["var(--up)","Most clients kept in the last 12 months: "+ks[0].c+", "+ks[0].k+" of "+ks[0].n+". Fewest: "+ks[ks.length-1].c+", "+ks[ks.length-1].k+" of "+ks[ks.length-1].n+"."]);
+  var pr=0, mr=0, md=live.cutoffDay, days=C.daysIn(p);
+  Object.keys(live.periods[p]||{}).forEach(function(c){ var x=live.periods[p][c]; if(x.pr) pr+=x.pr; if(x.mr!=null) mr+=x.mr; });
+  if(pr&&md) out.push(["var(--ink-soft)","Revenue is on pace for "+Math.round(mr/md*days/pr*100)+"% of what coaches projected for the month ("+aed(mr/md*days)+" of "+aed(pr)+")."]);
+  var nm=ov.names.unclear.length;
+  if(nm) out.push(["var(--watch)",nm+" coach-sheet name"+(nm>1?"s need":" needs")+" confirming: see Name check."]);
+  $("sent").innerHTML=out.map(function(x){ return '<li><span class="dot" style="background:'+x[0]+'"></span><span>'+esc(x[1])+"</span></li>"; }).join("");
+}
+
+/* ---- Sold and delivered ---- */
+function chartSold(){
+  var host=$("chSold"), M=D.ov.months; if(!M.length){ host.innerHTML='<div class="empty">No months yet.</div>'; return; }
+  var W=C.width(host),H=290,L=44,R=10,T=22,B=26, step=(W-L-R)/M.length, bw=Math.min(30,step*.3);
+  var mx=C.niceMax(Math.max.apply(null,M.map(function(m){ return Math.max(m.sales,m.rev); }))*1.12), y=function(v){ return T+(H-T-B)*(1-v/mx); };
+  var s='<svg viewBox="0 0 '+W+" "+H+'"><rect class="hl" rx="6" fill="rgba(255,255,255,.035)" style="opacity:0"/>'+C.grid(W,L,R,y,[0,mx/2,mx],aed);
+  s+='<line class="base" x1="'+L+'" x2="'+(W-R)+'" y1="'+y(0)+'" y2="'+y(0)+'"/>';
+  var areas=[];
+  M.forEach(function(m,i){
+    var c=L+step*(i+.5), d=m.sales-m.rev;
+    s+=C.bar(c-bw-1,y(m.sales),bw,y(0)-y(m.sales),"var(--accent)")+C.bar(c+1,y(m.rev),bw,y(0)-y(m.rev),"var(--s-ret)");
+    s+=C.txt(c,y(Math.max(m.sales,m.rev))-7,(d>=0?"+":"−")+aed(Math.abs(d)),{c:d>=0?"var(--up)":"var(--down)",s:10.5});
+    s+='<text x="'+c+'" y="'+(H-6)+'" text-anchor="middle" style="font-size:10.5px;fill:var(--ink-faint)">'+C.label(m.p,true)+(m.partial?"*":"")+"</text>";
+    areas.push({x:L+step*i,y:T,w:step,h:H-T-B,ax:c,ay:y(Math.max(m.sales,m.rev)),html:"<b>"+C.label(m.p)+(m.partial?" (so far)":"")+"</b>"+
+      C.trow("Package sales","AED "+C.full(m.sales),"var(--accent)")+C.trow("Revenue","AED "+C.full(m.rev),"var(--s-ret)")+
+      C.trow("Sessions sold",C.full(m.soldS))+C.trow("Sessions delivered",C.full(m.delS))+'<div class="row sep"><span>Sold − delivered</span><span>AED '+C.full(d)+"</span></div>"});
+  });
+  host.innerHTML=s+"</svg>"; C.hits(host,areas);
+}
+
+/* ---- Unused sessions ---- */
+function chartUnused(){
+  var host=$("chUnused"), M=D.ov.months; if(!M.length){ host.innerHTML=""; return; }
+  var run=0, runS=0, pts=M.map(function(m){ run+=m.sales-m.rev; runS+=m.soldS-m.delS; return {p:m.p,v:run,s:runS,partial:m.partial}; });
+  var W=C.width(host),H=240,L=50,R=14,T=18,B=26, step=(W-L-R)/pts.length;
+  var lo=Math.min(0,Math.min.apply(null,pts.map(function(x){ return x.v; }))), hi=Math.max(0,Math.max.apply(null,pts.map(function(x){ return x.v; })));
+  var span=C.niceMax(Math.max(Math.abs(lo),Math.abs(hi))*1.2||1000), y0=lo<0?-span:0, y1=hi>0?span:0;
+  var y=function(v){ return T+(H-T-B)*(y1-v)/(y1-y0); }, x=function(i){ return L+step*(i+.5); };
+  var s='<svg viewBox="0 0 '+W+" "+H+'"><line class="hl" style="opacity:0"/>'+C.grid(W,L,R,y,[y0,0,y1].filter(function(v,i,a){ return a.indexOf(v)===i; }),aed);
+  s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(0)+'" y2="'+y(0)+'" stroke="var(--ink-faint)" stroke-width="1"/>';
+  var path=pts.map(function(q,i){ return (i?"L":"M")+x(i)+","+y(q.v); }).join("");
+  s+='<path d="'+path+"L"+x(pts.length-1)+","+y(0)+"L"+x(0)+","+y(0)+'Z" fill="var(--accent)" opacity=".12"/><path d="'+path+'" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linejoin="round"/>';
+  var areas=[];
+  pts.forEach(function(q,i){
+    s+='<circle cx="'+x(i)+'" cy="'+y(q.v)+'" r="4" fill="var(--accent)" stroke="var(--panel)" stroke-width="2"/>';
+    s+='<text x="'+x(i)+'" y="'+(H-6)+'" text-anchor="middle" style="font-size:10.5px;fill:var(--ink-faint)">'+C.label(q.p,true)+(q.partial?"*":"")+"</text>";
+    if(i===pts.length-1||i===0) s+=C.txt(x(i),y(q.v)-10,aed(q.v),{c:"var(--ink)"});
+    areas.push({x:L+step*i,y:T,w:step,h:H-T-B,ax:x(i),ay:y(q.v),html:"<b>To the end of "+C.label(q.p)+(q.partial?" (so far)":"")+"</b>"+C.trow("Sold − delivered, running","AED "+C.full(q.v))+C.trow("In sessions",C.full(q.s))});
+  });
+  host.innerHTML=s+"</svg>"; C.hits(host,areas);
+}
+
+/* ---- Packages in use ---- */
+var ST=[["ok","On track","var(--ink-soft)"],["short","Won't finish in time","var(--watch)"],["nearly","Nearly used up","var(--ink)"],["expired","Training on an expired package","var(--down)"],["unlinked","Not linked","var(--ink-faint)"]];
+function packages(){
+  var by={};
+  D.ov.inUse.forEach(function(r){ var o=by[r.coach||"(no coach)"]||(by[r.coach||"(no coach)"]={ok:[],short:[],nearly:[],expired:[],unlinked:[]}); o[r.state].push(r); });
+  var cs=Object.keys(by).sort(function(a,b){ return (by[b].short.length+by[b].expired.length)-(by[a].short.length+by[a].expired.length)||a.localeCompare(b); });
+  var tot={ok:0,short:0,nearly:0,expired:0,unlinked:0};
+  cs.forEach(function(c){ ST.forEach(function(s){ tot[s[0]]+=by[c][s[0]].length; }); });
+  // How many in each state, in the state's colour: from lists (a coach) or plain numbers (the team).
+  function counts(o){ var n=function(k){ return typeof o[k]==="number"?o[k]:o[k].length; };
+    return ST.filter(function(s){ return n(s[0]); }).map(function(s){ return '<span style="color:'+s[2]+'">'+n(s[0])+" "+s[1].toLowerCase()+"</span>"; }).join('<span class="dim"> · </span>'); }
+  $("useTot").innerHTML="<span>Team: "+counts(tot)+"</span>";
+  $("useLst").innerHTML=cs.map(function(c){
+    var o=by[c], list=[].concat(o.expired,o.short,o.nearly,o.unlinked);
+    if(!list.length) return '<details class="none"><summary><span class="nm">'+esc(c)+'</span><span class="n">'+counts(o)+"</span></summary></details>";
+    return '<details><summary><span class="nm">'+esc(c)+'</span><span class="n">'+counts(o)+"</span></summary>"+
+      '<div class="lrow h"><span>Client</span><span>State</span><span>Sessions left</span><span>Package ends</span></div>'+
+      list.map(function(r){
+        var st=ST.filter(function(s){ return s[0]===r.state; })[0];
+        var left=r.state==="expired"?r.after+" after it ended":r.left!=null?r.left+" of "+r.size+(r.pace!=null&&r.state==="short"?" · "+r.pace.toFixed(1)+"/wk":""):"—";
+        return '<div class="lrow"><span>'+esc(r.name)+(r.sheetName&&C.nameKey(r.sheetName)!==C.nameKey(r.name)?' <span class="dim">· "'+esc(r.sheetName)+'"</span>':"")+'</span><span style="color:'+st[2]+'">'+st[1]+"</span><span>"+left+"</span><span>"+C.date(r.end)+"</span></div>";
+      }).join("")+"</details>";
+  }).join("");
+}
+
+/* ---- Value of a client ---- */
+function value(){
+  var host=$("chValue"), live=D.live, ov=D.ov, rows=[];
+  var qs=[1,2,3].map(function(n){ return C.prevP(ov.now,n); });
+  Object.keys(ov.perCoach).forEach(function(c){
+    var st=ov.perCoach[c].stay; if(!st) return;
+    var r=0, n=0;
+    qs.forEach(function(q){ var cl=C.clientsIn(live,q,c); if(!cl) return; cl.forEach(function(x){ if(x.s>0){ n++; r+=x.s*(x.price||0); } }); });
+    if(!n) return;
+    rows.push({c:c, m:st.months, k:st.n, rpc:r/n, v:st.months*r/n});
+  });
+  rows.sort(function(a,b){ return b.v-a.v; });
+  if(!rows.length){ host.innerHTML='<div class="empty">Needs new clients since '+C.date(ov.loggedFrom)+" and 3 complete months of coach sheets.</div>"; return; }
+  var W=C.width(host), rh=34, H=rows.length*rh+4, L=88, R=W<480?120:190, mx=Math.max.apply(null,rows.map(function(r){ return r.v; }));
+  var s='<svg viewBox="0 0 '+W+" "+H+'"><rect class="hl" rx="6" fill="rgba(255,255,255,.035)" style="opacity:0"/>', areas=[];
+  rows.forEach(function(r,i){
+    var y0=i*rh+2, w=(W-L-R)*r.v/mx;
+    s+=C.txt(L-10,y0+rh/2+4,esc(r.c),{a:"end",s:12});
+    s+=C.hbar(L,y0+8,w,rh-16,"var(--accent)");
+    s+=C.txt(L+w+8,y0+rh/2+4,aed(r.v)+(W<480?"":'  <tspan style="fill:var(--ink-faint)">'+r.m.toFixed(1)+" mo × "+aed(r.rpc)+" ("+r.k+")</tspan>"),{a:"start",s:11.5,c:"var(--ink)"});
+    areas.push({x:0,y:y0,w:W,h:rh,ax:L+w/2,ay:y0+8,html:"<b>"+esc(r.c)+"</b>"+C.trow("Months in the first year",r.m.toFixed(1))+C.trow("Revenue per client a month","AED "+C.full(r.rpc))+C.trow("Value in the first year","AED "+C.full(r.v))+C.trow("New clients behind it",r.k)});
+  });
+  host.innerHTML=s+"</svg>"; C.hits(host,areas);
+}
+
+/* ---- Name check ---- */
+function copy(t,btn){
+  function done(){ var o=btn.textContent; btn.textContent="Copied"; setTimeout(function(){ btn.textContent=o; },1200); }
+  if(navigator.clipboard) navigator.clipboard.writeText(t).then(done,function(){}); else { var a=document.createElement("textarea"); a.value=t; document.body.appendChild(a); a.select(); try{ document.execCommand("copy"); done(); }catch(e){} a.remove(); }
+}
+function names(){
+  var n=D.ov.names;
+  $("nameBig").innerHTML=[[n.auto+n.byHand,"linked"+(n.byHand?" ("+n.byHand+" by hand)":""),"var(--up)"],[n.unclear.length,"to confirm","var(--watch)"],[n.notInFile.length,"on a sheet, not in the file","var(--ink)"],[n.endedOnSheet.length,"ended, still on a sheet","var(--down)"]]
+    .map(function(x){ return '<div><div class="v" style="color:'+(x[0]?x[2]:"var(--ink-faint)")+'">'+x[0]+'</div><div class="l">'+x[1]+"</div></div>"; }).join("");
+  function group(title,list,row){
+    if(!list.length) return '<details class="none"><summary><span class="nm">'+title+'</span><span class="n">none</span></summary></details>';
+    var by={}; list.forEach(function(x){ (by[x.coach]=by[x.coach]||[]).push(x); });
+    return '<details><summary><span class="nm">'+title+'</span><span class="n">'+list.length+"</span></summary>"+Object.keys(by).sort().map(function(c){
+      return '<div class="lrow h" style="padding-top:10px"><span>'+esc(c)+" · "+by[c].length+"</span></div>"+by[c].map(row).join("");
+    }).join("")+"</details>";
+  }
+  var k=0;
+  $("nameLst").innerHTML=group("To confirm",n.unclear,function(x){
+    return '<div class="lrow" style="grid-template-columns:minmax(120px,1fr) 2fr"><span>'+esc(x.name)+' <span class="dim">· '+C.label(x.last,true)+"</span></span><span>"+x.sug.map(function(s){
+      return esc(s.name)+' <span class="dim">'+s.id+'</span> <button class="copy" data-t="'+esc(x.coach+"\t"+x.name+"\t"+s.id)+'">Copy</button>'; }).join("<br>")+
+      '<br><span class="dim">none of these</span> <button class="copy" data-t="'+esc(x.coach+"\t"+x.name+"\tnone")+'">Copy</button></span></div>';
+  })+group("On a sheet, not in the file",n.notInFile,function(x){
+    return '<div class="lrow"><span>'+esc(x.name)+'</span><span class="dim">'+C.label(x.last)+'</span><span></span><span><button class="copy" data-t="'+esc(x.coach+"\t"+x.name+"\tnone")+'">Copy as none</button></span></div>';
+  })+group("Ended, still on a sheet",n.endedOnSheet,function(x){
+    return '<div class="lrow"><span>'+esc(x.name)+'</span><span class="dim">'+x.id+'</span><span></span><span class="dim">ended '+C.date(x.until)+"</span></div>";
+  });
+  Array.prototype.forEach.call($("nameLst").querySelectorAll("button.copy"),function(b){ b.addEventListener("click",function(e){ e.preventDefault(); copy(b.getAttribute("data-t"),b); }); });
+  $("nameNote").textContent=(n.hasTab?"":"There is no Name links tab in the Clients file yet. Add a tab named Name links with the headings Coach · Name on coach sheet · Client ID. ")+
+    "To confirm a name, press Copy beside the right client and paste the row into the Name links tab; it is remembered from the next refresh on. “none” marks a name that is not a client in the file (a trial, a family member)."+
+    (n.bad.length?" Problems on the tab: "+n.bad.join("; ")+".":"");
+}
+
+C.unlock(function(d,pass){
+  D=d; render();
+  C.notes($("btnNotes"));
+  $("btnReload").addEventListener("click",function(){ var b=this; b.disabled=true; b.textContent="Reloading…"; C.load(pass).then(function(x){ D=x; render(); }).catch(function(){}).then(function(){ b.disabled=false; b.textContent="Reload"; }); });
+  var rt; window.addEventListener("resize",function(){ clearTimeout(rt); rt=setTimeout(function(){ if(D&&D.ov){ chartSold(); chartUnused(); value(); } },150); });
+});
+if("serviceWorker" in navigator){ navigator.serviceWorker.register("./sw.js").catch(function(){}); }
+})();
+</script>
+</body>
+</html>

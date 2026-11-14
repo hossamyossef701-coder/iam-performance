@@ -125,6 +125,8 @@ export function buildClientsModel(sheets, opts = {}) {
       legacy: txt(r["carried-over status"]),
       told: dayNum(pick(r, "end date (if they told us)", "end date")),
       reason: txt(r["end reason"]),
+      // Optional column: the sessions a week the client signed up for, when the file has it.
+      agreed: num(pick(r, "agreed sessions per week", "sessions per week (agreed)", "agreed sessions / week")),
       fileStatus: txt(r["status"]),                 // Excel's own answer, kept only to cross-check
       pk: [], sh: [],
     });
@@ -452,6 +454,17 @@ export function buildClientsModel(sheets, opts = {}) {
     v: 2, today: iso(today),
     settings: { grace, reminder, vat, goLive: iso(goLive), carryUntil: iso(goLive + carryDays), loggedFrom: iso(loggedFrom), newCoachMonths: num(label(/^new coach priority/i)) ?? 3 },
     kpi, months, up, coaches, dec, cohort, cl, mix, checks,
+  };
+  // For the refresh job only, never written to the Clients page: what the coach sheets are
+  // joined to for the Overview and Coach review pages (which are locked with the Performance
+  // passphrase, not this one).
+  if (opts.internal) out._in = {
+    today, grace, loggedFrom, vat,
+    clients: [...clients.values()].map((c) => ({
+      id: c.id, name: c.name, coach: c.coach, status: c.now.status, P: c.now.P, joined: c.joined, told: c.told, agreed: c.agreed,
+      pk: c.pk.concat(c.sh).sort((a, b) => a.date - b.date).map((p) => ({ date: p.date, end: p.end, size: p.size, unit: p.unit, px: p.px, coach: p.coach, coaches: [p.coach, p.coach2, p.coach3].filter(Boolean), type: p.type })),
+    })),
+    decisions,
   };
   // For the self-test only: which clients landed where. Never written to the page's data.
   if (opts.debug) out.debug = {

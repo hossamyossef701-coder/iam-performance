@@ -122,6 +122,13 @@ tr.total td{border-top:1px solid var(--line);color:var(--ink-soft);}
 .tip i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;}
 .tip .sep{border-top:1px solid var(--line);margin-top:3px;padding-top:3px;}
 .note{font-size:11px;color:var(--ink-faint);margin-top:8px;line-height:1.6;}
+/* notes are hidden until "Notes" is switched on */
+.note,#defline{display:none;}
+body.notes .note,body.notes #defline{display:block;}
+button.on{border-color:var(--accent);color:var(--accent-2);}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;align-items:start;}
+.cols2>.card{margin-bottom:0;}
+@media(max-width:900px){.cols2{grid-template-columns:1fr;}}
 
 /* toggles (survival) and pickers */
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
@@ -222,13 +229,14 @@ body.locked{overflow:hidden;}
   </div>
 
   <div class="bar">
-    <span class="seg"><a href="./report.html">Performance</a><a class="on" href="./clients.html">Clients</a></span>
+    <span class="seg"><a href="./report.html">Performance</a><a class="on" href="./clients.html">Clients</a><a href="./overview.html">Overview</a><a href="./coach.html">Coach review</a></span>
     <span class="grow"></span>
     <select id="selWin" aria-label="Period">
       <option value="3">Last 3 months</option><option value="6">Last 6 months</option>
       <option value="12">Last 12 months</option><option value="y">This year</option>
     </select>
     <span class="seg" id="segPer"><button data-v="m">Month</button><button data-v="q">Quarter</button><button data-v="y">Year</button></span>
+    <button id="btnNotes">Notes</button>
     <button id="btnReload">Reload</button>
   </div>
   <p class="defline" id="winNote" style="margin-top:-8px"></p>
@@ -272,14 +280,6 @@ body.locked{overflow:hidden;}
   </div>
 
   <div class="card section">
-    <div class="card-h"><div><div class="k">Up for renewal</div><div class="t">Value waiting to be renewed, per coach</div></div><span class="unit">AED · clients · right now</span></div>
-    <div class="card-b">
-      <div class="legend"><span><i style="background:var(--watch)"></i>ends in the next 30 days</span><span><i style="background:var(--s-lost)"></i>already ran out</span></div>
-      <div class="chart" id="chUp"></div>
-    </div>
-  </div>
-
-  <div class="card section">
     <div class="card-h"><div><div class="k">After each package</div><div class="t">What clients did when a package finished</div></div><span class="unit" id="ladUnit"></span></div>
     <div class="card-b">
       <div class="legend"><span><i style="background:var(--up)"></i>bought bigger</span><span><i style="background:var(--accent)"></i>same size</span><span><i style="background:var(--s-ret)"></i>smaller</span><span><i style="background:var(--s-lost)"></i>left</span></div>
@@ -310,23 +310,33 @@ body.locked{overflow:hidden;}
     <div class="card-b" style="padding-top:6px"><p class="note" style="margin:0" id="xtNote"></p></div>
   </div>
 
-  <div class="card section">
-    <div class="card-h"><div><div class="k">Next-client match</div><div class="t">Who should take the next client</div></div></div>
-    <div class="card-b">
-      <div class="mf" id="mf"></div>
-      <div id="matchList"></div>
-      <p class="note" id="matchNote"></p>
+  <div class="cols2">
+    <div class="card">
+      <div class="card-h"><div><div class="k">Next-client match</div><div class="t">Who should take the next client</div></div></div>
+      <div class="card-b">
+        <div class="mf" id="mf"></div>
+        <div id="matchList"></div>
+        <p class="note" id="matchNote"></p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h"><div><div class="k">Value by source</div><div class="t">What a new client from each channel is worth so far</div></div><span class="unit">new clients since <span id="srcSince"></span></span></div>
+      <div class="scroll"><table id="srcTbl"></table></div>
     </div>
   </div>
 
-  <div class="card section">
-    <div class="card-h"><div><div class="k">Value by source</div><div class="t">What a new client from each channel is worth so far</div></div><span class="unit">new clients since <span id="srcSince"></span></span></div>
-    <div class="scroll"><table id="srcTbl"></table></div>
-  </div>
-
-  <div class="card section">
-    <div class="card-h"><div><div class="k">Client mix</div><div class="t" id="mixTitle">Who the active clients are</div></div><span class="unit">bar: now · white mark: at the start of the period</span></div>
-    <div class="card-b"><div class="mix" id="mix"></div></div>
+  <div class="cols2">
+    <div class="card">
+      <div class="card-h"><div><div class="k">Up for renewal</div><div class="t">Value waiting to be renewed, per coach</div></div><span class="unit">AED · clients · right now</span></div>
+      <div class="card-b">
+        <div class="legend"><span><i style="background:var(--watch)"></i>ends in the next 30 days</span><span><i style="background:var(--s-lost)"></i>already ran out</span></div>
+        <div class="chart" id="chUp"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h"><div><div class="k">Client mix</div><div class="t" id="mixTitle">Who the active clients are</div></div><span class="unit">bar: now · white mark: at the start of the period</span></div>
+      <div class="card-b"><div class="mix" id="mix"></div></div>
+    </div>
   </div>
 
   <details class="more" id="checksPanel"><summary id="checksSummary">Checks on the file</summary><div class="body"><ul class="checks" id="checks"></ul></div></details>
@@ -1000,6 +1010,9 @@ unlock().then(function(pass){
   Array.prototype.forEach.call($("segPer").querySelectorAll("button"),function(b){
     b.addEventListener("click",function(){ ui.per=b.getAttribute("data-v"); saveUi(); paint(); });
   });
+  (function(){ var b=$("btnNotes"), on=false; try{ on=localStorage.getItem("iam:notes")==="1"; }catch(e){}
+    function set(){ document.body.classList.toggle("notes",on); b.classList.toggle("on",on); }
+    b.addEventListener("click",function(){ on=!on; try{ localStorage.setItem("iam:notes",on?"1":"0"); }catch(e){} set(); }); set(); })();
   $("btnReload").addEventListener("click",function(){
     var b=this; b.disabled=true; b.textContent="Reloading…";
     load(pass).then(paint).catch(function(){}).then(function(){ b.disabled=false; b.textContent="Reload"; });

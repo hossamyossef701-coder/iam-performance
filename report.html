@@ -238,6 +238,14 @@ body.locked{overflow:hidden;}
 .lrow .nw{color:var(--down);}
 @media(max-width:560px){.lrow{grid-template-columns:1fr 70px 70px;} .lrow span:last-child{display:none;}}
 .dtbl .up{color:var(--up);} .dtbl .down{color:var(--down);}
+.dgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;}
+.dgrid>.dcard{margin-bottom:16px;}
+.dgrid .dtbl th,.dgrid .dtbl td{padding:9px 7px;}
+.dgrid .dtbl th:first-child,.dgrid .dtbl td:first-child{padding-left:16px;}
+@media(max-width:1000px){.dgrid{grid-template-columns:1fr;}}
+.dnote{display:none;}
+body.notes .dnote{display:block;}
+#btnNotes.on{border-color:var(--accent);color:var(--accent-2);}
 .dempty{padding:22px 16px;text-align:center;color:var(--ink-faint);font-size:12px;}
 </style>
 </head>
@@ -266,7 +274,7 @@ body.locked{overflow:hidden;}
   </div>
 
   <div class="bar">
-    <span class="seg"><a class="on" href="./report.html">Performance</a><a href="./clients.html">Clients</a></span>
+    <span class="seg"><a class="on" href="./report.html">Performance</a><a href="./clients.html">Clients</a><a href="./overview.html">Overview</a><a href="./coach.html">Coach review</a></span>
     <select id="selMonth"></select>
     <span class="seg" id="segBasis">
       <button data-v="mtd" class="on">To date</button>
@@ -288,6 +296,7 @@ body.locked{overflow:hidden;}
       <option value="since2024-06">vs average since Jun 2024</option>
       <option value="none">no comparison</option>
     </select>
+    <button id="btnNotes">Notes</button>
     <button id="btnReload">Reload</button>
     <button id="btnRefresh">Refresh now</button>
     <span class="note" id="note"></span>
@@ -692,7 +701,8 @@ function fmtInt(v){ return v==null?"—":Math.round(v).toLocaleString("en-US"); 
    Worked out from each client's row on the coach sheets, day by day (cl in the live data):
    one character a day - "1" a session, "h" an online half, "2"-"9" that many, "x" anything else
    positive, "0" cancelled, "." nothing. Kept for the month running and the twelve before it. */
-var FREQ=[["under 1","var(--down)"],["1 to 2","var(--watch)"],["2 to 3","#3987e5"],["3 or more","var(--up)"]];
+// Sessions a week, one band per whole number: under 1, 1, 2, 3, 4, 5 or more.
+var FREQ=[["under 1","#e14b4b","#1a0505"],["1","#e0a63c","#120800"],["2","#6f9fd8","#06101c"],["3","#5eb87a","#06140a"],["4","#3a9a5e","#e8f5ec"],["5 or more","#24713f","#e8f5ec"]];
 function dEsc(t){ return String(t==null?"":t).replace(/[&<>"']/g,function(ch){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]; }); }
 function clOf(p,c){ var v=LIVE&&LIVE.periods&&LIVE.periods[p]&&LIVE.periods[p][c]; return (v&&v.cl)||null; }
 function hasCl(p){ return !!(LIVE&&LIVE.periods&&LIVE.periods[p]&&Object.keys(LIVE.periods[p]).some(function(c){ return LIVE.periods[p][c].cl; })); }
@@ -749,8 +759,8 @@ function freqData(p){
   var upto=lastDay(p), weeks=upto/7;
   return coachesIn(p).map(function(c){
     var cl=clientsIn(p,c); if(!cl) return null;
-    var tr=cl.filter(function(x){ return x.s>0; }), b=[[],[],[],[]], tot=0;
-    tr.forEach(function(x){ var w=x.s/weeks; x.pw=w; tot+=x.s; b[w<1?0:w<2?1:w<3?2:3].push(x); });
+    var tr=cl.filter(function(x){ return x.s>0; }), b=[[],[],[],[],[],[]], tot=0;
+    tr.forEach(function(x){ var w=x.s/weeks; x.pw=w; tot+=x.s; b[Math.min(5,Math.floor(w))].push(x); });
     return {c:c, n:tr.length, b:b, avg:tr.length?tot/tr.length/weeks:null, list:tr};
   }).filter(function(x){ return x&&x.n; }).sort(function(a,b){ return b.avg-a.avg; });
 }
@@ -760,7 +770,7 @@ function panelFreq(p){
   var id="dFreq";
   var html=dCard("Training frequency","How often each coach's clients train",(p===currentPeriod()?"day 1 to "+upto+" of "+label(p):label(p))+" · clients, by sessions a week",
     '<div class="dcard-b"><div class="dleg">'+FREQ.map(function(f){ return '<span><i style="background:'+f[1]+'"></i>'+f[0]+"</span>"; }).join("")+
-    '<span class="r">right: sessions a week, average per client</span></div><div class="dchart" id="'+id+'"></div>'+
+    '<span class="r">sessions a week · right: average per client</span></div><div class="dchart" id="'+id+'"></div>'+
     '<p class="dnote">Sessions a week = the client\'s sessions this month ÷ the weeks that have passed ('+(upto/7).toFixed(1)+'). 3 a week is the standard. A client who joined or stopped part-way through the month reads lower than they train.'+
     (upto<10?" Only "+upto+" days of this month have passed, so these are rough until the second week.":"")+" Hover a bar for the clients in it.</p></div>");
   setTimeout(function(){ drawFreq(p,rows,id); },0);
@@ -776,13 +786,13 @@ function drawFreq(p,rows,id){
     r.b.forEach(function(list,j){
       if(!list.length) return; var w=sx(list.length);
       s+='<rect x="'+x+'" y="'+yb+'" width="'+Math.max(1,w-2)+'" height="'+bh+'" rx="3" fill="'+FREQ[j][1]+'"/>';
-      if(w>=18) s+=dTxt(x+w/2-1,yb+bh/2+4,list.length,{a:"middle",s:11,c:"#120800"});
-      areas.push({x:x,y:y0,w:w,h:rh,ax:x+w/2,ay:yb,html:"<b>"+dEsc(r.c)+" · "+FREQ[j][0]+" a week</b>"+list.slice().sort(function(a,b){ return b.pw-a.pw; }).map(function(cx){
+      if(w>=18) s+=dTxt(x+w/2-1,yb+bh/2+4,list.length,{a:"middle",s:11,c:FREQ[j][2]});
+      areas.push({x:x,y:y0,w:w,h:rh,ax:x+w/2,ay:yb,html:"<b>"+dEsc(r.c)+" · "+(j===0||j===5?FREQ[j][0]:FREQ[j][0]+" to "+(j+1))+" a week</b>"+list.slice().sort(function(a,b){ return b.pw-a.pw; }).map(function(cx){
         return dRow(dEsc(cx.name),cx.pw.toFixed(1)+" a week · "+(cx.s%1?cx.s.toFixed(1):cx.s)+" sessions"); }).join("")});
       x+=w;
     });
     s+=dTxt(W-R+10,y0+rh/2+4,r.avg.toFixed(1)+(narrow?"/wk":" a week"),{s:12,c:r.avg>=3?"var(--up)":r.avg<2?"var(--down)":"var(--ink)"});
-    if(!narrow) s+=dTxt(W-6,y0+rh/2+4,r.b[3].length+" of "+r.n+" at 3+",{a:"end",s:10.5,c:"var(--ink-faint)"});
+    if(!narrow) s+=dTxt(W-6,y0+rh/2+4,(r.b[3].length+r.b[4].length+r.b[5].length)+" of "+r.n+" at 3+",{a:"end",s:10.5,c:"var(--ink-faint)"});
   });
   host.innerHTML=s+"</svg>"; dHits(host,areas);
 }
@@ -896,6 +906,10 @@ function panelLess(p){
 }
 function fmtDay(iso){ return +iso.slice(8,10)+" "+MONTHS[+iso.slice(5,7)-1]; }
 
+// Notes under the client panels are hidden unless asked for; one switch, remembered on the device.
+(function(){ var b=document.getElementById("btnNotes"); if(!b) return; var on=false; try{ on=localStorage.getItem("iam:notes")==="1"; }catch(e){}
+  function set(){ document.body.classList.toggle("notes",on); b.classList.toggle("on",on); }
+  b.addEventListener("click",function(){ on=!on; try{ localStorage.setItem("iam:notes",on?"1":"0"); }catch(e){} set(); }); set(); })();
 var deepT; window.addEventListener("resize",function(){ clearTimeout(deepT); deepT=setTimeout(function(){ if(ui.month&&DATA[ui.month]) renderDeep(ui.month); },200); });
 document.addEventListener("scroll",function(){ dHide(); },{passive:true});
 function renderDeep(p){
@@ -909,7 +923,7 @@ function renderDeep(p){
         "These panels need each client's day-by-day row, which the next refresh reads. Press Refresh now, or wait for the next scheduled read.")+"</div>");
     return;
   }
-  el.innerHTML=panelFreq(p)+load+panelRpc(p)+panelLess(p);
+  el.innerHTML=panelFreq(p)+load+'<div class="dgrid">'+panelRpc(p)+panelLess(p)+"</div>";
 }
 
 // Online 1+1 sessions are counted as a half, so a session count can legitimately end in .5.

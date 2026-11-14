@@ -4,6 +4,7 @@
 import { buildClientsModel } from "./clients-model.mjs";
 import { parseCoachSheet, sheetNameToPeriod } from "./parse.mjs";
 import { parseAssessments, monthToPeriod } from "./assess.mjs";
+import { buildOverview } from "./join.mjs";
 
 const W = 48;
 const row = (pairs) => { const r = Array(W).fill(null); for (const [i, v] of pairs) r[i] = v; return r; };
@@ -319,6 +320,30 @@ const PROJ_HEAD = [[0, "Commitment %"], [1, "Client Name"], ...days(2, 30), [34,
   packages[1].push("Price (AED incl. VAT)");
   const vat = buildClientsModel(sheets, { today: D(2027, 2, 25) });
   check("clients: package sales are without VAT", vat.kpi.salesMonth, 1000);
+}
+
+/* 9l. Coach-sheet names joined to the Clients file. */
+{
+  const D = (y, m, d) => Math.round((Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 86400000);
+  const pk = (date, coach, size = 12, days = 49) => ({ date, end: date + days, size, unit: "Sessions", px: 2000, coach, coaches: [coach], type: "Renewal" });
+  const cl = (id, name, coach, extra = {}) => ({ id, name, coach, status: "Active", P: D(2026, 12, 1), joined: D(2026, 10, 1), told: null, agreed: null, pk: [pk(D(2026, 10, 13), coach)], ...extra });
+  const inner = { today: D(2026, 11, 11), grace: 90, loggedFrom: D(2026, 1, 1), vat: 5, decisions: [], clients: [
+    cl("C0001", "Lisa Roberts", "Sue"),
+    cl("C0002", "Lisa Thompson", "Ann"),                       // same first name, another coach
+    cl("C0003", "Omar Khalid", "Sue"),
+    cl("C0004", "Omar Farouk", "Sue"),                         // two Omars with Sue
+    cl("C0005", "Mohamed Saleh", "Sue"),
+    cl("C0006", "Dana Brook", "Sue", { status: "Ended", P: D(2026, 9, 1) }),
+  ] };
+  const m = ".".repeat(31);
+  const periods = { "2026-11": { Sue: { cl: [["Lisa R (24)", 300, m], ["Omar", 300, m], ["Muhammad Saleh", 300, m], ["Dana", 300, m], ["Walk-in", 300, m]] } } };
+  const links = [["Coach", "Name on coach sheet", "Client ID"], ["Sue", "Omar", "C0004"]];
+  const ov = buildOverview({ inner, periods, links, now: "2026-11", cutoffDay: 11, revenueOf: () => ({ r: 0, s: 0 }) });
+  check("join: an initial, a package note and a spelling of Mohamed are matched; a confirmed link wins",
+    { auto: ov.names.auto, byHand: ov.names.byHand, notInFile: ov.names.notInFile.map((x) => x.name), ended: ov.names.endedOnSheet.map((x) => x.id) },
+    { auto: 3, byHand: 1, notInFile: ["Walk-in"], ended: ["C0006"] });
+  const unl = buildOverview({ inner, periods, links: [], now: "2026-11", cutoffDay: 11, revenueOf: () => ({ r: 0, s: 0 }) });
+  check("join: two clients who both fit are left for a person to confirm", unl.names.unclear.map((x) => [x.name, x.sug.map((s) => s.id).sort()]), [["Omar", ["C0003", "C0004"]]]);
 }
 
 /* 10. Month tab names. */

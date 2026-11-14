@@ -67,6 +67,7 @@ jobs:
           git add live.enc.json
           [ -f history.enc.json ] && git add history.enc.json || true
           [ -f clients.enc.json ] && git add clients.enc.json || true
+          [ -f overview.enc.json ] && git add overview.enc.json || true
           if git diff --cached --quiet; then
             echo "Nothing new to save."
           else

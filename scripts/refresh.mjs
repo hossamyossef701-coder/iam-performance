@@ -11,6 +11,7 @@ import { parseCoachSheet, probeSheet, sheetNameToPeriod, coachFromFilename } fro
 import { parseAssessments } from "./assess.mjs";
 import { encryptJSON, decryptJSON } from "./crypto.mjs";
 import { buildClientsModel } from "./clients-model.mjs";
+import { buildOverview } from "./join.mjs";
 
 const env = process.env;
 const SHARE_URL = (env.SHARE_URL || "").trim();
@@ -25,7 +26,7 @@ const ORDER = (env.FETCH_STRATEGIES || "badger,od,odkey,spshares,zip,rest,browse
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
-console.log("refresh build 2026-11-13c (each client's days read for the Performance panels)");  // proves which version the job is running
+console.log("refresh build 2026-11-13d (coach sheets joined to the Clients file: Overview, Coach review)");  // proves which version the job is running
 
 // One typed character of difference, so "Shayla" finds "Shyla".
 function near(a, b) {
@@ -52,6 +53,8 @@ function dubaiPeriod() {
    passphrase, so the Performance passphrase never opens it and the other way round. It is read
    first and on its own: a problem with it is reported and skipped, never allowed to stop the
    coach figures. Only the five typed tabs are passed on; the file's views are never read. */
+// What the Overview and Coach review pages need from the Clients file, kept for later in the run.
+let clientsInner = null, nameLinks = [];
 async function readClients() {
   const url = (env.CLIENTS_SHARE_URL || "").trim(), pass = (env.CLIENTS_PASSPHRASE || "").trim();
   if (!url || !pass) {
@@ -89,7 +92,11 @@ async function readClients() {
     for (const n of ["Clients", "Packages", "Coach Changes", "Lists", "Settings"]) {
       if (wb.Sheets[n]) sheets[n] = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null });
     }
-    const model = buildClientsModel(sheets);
+    // The optional "Name links" tab: coach-sheet names confirmed by hand (any spelling of the tab name).
+    const linkTab = wb.SheetNames.find((n) => /^name\s*links?$/i.test(n.trim()));
+    nameLinks = linkTab ? XLSX.utils.sheet_to_json(wb.Sheets[linkTab], { header: 1, raw: true, defval: null }) : [];
+    const model = buildClientsModel(sheets, { internal: true });
+    clientsInner = model._in; delete model._in;
     const out = path.join(OUT, "clients.enc.json");
     // The same figures as last time are not written again (a new lock changes the file and makes
     // a pointless commit) unless they are getting old.
@@ -291,6 +298,39 @@ async function main() {
       assessReport = { error: L.redact(e.message).split("\n")[0] };
     }
   }
+
+  // 3b. Overview and Coach review: the coach sheets joined to the Clients file. Locked with the
+  //     Performance passphrase. A problem here is reported and never stops the coach figures.
+  if (clientsInner) {
+    try {
+      const revenueOf = (p, c) => {
+        const x = periods[p] && periods[p][c]; if (!x) return null;
+        // The month running: what has happened so far, not the bookings ahead.
+        return p === now && x.mr != null ? { r: x.mr, s: x.ms } : { r: x.r || 0, s: x.s || 0 };
+      };
+      const ov = buildOverview({ inner: clientsInner, periods, links: nameLinks, now, cutoffDay: today, revenueOf });
+      const ovPath = path.join(OUT, "overview.enc.json");
+      let same = false;
+      if (fs.existsSync(ovPath)) {
+        try {
+          const prev = await decryptJSON(JSON.parse(fs.readFileSync(ovPath, "utf8")), PASS);
+          const { generated: g, ...rest } = prev;
+          same = JSON.stringify(rest) === JSON.stringify(ov) && Date.now() - Date.parse(g) < MIN_AGE_H * 3600e3;
+        } catch {}
+      }
+      if (same) L.log("Overview: same figures as the last read, not rewritten.");
+      else {
+        ov.generated = new Date().toISOString();
+        fs.writeFileSync(ovPath, JSON.stringify(await encryptJSON(ov, PASS)));
+        const n = ov.names;
+        L.log(`Overview: ${n.auto + n.byHand} coach-sheet names linked (${n.byHand} by the Name links tab), ${n.unclear.length} to confirm, ${n.notInFile.length} not in the file - overview.enc.json written`);
+      }
+      for (const b of ov.names.bad) L.log("  Name links: " + b);
+    } catch (e) {
+      console.log(`::warning title=Overview not updated::${String(e.message || e).split("\n")[0].slice(0, 160)}`);
+      console.log(L.redact(String(e.stack || e.message)));
+    }
+  } else L.log("The Clients file was not read, so the Overview and Coach review pages were not updated.");
 
   // 4. Skip the write when nothing changed and the last write is recent (avoids commit noise).
   //    A read somebody asked for by hand is different: they pressed the button to find out

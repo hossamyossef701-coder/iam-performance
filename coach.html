@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Coach review — I AM Performance</title>
+<meta name="theme-color" content="#050505">
+<meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="./report.webmanifest">
+<link rel="icon" href="./icon-192.png" sizes="192x192">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="stylesheet" href="./fonts/alata.css">
+<link rel="stylesheet" href="./common.css">
+<style>
+.agree{display:grid;grid-template-columns:minmax(90px,150px) 1fr 74px;gap:10px;align-items:center;padding:4px 0;font-size:12.5px;font-variant-numeric:tabular-nums;}
+.agree .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.agree .trk{position:relative;height:16px;}
+.agree .trk .a{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:var(--panel-3);}
+.agree .trk .b{position:absolute;left:0;top:4px;bottom:4px;border-radius:3px;}
+.agree .trk .s{position:absolute;top:-2px;bottom:-2px;width:1px;background:var(--ink-faint);}
+.agree .v{text-align:right;color:var(--ink-soft);}
+.room{display:grid;grid-template-columns:1fr auto;gap:2px 16px;font-size:14px;}
+.room span:nth-child(even){text-align:right;font-variant-numeric:tabular-nums;}
+.room .sepr{grid-column:1/-1;border-top:1px solid var(--line-soft);margin:6px 0;}
+.room .tot{font-size:22px;color:var(--accent-2);}
+.keep{display:flex;height:30px;gap:2px;margin:4px 0 14px;}
+.keep span{display:flex;align-items:center;justify-content:center;font-size:12px;color:#120800;border-radius:4px;min-width:2px;}
+.kv{display:grid;grid-template-columns:1fr auto auto;gap:6px 16px;font-size:13.5px;align-items:baseline;}
+.kv span:nth-child(3n+2){text-align:right;font-size:15px;font-variant-numeric:tabular-nums;}
+.kv span:nth-child(3n){color:var(--ink-faint);font-size:12px;}
+</style>
+</head>
+<body class="locked">
+
+<div class="gate" id="gate">
+  <div class="gate-box">
+    <div class="eyebrow">I AM Performance</div>
+    <h1>Coach review</h1>
+    <form id="gateForm" autocomplete="off">
+      <input type="password" id="gatePass" placeholder="Performance passphrase" autocomplete="current-password" spellcheck="false">
+      <label class="rem"><input type="checkbox" id="gateRemember" checked> Remember on this device</label>
+      <button type="submit" id="gateBtn">Unlock</button>
+    </form>
+    <p class="status" id="gateStatus"></p>
+  </div>
+</div>
+
+<div class="wrap" id="app" style="display:none">
+  <div class="head">
+    <div><div class="eyebrow">I AM Performance</div><h1 id="h1">Coach review</h1></div>
+    <div class="stamp" id="stamp"></div>
+  </div>
+  <div class="bar">
+    <span class="seg"><a href="./report.html">Performance</a><a href="./clients.html">Clients</a><a href="./overview.html">Overview</a><a class="on" href="./coach.html">Coach review</a></span>
+    <span class="grow"></span>
+    <select id="selCoach" aria-label="Coach"></select>
+    <button id="btnNames" style="display:none">Show names</button>
+    <button id="btnNotes">Notes</button>
+  </div>
+
+  <div class="tiles" id="tiles"></div>
+
+  <div class="card section">
+    <div class="card-h"><div><div class="k" id="yrK">Your year</div><div class="t">Revenue each month</div></div><span class="unit">AED, without VAT · * month running, so far</span></div>
+    <div class="card-b"><div class="chart" id="chYear"></div></div>
+  </div>
+
+  <div id="one">
+    <div class="cols2">
+      <div class="card">
+        <div class="card-h"><div><div class="k">Your clients</div><div class="t">Sessions a week, against what was agreed</div></div><span class="unit">last 8 weeks</span></div>
+        <div class="card-b">
+          <div class="legend"><span><i style="background:var(--panel-3);outline:1px solid var(--line)"></i>agreed</span><span><i style="background:var(--up)"></i>on or above</span><span><i style="background:var(--watch)"></i>a little under</span><span><i style="background:var(--down)"></i>well under</span><span><i style="background:var(--ink-faint);width:2px"></i>3 a week</span></div>
+          <div id="clientList"></div>
+          <p class="note">Agreed = the sessions a week the client signed up for, from the Clients file when it has them; otherwise what their package needs to be used up in time (its sessions over its weeks), marked *. Actual = sessions on the coach sheets over the last 8 weeks, or since the package started if later.</p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-h"><div><div class="k">Room to grow</div><div class="t">What current clients could add, with no new client</div></div><span class="unit">a month</span></div>
+        <div class="card-b"><div class="room" id="room"></div><p class="note" id="roomNote"></p></div>
+      </div>
+    </div>
+    <div class="card section">
+      <div class="card-h"><div><div class="k">Keeping clients</div><div class="t" id="keepT"></div></div><span class="unit">last 12 months · team middle on the right</span></div>
+      <div class="card-b"><div class="keep" id="keepBar"></div><div class="kv" id="keepKv"></div>
+        <p class="note">Stayed = bought again with the same coach within the grace period. Moved = bought again with another coach. Left = nothing new within the grace period. Team middle = the coach in the middle of the team, so one coach's figures are never shown to another.</p></div>
+    </div>
+  </div>
+
+  <div id="team" style="display:none">
+    <div class="card section">
+      <div class="card-h"><div><div class="k">The team</div><div class="t">Each coach side by side</div></div><span class="unit" id="teamUnit"></span></div>
+      <div class="scroll"><table id="teamTbl"></table></div>
+    </div>
+  </div>
+</div>
+
+<script src="./common.js"></script>
+<script>
+(function(){
+"use strict";
+var C=window.IAM, $=C.$, esc=C.esc, aed=C.aed, D=null, sel="", showNames=false;
+
+function now(){ return D.live.cutoffPeriod; }
+function coaches(){
+  var p=now(), set={};
+  Object.keys(D.live.periods[p]||{}).forEach(function(c){ set[c]=1; });
+  Object.keys(D.live.periods[C.prevP(p,1)]||{}).forEach(function(c){ set[c]=1; });
+  return Object.keys(set).sort();
+}
+/* One coach's figures, used for the coach and for the team middle. */
+function stats(c){
+  var live=D.live, ov=D.ov, p=now(), x=(live.periods[p]||{})[c]||{}, md=live.cutoffDay, days=C.daysIn(p);
+  var o={c:c};
+  o.rev=x.mr!=null?x.mr:x.r; o.pr=x.pr||null; o.paceRev=x.mr!=null&&md?x.mr/md*days:null;
+  o.ses=x.ms!=null&&md?x.ms/md*days:x.s;
+  var past=[]; for(var i=1;i<=12;i++){ var q=C.prevP(p,i), y=(live.periods[q]||{})[c]; if(y&&y.s!=null) past.push(y.s); }
+  o.best=past.length?Math.max.apply(null,past):null;
+  var cl=C.clientsIn(live,p,c), upto=C.lastDay(live,p);
+  if(cl){ var tr=cl.filter(function(z){ return z.s>0; }), s=0; tr.forEach(function(z){ s+=z.s; }); o.trained=tr.length; o.spw=tr.length?s/tr.length/(upto/7):null; }
+  // Average rate: the last complete month the coach has rows for.
+  for(var j=1;j<=3&&o.rate==null;j++){ var cq=C.clientsIn(live,C.prevP(p,j),c); if(cq){ var ss=0,rr=0; cq.forEach(function(z){ ss+=z.s; rr+=z.s*(z.price||0); }); if(ss) o.rate=rr/ss; } }
+  var k=ov&&ov.perCoach[c];
+  if(k){ o.kept=k.kept; o.moved=k.moved; o.lost=k.lost; o.n=k.kept+k.moved+k.lost; o.keptShare=o.n?k.kept/o.n:null; o.early=k.renewals?k.early/k.renewals:null; o.stay=k.stay?k.stay.months:null; o.stayN=k.stay?k.stay.n:0; o.common=k.common; }
+  var list=(ov&&ov.clientsOfCoach[c])||[];
+  o.clients=list;
+  var ag=0, ac=0, gap=0, gaps=[];
+  list.forEach(function(z){ if(z.actual==null||z.agreed==null) return; ag+=z.agreed; ac+=z.actual; var g=Math.max(0,z.agreed-z.actual); gap+=g; if(g>0.25) gaps.push({name:z.name,g:g}); });
+  o.agreedM=ag*4.33; o.actualM=ac*4.33; o.gapM=gap*4.33; o.room=o.rate?gap*4.33*o.rate:null;
+  o.gaps=gaps.sort(function(a,b){ return b.g-a.g; });
+  o.year=[]; for(var m=11;m>=0;m--){ var qq=C.prevP(p,m), yy=(live.periods[qq]||{})[c]; o.year.push({p:qq,v:yy?(qq===p&&yy.mr!=null?yy.mr:yy.r):null,partial:qq===p}); }
+  return o;
+}
+function middle(key){ return C.median(coaches().map(function(c){ return stats(c)[key]; })); }
+
+function tile(k,v,sub,lead){ return '<div class="tile'+(lead?" lead":"")+'"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="sub">'+sub+"</div></div>"; }
+function render(){
+  $("stamp").innerHTML="Read "+new Date(D.ov?D.ov.generated:D.live.generated).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"})+"<br>AED without VAT";
+  var team=sel==="", p=now();
+  $("one").style.display=team?"none":""; $("team").style.display=team?"":"none"; $("btnNames").style.display=team?"":"none";
+  $("h1").textContent=team?"The team":sel;
+  $("yrK").textContent=team?"The team's year":"Your year";
+  if(team) return renderTeam();
+  var o=stats(sel), mSpw=middle("spw"), mKeep=middle("keptShare");
+  $("tiles").innerHTML=
+    tile("Revenue, "+C.label(p,true)+" so far",aed(o.rev),o.pr?"projected "+aed(o.pr)+(o.paceRev?" · on pace for "+Math.round(o.paceRev/o.pr*100)+"%":""):"no projection",1)+
+    tile("Sessions, on pace",o.ses!=null?Math.round(o.ses):"—",o.best!=null?"best month "+Math.round(o.best):"")+
+    tile("Clients trained",o.trained!=null?o.trained:"—",(o.clients.length)+" with a running package")+
+    tile("Sessions a week per client",o.spw!=null?o.spw.toFixed(1):"—",mSpw!=null?"team middle "+mSpw.toFixed(1):"")+
+    tile("Clients kept",o.n?o.kept+"<small>of "+o.n+"</small>":"—",mKeep!=null?"team middle "+Math.round(mKeep*100)+"%":"");
+  chartYear(o.year);
+  clientList(o);
+  room(o);
+  keep(o);
+}
+
+function chartYear(year){
+  var host=$("chYear"), pts=year.filter(function(x){ return x.v!=null; });
+  if(!pts.length){ host.innerHTML='<div class="empty">No months yet.</div>'; return; }
+  var W=C.width(host),H=260,L=44,R=10,T=20,B=26, step=(W-L-R)/year.length, bw=Math.min(44,step*.56);
+  var done=pts.filter(function(x){ return !x.partial; }), avg=done.length?done.reduce(function(t,x){ return t+x.v; },0)/done.length:null;
+  var mx=C.niceMax(Math.max.apply(null,pts.map(function(x){ return x.v; }))*1.12), y=function(v){ return T+(H-T-B)*(1-v/mx); };
+  var s='<svg viewBox="0 0 '+W+" "+H+'"><rect class="hl" rx="6" fill="rgba(255,255,255,.035)" style="opacity:0"/>'+C.grid(W,L,R,y,[0,mx/2,mx],aed);
+  var areas=[];
+  year.forEach(function(x,i){
+    var c=L+step*(i+.5);
+    s+='<text x="'+c+'" y="'+(H-6)+'" text-anchor="middle" style="font-size:10.5px;fill:var(--ink-faint)">'+C.label(x.p,true)+(x.partial?"*":"")+"</text>";
+    if(x.v==null) return;
+    s+=C.bar(c-bw/2,y(x.v),bw,y(0)-y(x.v),x.partial?"#7a3a17":"var(--accent)");
+    s+=C.txt(c,y(x.v)-6,aed(x.v),{s:10.5});
+    areas.push({x:L+step*i,y:T,w:step,h:H-T-B,ax:c,ay:y(x.v),html:"<b>"+C.label(x.p)+(x.partial?" (so far)":"")+"</b>"+C.trow("Revenue","AED "+C.full(x.v))});
+  });
+  if(avg!=null) s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(avg)+'" y2="'+y(avg)+'" stroke="var(--ink)" stroke-dasharray="4 4" stroke-width="1"/>'+C.txt(W-R,y(avg)-6,"average "+aed(avg),{a:"end",c:"var(--ink)",s:10.5});
+  host.innerHTML=s+"</svg>"; C.hits(host,areas);
+}
+
+function clientList(o){
+  var list=o.clients.filter(function(z){ return z.agreed!=null; }).sort(function(a,b){ return ((a.actual==null?0:a.actual)-a.agreed)-((b.actual==null?0:b.actual)-b.agreed); });
+  if(!list.length){ $("clientList").innerHTML='<div class="empty">No running session packages linked yet.</div>'; return; }
+  var mx=Math.max(4,Math.max.apply(null,list.map(function(z){ return Math.max(z.agreed,z.actual||0); })));
+  $("clientList").innerHTML=list.map(function(z){
+    var a=z.actual, col=a==null?"var(--ink-faint)":a>=z.agreed-0.3?"var(--up)":a>=z.agreed-1.2?"var(--watch)":"var(--down)";
+    return '<div class="agree"><span class="nm" title="'+esc(z.name)+'">'+esc(z.name)+'</span><span class="trk"><span class="a" style="width:'+(z.agreed/mx*100)+'%"></span>'+
+      (a!=null?'<span class="b" style="width:'+(Math.max(.5,a/mx*100))+"%;background:"+col+'"></span>':"")+'<span class="s" style="left:'+(3/mx*100)+'%"></span></span>'+
+      '<span class="v">'+(a!=null?a.toFixed(1):"not linked")+" of "+z.agreed.toFixed(1)+(z.signed?"":"*")+"</span></div>";
+  }).join("");
+}
+function room(o){
+  if(!o.clients.length){ $("room").innerHTML='<span class="dim">No running packages.</span><span></span>'; $("roomNote").textContent=""; return; }
+  $("room").innerHTML="<span>Sessions your clients agreed to</span><span>"+Math.round(o.agreedM)+" a month</span><span>Sessions delivered to them</span><span>"+Math.round(o.actualM)+" a month</span>"+
+    '<span>Short of what was agreed</span><span class="watch">'+Math.round(o.gapM)+" sessions</span>"+'<span class="sepr"></span>'+
+    "<span>At your average rate"+(o.rate?" of AED "+Math.round(o.rate):"")+'</span><span class="tot">'+(o.room!=null?C.full(o.room):"—")+"</span>"+
+    (o.gaps.length?'<span class="sepr"></span><span class="dim">Biggest gaps: '+o.gaps.slice(0,3).map(function(g){ return esc(g.name)+" ("+g.g.toFixed(1)+" a week)"; }).join(", ")+"</span><span></span>":"");
+  $("roomNote").textContent="Only clients whose sessions fall short count: a client training above what was agreed does not cancel out one below. A month = 4.33 weeks.";
+}
+function keep(o){
+  var mid={keep:middle("keptShare"),early:middle("early"),stay:middle("stay")};
+  $("keepT").textContent=o.n?"Of your "+o.n+" clients whose package ran out, "+o.kept+" stayed with you":"No packages have run out yet";
+  $("keepBar").innerHTML=o.n?[["kept",o.kept,"var(--up)","stayed"],["moved",o.moved,"var(--s-ret)","moved coach"],["lost",o.lost,"var(--s-lost)","left"]].filter(function(x){ return x[1]; })
+    .map(function(x){ return '<span style="flex:'+x[1]+";background:"+x[2]+'" title="'+x[1]+" "+x[3]+'">'+x[1]+" "+x[3]+"</span>"; }).join(""):"";
+  function pc(v){ return v==null?"—":Math.round(v*100)+"%"; }
+  $("keepKv").innerHTML="<span>Stayed with you</span><span>"+pc(o.keptShare)+"</span><span>"+pc(mid.keep)+"</span>"+
+    "<span>Renewed before the package ended</span><span>"+pc(o.early)+"</span><span>"+pc(mid.early)+"</span>"+
+    "<span>Months a new client stays in their first year</span><span>"+(o.stay!=null?o.stay.toFixed(1):"—")+"</span><span>"+(mid.stay!=null?mid.stay.toFixed(1):"—")+"</span>"+
+    "<span>Package you sell most</span><span>"+(o.common?o.common+" sessions":"—")+"</span><span></span>";
+}
+
+function renderTeam(){
+  var cs=coaches(), S=cs.map(stats), p=now();
+  var rev=0, pr=0, pace=0, ses=0, tr=0, k=0, n=0;
+  S.forEach(function(o){ rev+=o.rev||0; pr+=o.pr||0; pace+=o.paceRev||0; ses+=o.ses||0; tr+=o.trained||0; k+=o.kept||0; n+=o.n||0; });
+  $("tiles").innerHTML=tile("Revenue, "+C.label(p,true)+" so far",aed(rev),pr?"projected "+aed(pr)+" · on pace for "+Math.round(pace/pr*100)+"%":"",1)+
+    tile("Sessions, on pace",Math.round(ses),"")+tile("Clients trained",tr,cs.length+" coaches")+
+    tile("Sessions a week per client",(middle("spw")||0).toFixed(1),"team middle")+tile("Clients kept",k+"<small>of "+n+"</small>",C.pct(k,n)+" · last 12 months");
+  var year=[]; for(var m=11;m>=0;m--){ var q=C.prevP(p,m), v=0, any=false; S.forEach(function(o){ var x=o.year[11-m]; if(x.v!=null){ v+=x.v; any=true; } }); year.push({p:q,v:any?v:null,partial:q===p}); }
+  chartYear(year);
+  // Coaches are letters unless names are switched on, so the team can see the spread without seeing who.
+  var order=S.slice().sort(function(a,b){ return (b.rev||0)-(a.rev||0); });
+  $("teamUnit").textContent=showNames?"names shown":"coaches as letters · Show names to reveal";
+  $("teamTbl").innerHTML='<thead><tr><th class="l">Coach</th><th>Revenue<br>so far</th><th>Sessions a week<br>per client</th><th>Clients<br>kept</th><th>Months in<br>first year</th><th>Room to grow<br>a month</th></tr></thead><tbody>'+
+    order.map(function(o,i){
+      return '<tr><td class="l">'+(showNames?esc(o.c):"Coach "+String.fromCharCode(65+i))+"</td><td>"+aed(o.rev)+"</td><td>"+(o.spw!=null?o.spw.toFixed(1):"—")+"</td><td>"+(o.n?o.kept+' <span class="dim">of '+o.n+"</span>":"—")+
+        "</td><td>"+(o.stay!=null?o.stay.toFixed(1):"—")+"</td><td>"+(o.room!=null?aed(o.room):"—")+"</td></tr>";
+    }).join("")+"</tbody>";
+}
+
+C.unlock(function(d){
+  D=d;
+  if(!D.ov) document.querySelector(".wrap").insertAdjacentHTML("afterbegin",'<div class="card section"><div class="empty">The coach sheets have not been joined to the Clients file yet, so client figures are missing. Press Refresh now on the Performance page.</div></div>');
+  var cs=coaches();
+  try{ sel=localStorage.getItem("iamcoach:sel")||""; }catch(e){}
+  if(sel&&cs.indexOf(sel)<0) sel="";
+  $("selCoach").innerHTML='<option value="">Whole team</option>'+cs.map(function(c){ return "<option"+(c===sel?" selected":"")+">"+esc(c)+"</option>"; }).join("");
+  $("selCoach").addEventListener("change",function(e){ sel=e.target.value; try{ localStorage.setItem("iamcoach:sel",sel); }catch(x){} render(); });
+  $("btnNames").addEventListener("click",function(){ showNames=!showNames; this.classList.toggle("on",showNames); this.textContent=showNames?"Hide names":"Show names"; render(); });
+  C.notes($("btnNotes"));
+  render();
+  var rt; window.addEventListener("resize",function(){ clearTimeout(rt); rt=setTimeout(render,150); });
+});
+if("serviceWorker" in navigator){ navigator.serviceWorker.register("./sw.js").catch(function(){}); }
+})();
+</script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 // Network-first: the dashboard must never show yesterday's numbers from a cache. The cache
 // exists only so the app still opens when the phone is offline.
-const CACHE = "iam-perf-v14";
-const SHELL = ["./index.html", "./report.html", "./clients.html", "./manifest.webmanifest", "./report.webmanifest",
+const CACHE = "iam-perf-v15";
+const SHELL = ["./index.html", "./report.html", "./clients.html", "./overview.html", "./coach.html", "./common.js", "./common.css", "./manifest.webmanifest", "./report.webmanifest",
   "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png",
   "./fonts/alata.css", "./fonts/alata-latin-400-normal.woff2", "./fonts/alata-latin-ext-400-normal.woff2"];
 const CACHE_BUST = "logo";   // bumping this retires the cache holding the old icons
@@ -17,7 +17,7 @@ self.addEventListener("fetch", (e) => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;                 // CDN scripts and the GitHub API go straight to the network
-  if (url.pathname.endsWith("live.enc.json") || url.pathname.endsWith("clients.enc.json")) return;   // always fresh, never cached
+  if (url.pathname.endsWith(".enc.json")) return;   // always fresh, never cached
   if (req.mode === "navigate") {                                   // the page itself: network first, cache only as a backstop
     e.respondWith(fetch(req).then((res) => {
       if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {}); }
