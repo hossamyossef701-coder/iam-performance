@@ -35,6 +35,7 @@
   <div class="bar">
     <span class="seg"><a href="./report.html">Performance</a><a href="./clients.html">Clients</a><a class="on" href="./overview.html">Overview</a><a href="./coach.html">Coach review</a></span>
     <span class="grow"></span>
+    <span class="seg" id="segScope"></span>
     <button id="btnNotes">Notes</button>
     <button id="btnReload">Reload</button>
   </div>
@@ -68,7 +69,17 @@
     <div class="card-h"><div><div class="k">Packages in use</div><div class="t">Where each coach's running packages stand</div></div><span class="unit">clients · open a coach for the names</span></div>
     <div class="card-b" style="padding-bottom:4px"><div class="legend" id="useTot" style="margin:0"></div></div>
     <div class="lst" id="useLst"></div>
-    <div class="card-b"><p class="note" style="margin:0">Sessions used = sessions on the coach sheets since the package was bought, all coaches together. Won't finish in time = at the client's pace over the last 4 weeks, more than one session will be left when the package ends. Training on an expired package = sessions in the last 31 days after the package ran out. Nearly used up = 2 sessions or fewer left. Not linked = the client's name on the sheet is not matched yet (see Name check).</p></div>
+    <div class="card-b"><p class="note" style="margin:0">Sessions are counted against packages in order: a package takes sessions until it is used up, and the sessions after that belong to the next package, whenever it is paid. Sessions left = all the client's paid sessions not yet trained. Won't finish in time = at the client's pace over the last 4 weeks, more than one session will be left when the last package ends. Training beyond what's paid = sessions in the last 31 days after every paid session was used (usually a renewal not yet logged). Using sessions after the end date = sessions in the last 31 days taken from a package past its end date. Nearly used up = 2 sessions or fewer left. Not linked = the client's name on the sheet is not matched yet (see Name check).</p></div>
+  </div>
+
+  <div class="card section">
+    <div class="card-h"><div><div class="k">Share of the team</div><div class="t">Each coach's share of the active clients, the sessions and the revenue</div></div>
+      <span class="seg sm" id="segShare"><button data-v="1">Last month</button><button data-v="3">Last 3 months</button><button data-v="0">This month so far</button></span></div>
+    <div class="card-b">
+      <div class="legend"><span><i style="background:var(--ink-soft)"></i>active clients, now</span><span><i style="background:var(--s-ret)"></i>sessions</span><span><i style="background:var(--accent)"></i>revenue</span><span class="r">right: revenue share ÷ client share</span></div>
+      <div class="chart" id="chShare"></div>
+      <p class="note">Active clients = clients with a running package today, by the coach on the Clients tab. Sessions and revenue = the coach sheets for the period picked. A coach with a quarter of the clients should bring in about a quarter of the revenue: 1.0× is the team's average. Below 1.0× means each of their clients trains less often or at a lower rate than the team's; the gap between the blue and orange bars says which. New coaches, leave and handoffs move these figures, so read them with that in mind.</p>
+    </div>
   </div>
 
   <div class="cols2">
@@ -91,15 +102,30 @@
 <script>
 (function(){
 "use strict";
-var C=window.IAM, $=C.$, esc=C.esc, aed=C.aed, D=null;
+var C=window.IAM, $=C.$, esc=C.esc, aed=C.aed, D=null, OV0=null;
+// The overview with the director's figures left out when the switch says so.
+function ovView(o){
+  if(!o||C.scope()==="all") return o;
+  var k=C.keep, v=Object.assign({},o);
+  v.months=o.months.map(function(m){ var s=0,r=0,ss=0,ds=0; Object.keys(m.coach||{}).forEach(function(c){ if(!k(c)) return; var x=m.coach[c]; s+=x.s; r+=x.r; ss+=x.ss; ds+=x.ds; });
+    return Object.assign({},m,{sales:s,rev:r,soldS:ss,delS:Math.round(ds*10)/10}); });
+  v.inUse=o.inUse.filter(function(r){ return k(r.coach); });
+  v.perCoach={}; Object.keys(o.perCoach).forEach(function(c){ if(k(c)) v.perCoach[c]=o.perCoach[c]; });
+  v.activeByCoach={}; Object.keys(o.activeByCoach||{}).forEach(function(c){ if(k(c)) v.activeByCoach[c]=o.activeByCoach[c]; });
+  if(o.up&&o.up.coach){ var u={n:0,due:0,aed:0,coach:{}}; Object.keys(o.up.coach).forEach(function(c){ if(!k(c)) return; var x=o.up.coach[c]; u.coach[c]=x; u.n+=x.n; u.due+=x.due; u.aed+=x.aed; }); v.up=u; }
+  var nm=o.names, f=function(l){ return l.filter(function(x){ return k(x.coach); }); };
+  v.names=Object.assign({},nm,{unclear:f(nm.unclear),notInFile:f(nm.notInFile),endedOnSheet:f(nm.endedOnSheet)});
+  return v;
+}
 
 function render(){
+  D.ov=ovView(OV0);
   var live=D.live, ov=D.ov;
   $("stamp").innerHTML="Read "+new Date(ov?ov.generated:live.generated).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"})+"<br>AED without VAT";
   if(!ov){ $("noOv").style.display=""; $("main").style.display="none"; return; }
   $("noOv").style.display="none"; $("main").style.display="";
   $("ovFrom").textContent=C.date(ov.loggedFrom);
-  thisMonth(); chartSold(); chartUnused(); packages(); value(); names();
+  thisMonth(); chartSold(); chartUnused(); share(); packages(); value(); names();
 }
 
 /* ---- This month ---- */
@@ -115,15 +141,16 @@ function thisMonth(){
   }
   if(ov.up) out.push(["var(--watch)",ov.up.n+" clients are up for renewal, worth "+aed(ov.up.aed)+". "+ov.up.due+" of them have already run out."]);
   var less=0, worst=null;
-  Object.keys(live.periods[p]||{}).forEach(function(c){ var l=C.lessOften(live,p,c); if(l&&l.length){ less+=l.length; if(!worst||l.length>worst.n) worst={c:c,n:l.length}; } });
+  Object.keys(live.periods[p]||{}).filter(C.keep).forEach(function(c){ var l=C.lessOften(live,p,c); if(l&&l.length){ less+=l.length; if(!worst||l.length>worst.n) worst={c:c,n:l.length}; } });
   if(less) out.push(["var(--watch)",less+" clients are training well below their own usual"+(worst?". "+worst.c+" has "+worst.n+".":".")]);
-  var short=ov.inUse.filter(function(r){ return r.state==="short"; }).length, exp=ov.inUse.filter(function(r){ return r.state==="expired"; }).length;
-  if(short||exp) out.push([exp?"var(--down)":"var(--watch)",short+" clients won't finish their package in time at their current pace; "+exp+" are training on an expired package."]);
+  var cnt=function(st){ return ov.inUse.filter(function(r){ return r.state===st; }).length; }, short=cnt("short"), unpaid=cnt("unpaid"), exp=cnt("expired");
+  if(short) out.push(["var(--watch)",short+" clients won't finish their package in time at their current pace."]);
+  if(unpaid||exp) out.push(["var(--down)",unpaid+" clients are training beyond what they have paid for; "+exp+" are using sessions after their package's end date."]);
   var curC=Object.keys(live.periods[p]||{});
   var ks=Object.keys(ov.perCoach).filter(function(c){ return curC.indexOf(c)>=0; }).map(function(c){ var k=keptOf(c); return {c:c,k:k.k,n:k.n}; }).filter(function(x){ return x.n>=5; }).sort(function(a,b){ return b.k/b.n-a.k/a.n; });
   if(ks.length>1) out.push(["var(--up)","Most clients kept in the last 12 months: "+ks[0].c+", "+ks[0].k+" of "+ks[0].n+". Fewest: "+ks[ks.length-1].c+", "+ks[ks.length-1].k+" of "+ks[ks.length-1].n+"."]);
   var pr=0, mr=0, md=live.cutoffDay, days=C.daysIn(p);
-  Object.keys(live.periods[p]||{}).forEach(function(c){ var x=live.periods[p][c]; if(x.pr) pr+=x.pr; if(x.mr!=null) mr+=x.mr; });
+  Object.keys(live.periods[p]||{}).filter(C.keep).forEach(function(c){ var x=live.periods[p][c]; if(x.pr) pr+=x.pr; if(x.mr!=null) mr+=x.mr; });
   if(pr&&md) out.push(["var(--ink-soft)","Revenue is on pace for "+Math.round(mr/md*days/pr*100)+"% of what coaches projected for the month ("+aed(mr/md*days)+" of "+aed(pr)+")."]);
   var nm=ov.names.unclear.length;
   if(nm) out.push(["var(--watch)",nm+" coach-sheet name"+(nm>1?"s need":" needs")+" confirming: see Name check."]);
@@ -172,27 +199,59 @@ function chartUnused(){
   host.innerHTML=s+"</svg>"; C.hits(host,areas);
 }
 
+/* ---- Share of the team ---- */
+var shareN=1; try{ shareN=+(localStorage.getItem("iamov:share")||1); }catch(e){}
+function share(){
+  var live=D.live, ov=D.ov, act=ov.activeByCoach||{}, p=ov.now;
+  Array.prototype.forEach.call($("segShare").querySelectorAll("button"),function(b){ b.classList.toggle("on",+b.getAttribute("data-v")===shareN); });
+  var months=shareN===0?[p]:[1,2,3].slice(0,shareN).map(function(n){ return C.prevP(p,n); });
+  var ses={}, rev={};
+  months.forEach(function(q){ var P=live.periods[q]||{}; Object.keys(P).filter(C.keep).forEach(function(c){ var x=P[c], cur=q===p&&x.mr!=null;
+    ses[c]=(ses[c]||0)+((cur?x.ms:x.s)||0); rev[c]=(rev[c]||0)+((cur?x.mr:x.r)||0); }); });
+  var cs=Object.keys(Object.assign({},act,ses)).filter(function(c){ return c!=="(no coach)"&&((act[c]||0)||(ses[c]||0)); });
+  var tA=0,tS=0,tR=0; cs.forEach(function(c){ tA+=act[c]||0; tS+=ses[c]||0; tR+=rev[c]||0; });
+  var rows=cs.map(function(c){ var a=tA?(act[c]||0)/tA:0, s=tS?(ses[c]||0)/tS:0, r=tR?(rev[c]||0)/tR:0; return {c:c,a:a,s:s,r:r,n:act[c]||0,ses:ses[c]||0,rev:rev[c]||0,x:a?r/a:null}; })
+    .sort(function(a,b){ return b.a-a.a||b.r-a.r; });
+  var host=$("chShare");
+  if(!rows.length){ host.innerHTML='<div class="empty">No figures for this period.</div>'; return; }
+  var W=C.width(host), narrow=W<560, rh=48, H=rows.length*rh+4, L=narrow?78:100, R=narrow?70:150, mx=Math.max.apply(null,rows.map(function(r){ return Math.max(r.a,r.s,r.r); }));
+  var sx=function(v){ return (W-L-R)*v/mx; }, s='<svg viewBox="0 0 '+W+" "+H+'"><rect class="hl" rx="6" fill="rgba(255,255,255,.035)" style="opacity:0"/>', areas=[];
+  rows.forEach(function(r,i){
+    var y0=i*rh+2, bh=10;
+    s+=C.txt(L-10,y0+rh/2+4,esc(r.c),{a:"end",s:12});
+    [[r.a,"var(--ink-soft)"],[r.s,"var(--s-ret)"],[r.r,"var(--accent)"]].forEach(function(b,j){
+      var yy=y0+7+j*(bh+3); s+=C.hbar(L,yy,Math.max(1,sx(b[0])),bh,b[1]);
+      if(!narrow) s+=C.txt(L+sx(b[0])+6,yy+9,Math.round(b[0]*100)+"%",{a:"start",s:10,c:"var(--ink-faint)"});
+    });
+    if(r.x!=null) s+=C.txt(W-8,y0+rh/2+5,r.x.toFixed(1)+"×",{a:"end",s:14,c:r.x<0.75?"var(--down)":r.x>=1.1?"var(--up)":"var(--ink)"});
+    areas.push({x:0,y:y0,w:W,h:rh,ax:L+sx(Math.max(r.a,r.s,r.r))/2,ay:y0+6,html:"<b>"+esc(r.c)+"</b>"+
+      C.trow("Active clients",r.n+" · "+Math.round(r.a*100)+"% of the team","var(--ink-soft)")+C.trow("Sessions",C.full(r.ses)+" · "+Math.round(r.s*100)+"%","var(--s-ret)")+
+      C.trow("Revenue","AED "+C.full(r.rev)+" · "+Math.round(r.r*100)+"%","var(--accent)")+C.trow("Revenue share ÷ client share",r.x!=null?r.x.toFixed(2)+"×":"—")});
+  });
+  host.innerHTML=s+"</svg>"; C.hits(host,areas);
+}
+
 /* ---- Packages in use ---- */
-var ST=[["ok","On track","var(--ink-soft)"],["short","Won't finish in time","var(--watch)"],["nearly","Nearly used up","var(--ink)"],["expired","Training on an expired package","var(--down)"],["unlinked","Not linked","var(--ink-faint)"]];
+var ST=[["ok","On track","var(--ink-soft)"],["short","Won't finish in time","var(--watch)"],["nearly","Nearly used up","var(--ink)"],["unpaid","Training beyond what's paid","var(--down)"],["expired","Using sessions after the end date","#e08a8a"],["unlinked","Not linked","var(--ink-faint)"]];
 function packages(){
   var by={};
-  D.ov.inUse.forEach(function(r){ var o=by[r.coach||"(no coach)"]||(by[r.coach||"(no coach)"]={ok:[],short:[],nearly:[],expired:[],unlinked:[]}); o[r.state].push(r); });
-  var cs=Object.keys(by).sort(function(a,b){ return (by[b].short.length+by[b].expired.length)-(by[a].short.length+by[a].expired.length)||a.localeCompare(b); });
-  var tot={ok:0,short:0,nearly:0,expired:0,unlinked:0};
+  D.ov.inUse.forEach(function(r){ var o=by[r.coach||"(no coach)"]||(by[r.coach||"(no coach)"]={ok:[],short:[],nearly:[],unpaid:[],expired:[],unlinked:[]}); o[r.state].push(r); });
+  var cs=Object.keys(by).sort(function(a,b){ return (by[b].short.length+by[b].unpaid.length+by[b].expired.length)-(by[a].short.length+by[a].unpaid.length+by[a].expired.length)||a.localeCompare(b); });
+  var tot={ok:0,short:0,nearly:0,unpaid:0,expired:0,unlinked:0};
   cs.forEach(function(c){ ST.forEach(function(s){ tot[s[0]]+=by[c][s[0]].length; }); });
   // How many in each state, in the state's colour: from lists (a coach) or plain numbers (the team).
   function counts(o){ var n=function(k){ return typeof o[k]==="number"?o[k]:o[k].length; };
     return ST.filter(function(s){ return n(s[0]); }).map(function(s){ return '<span style="color:'+s[2]+'">'+n(s[0])+" "+s[1].toLowerCase()+"</span>"; }).join('<span class="dim"> · </span>'); }
   $("useTot").innerHTML="<span>Team: "+counts(tot)+"</span>";
   $("useLst").innerHTML=cs.map(function(c){
-    var o=by[c], list=[].concat(o.expired,o.short,o.nearly,o.unlinked);
+    var o=by[c], list=[].concat(o.unpaid,o.expired,o.short,o.nearly,o.unlinked);
     if(!list.length) return '<details class="none"><summary><span class="nm">'+esc(c)+'</span><span class="n">'+counts(o)+"</span></summary></details>";
     return '<details><summary><span class="nm">'+esc(c)+'</span><span class="n">'+counts(o)+"</span></summary>"+
       '<div class="lrow h"><span>Client</span><span>State</span><span>Sessions left</span><span>Package ends</span></div>'+
       list.map(function(r){
         var st=ST.filter(function(s){ return s[0]===r.state; })[0];
-        var left=r.state==="expired"?r.after+" after it ended":r.left!=null?r.left+" of "+r.size+(r.pace!=null&&r.state==="short"?" · "+r.pace.toFixed(1)+"/wk":""):"—";
-        return '<div class="lrow"><span>'+esc(r.name)+(r.sheetName&&C.nameKey(r.sheetName)!==C.nameKey(r.name)?' <span class="dim">· "'+esc(r.sheetName)+'"</span>':"")+'</span><span style="color:'+st[2]+'">'+st[1]+"</span><span>"+left+"</span><span>"+C.date(r.end)+"</span></div>";
+        var left=r.state==="unpaid"?r.unpaid+" not paid for":r.state==="expired"?r.late+" used after the end date":r.left!=null?r.left+" left"+(r.pace!=null&&r.state==="short"?" · "+r.pace.toFixed(1)+" a week":""):"—";
+        return '<div class="lrow"><span>'+esc(r.name)+(r.sheetName&&C.nameKey(r.sheetName)!==C.nameKey(r.name)?' <span class="dim">· "'+esc(r.sheetName)+'"</span>':"")+'</span><span style="color:'+st[2]+'">'+st[1]+"</span><span>"+left+"</span><span>"+C.date(r.state==="unpaid"||r.state==="short"?(r.lastEnd||r.end):r.end)+"</span></div>";
       }).join("")+"</details>";
   }).join("");
 }
@@ -255,10 +314,12 @@ function names(){
 }
 
 C.unlock(function(d,pass){
-  D=d; render();
+  D=d; OV0=d.ov; render();
+  C.scopeSwitch($("segScope"),render);
   C.notes($("btnNotes"));
-  $("btnReload").addEventListener("click",function(){ var b=this; b.disabled=true; b.textContent="Reloading…"; C.load(pass).then(function(x){ D=x; render(); }).catch(function(){}).then(function(){ b.disabled=false; b.textContent="Reload"; }); });
-  var rt; window.addEventListener("resize",function(){ clearTimeout(rt); rt=setTimeout(function(){ if(D&&D.ov){ chartSold(); chartUnused(); value(); } },150); });
+  $("btnReload").addEventListener("click",function(){ var b=this; b.disabled=true; b.textContent="Reloading…"; C.load(pass).then(function(x){ D=x; OV0=x.ov; render(); }).catch(function(){}).then(function(){ b.disabled=false; b.textContent="Reload"; }); });
+  Array.prototype.forEach.call($("segShare").querySelectorAll("button"),function(b){ b.addEventListener("click",function(){ shareN=+b.getAttribute("data-v"); try{ localStorage.setItem("iamov:share",shareN); }catch(e){} share(); }); });
+  var rt; window.addEventListener("resize",function(){ clearTimeout(rt); rt=setTimeout(function(){ if(D&&D.ov){ chartSold(); chartUnused(); share(); value(); } },150); });
 });
 if("serviceWorker" in navigator){ navigator.serviceWorker.register("./sw.js").catch(function(){}); }
 })();

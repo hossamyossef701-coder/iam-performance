@@ -67,6 +67,18 @@ C.unlock = function (onOpen) {
   var saved = null; try { saved = localStorage.getItem(PASS_KEY); } catch (e) {}
   if (saved) attempt(saved, true, true); else input.focus();
 };
+// With or without the Fitness Director's own figures: one switch shared by every page.
+C.DIRECTOR = "Hossam";
+C.scope = function () { try { return localStorage.getItem("iam:scope") === "team" ? "team" : "all"; } catch (e) { return "all"; } };
+C.keep = function (c) { return C.scope() === "all" || c !== C.DIRECTOR; };
+C.scopeSwitch = function (host, onChange) {
+  host.innerHTML = '<button data-v="all">With Hossam</button><button data-v="team">Team only</button>';
+  function set() { Array.prototype.forEach.call(host.querySelectorAll("button"), function (b) { b.classList.toggle("on", b.getAttribute("data-v") === C.scope()); }); }
+  Array.prototype.forEach.call(host.querySelectorAll("button"), function (b) {
+    b.addEventListener("click", function () { try { localStorage.setItem("iam:scope", b.getAttribute("data-v")); } catch (e) {} set(); onChange(); });
+  });
+  set();
+};
 // Notes under the panels are hidden unless asked for: one switch for the whole page.
 C.notes = function (btn) {
   var on = false; try { on = localStorage.getItem(NOTES_KEY) === "1"; } catch (e) {}

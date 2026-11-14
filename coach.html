@@ -53,6 +53,7 @@
   <div class="bar">
     <span class="seg"><a href="./report.html">Performance</a><a href="./clients.html">Clients</a><a href="./overview.html">Overview</a><a class="on" href="./coach.html">Coach review</a></span>
     <span class="grow"></span>
+    <span class="seg" id="segScope"></span>
     <select id="selCoach" aria-label="Coach"></select>
     <button id="btnNames" style="display:none">Show names</button>
     <button id="btnNotes">Notes</button>
@@ -106,7 +107,11 @@ function coaches(){
   var p=now(), set={};
   Object.keys(D.live.periods[p]||{}).forEach(function(c){ set[c]=1; });
   Object.keys(D.live.periods[C.prevP(p,1)]||{}).forEach(function(c){ set[c]=1; });
-  return Object.keys(set).sort();
+  return Object.keys(set).filter(C.keep).sort();
+}
+function fillCoaches(){
+  var cs=coaches(); if(sel&&cs.indexOf(sel)<0) sel="";
+  $("selCoach").innerHTML='<option value="">Whole team</option>'+cs.map(function(c){ return "<option"+(c===sel?" selected":"")+">"+esc(c)+"</option>"; }).join("");
 }
 /* One coach's figures, used for the coach and for the team middle. */
 function stats(c){
@@ -227,10 +232,9 @@ function renderTeam(){
 C.unlock(function(d){
   D=d;
   if(!D.ov) document.querySelector(".wrap").insertAdjacentHTML("afterbegin",'<div class="card section"><div class="empty">The coach sheets have not been joined to the Clients file yet, so client figures are missing. Press Refresh now on the Performance page.</div></div>');
-  var cs=coaches();
   try{ sel=localStorage.getItem("iamcoach:sel")||""; }catch(e){}
-  if(sel&&cs.indexOf(sel)<0) sel="";
-  $("selCoach").innerHTML='<option value="">Whole team</option>'+cs.map(function(c){ return "<option"+(c===sel?" selected":"")+">"+esc(c)+"</option>"; }).join("");
+  fillCoaches();
+  C.scopeSwitch($("segScope"),function(){ fillCoaches(); render(); });
   $("selCoach").addEventListener("change",function(e){ sel=e.target.value; try{ localStorage.setItem("iamcoach:sel",sel); }catch(x){} render(); });
   $("btnNames").addEventListener("click",function(){ showNames=!showNames; this.classList.toggle("on",showNames); this.textContent=showNames?"Hide names":"Show names"; render(); });
   C.notes($("btnNotes"));

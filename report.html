@@ -241,6 +241,7 @@ body.locked{overflow:hidden;}
 .dgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;}
 .dgrid>.dcard{margin-bottom:16px;}
 .dgrid .dtbl th,.dgrid .dtbl td{padding:9px 7px;}
+.dgrid .dtbl th{white-space:normal;min-width:54px;}
 .dgrid .dtbl th:first-child,.dgrid .dtbl td:first-child{padding-left:16px;}
 @media(max-width:1000px){.dgrid{grid-template-columns:1fr;}}
 .dnote{display:none;}
@@ -275,7 +276,12 @@ body.notes .dnote{display:block;}
 
   <div class="bar">
     <span class="seg"><a class="on" href="./report.html">Performance</a><a href="./clients.html">Clients</a><a href="./overview.html">Overview</a><a href="./coach.html">Coach review</a></span>
-    <select id="selMonth"></select>
+    <select id="selSpan" aria-label="Window">
+      <option value="1">One month</option><option value="3">3 months to</option><option value="6">6 months to</option>
+      <option value="12">12 months to</option><option value="ytd">Year to date</option><option value="custom">From…</option>
+    </select>
+    <select id="selFrom" aria-label="From" style="display:none"></select>
+    <select id="selMonth" aria-label="Month"></select>
     <span class="seg" id="segBasis">
       <button data-v="mtd" class="on">To date</button>
       <button data-v="full">Whole month</button>
@@ -350,7 +356,7 @@ var PASS_KEY="iamlive:pass", CFG_KEY="iamlive:cfg", UI_KEY="iamreport:ui";
 var DIRECTOR="Hossam";
 var MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 var PASS=null, LIVE=null, HIST=null, DATA={}, PERIODS=[];
-var ui={month:null, compare:"pace", scope:"all", basis:"mtd", sort:"revenue", dir:-1};
+var ui={month:null, span:"1", from:null, compare:"pace", scope:"all", basis:"mtd", sort:"revenue", dir:-1};
 // Per-coach switches. Ivan starts outside the even-share figure because his sessions are
 // counted differently; everyone else is in by default.
 var COACH_KEY="iamreport:coaches";
@@ -367,10 +373,12 @@ function setPref(c,k,v){
   savePrefs();
 }
 try{ var sv=JSON.parse(localStorage.getItem(UI_KEY)||"{}");
-  ["compare","scope","basis","sort"].forEach(function(k){ if(sv[k]) ui[k]=sv[k]; });
+  ["compare","scope","basis","sort","span","from"].forEach(function(k){ if(sv[k]) ui[k]=sv[k]; });
+  // With or without the Fitness Director: one switch shared by every page.
+  var shared=localStorage.getItem("iam:scope"); if(shared==="team"||shared==="all") ui.scope=shared;
   if(sv.dir) ui.dir=sv.dir;
 }catch(e){}
-function saveUi(){ try{ localStorage.setItem(UI_KEY,JSON.stringify({compare:ui.compare,scope:ui.scope,basis:ui.basis,sort:ui.sort,dir:ui.dir})); }catch(e){} }
+function saveUi(){ try{ localStorage.setItem(UI_KEY,JSON.stringify({compare:ui.compare,scope:ui.scope,basis:ui.basis,sort:ui.sort,dir:ui.dir,span:ui.span,from:ui.from})); localStorage.setItem("iam:scope",ui.scope); }catch(e){} }
 function cfg(){ try{ return JSON.parse(localStorage.getItem(CFG_KEY)||"{}"); }catch(e){ return {}; } }
 function setStat(id,t,c){ var e=document.getElementById(id); if(e){ e.className="status "+(c||""); e.textContent=t; } }
 
@@ -452,20 +460,59 @@ function build(){
     return Object.keys(DATA[p]).some(function(c){ var d=DATA[p][c]; return d&&(d.s!=null||d.r!=null||d.a!=null); });
   }).sort();
 }
-function label(p){ var a=p.split("-"); return MONTHS[+a[1]-1]+" "+a[0]; }
+function label(p){
+  if(isV(p)){ var k=p.split(":"), f=k[1].split("-"), t=k[2].split("-");
+    return MONTHS[+f[1]-1]+(f[0]===t[0]?"":" "+f[0])+" – "+MONTHS[+t[1]-1]+" "+t[0]; }
+  var a=p.split("-"); return MONTHS[+a[1]-1]+" "+a[0];
+}
+/* ---------- a stretch of months ----------
+   One month is shown by its own key ("2026-10"). A stretch is shown by a key of its own,
+   "R:2026-08:2026-10", whose figures are each coach's months added up (the month running counts
+   to date when "To date" is on). Everything that reads DATA then works on it unchanged. */
+function isV(p){ return typeof p==="string"&&p.indexOf("R:")===0; }
+function vKey(from,to){ return "R:"+from+":"+to; }
+function monthsBetween(from,to){ var out=[], q=from; while(q<=to){ out.push(q); q=prevP(q,-1); } return out; }
+function rangeOf(p){ if(!isV(p)) return [p]; var k=p.split(":"); return PERIODS.filter(function(q){ return q>=k[1]&&q<=k[2]; }); }
+function rangeTo(p){ return isV(p)?p.split(":")[2]:p; }
+function buildRange(key,scaleLast){
+  var ms=rangeOf(key), out={};
+  ms.forEach(function(q,i){
+    var f=(scaleLast!=null&&q===key.split(":")[2])?scaleLast:1;
+    Object.keys(DATA[q]||{}).forEach(function(c){
+      var m=metrics(q,c); if(!m) return;
+      var o=out[c]||(out[c]={s:null,r:null,x:null,a:null,c:null,n:0});
+      [["s","s"],["r","r"],["x","x"],["a","a"],["cv","c"]].forEach(function(kk){ var v=m[kk[0]]; if(v!=null) o[kk[1]]=(o[kk[1]]||0)+v*f; });
+      if(m.mtdMissing) o.mtdMissing=true; o.n++;
+    });
+  });
+  DATA[key]=out; return key;
+}
+function viewKey(){
+  var to=ui.month; if(!to) return null;
+  var from=to;
+  if(ui.span==="ytd") from=to.slice(0,4)+"-01";
+  else if(ui.span==="custom") from=(ui.from&&ui.from<=to)?ui.from:to;
+  else if(+ui.span>1) from=prevP(to,+ui.span-1);
+  if(from===to) return to;
+  return buildRange(vKey(from,to));
+}
 function currentPeriod(){
   return new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Dubai",year:"numeric",month:"2-digit"}).format(new Date()).slice(0,7);
 }
-function monthDays(p){ var a=p.split("-"); return new Date(+a[0],+a[1],0).getDate(); }
+function monthDays(p){
+  if(isV(p)){ var k=p.split(":"); return monthsBetween(k[1],k[2]).reduce(function(t,q){ return t+monthDays(q); },0); }
+  var a=p.split("-"); return new Date(+a[0],+a[1],0).getDate();
+}
 function dayOfMonth(){ return +new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Dubai",day:"numeric"}).format(new Date()); }
 // Only a month still running is part-complete; a finished month counts whole.
 function daysUsed(p){
+  if(isV(p)){ var k=p.split(":"); return monthsBetween(k[1],k[2]).reduce(function(t,q){ return t+daysUsed(q); },0); }
   if(p!==currentPeriod()) return monthDays(p);
   // Counting the whole month as entered means the daily rate is over the whole month.
   if(ui.basis!=="mtd") return monthDays(p);
   return cutoffDay(p) || dayOfMonth();
 }
-function progress(p){ return p===currentPeriod()? Math.max(0.03,Math.min(1,daysUsed(p)/monthDays(p))) : 1; }
+function progress(p){ if(isV(p)) return 1; return p===currentPeriod()? Math.max(0.03,Math.min(1,daysUsed(p)/monthDays(p))) : 1; }
 function prevPeriods(p,n){ var i=PERIODS.indexOf(p); return i<0?[]:PERIODS.slice(Math.max(0,i-n),i); }
 // Every month on record from an anchor up to, but not including, the month being viewed.
 function periodsSince(anchor,p){
@@ -480,6 +527,18 @@ function sameMonthLastYear(p){
 }
 function basisPeriods(p){
   var m=ui.compare;
+  // A stretch is compared with the stretch of the same length before it, or the same stretch a
+  // year earlier. When the stretch ends in the month running (to date), the matching month of
+  // the earlier stretch is cut to the same point in its own length.
+  if(isV(p)){
+    if(m==="none") return [];
+    var k=p.split(":"), n=monthsBetween(k[1],k[2]).length, shift=(m==="yoy"||m==="yoyfull")?12:n;
+    var f=prevP(k[1],shift), t=prevP(k[2],shift), key=vKey(f,t);
+    var cut=(ui.basis==="mtd"&&k[2]===currentPeriod()&&m!=="prev"&&m!=="yoyfull")?Math.min(1,daysUsed(k[2])/monthDays(t)):null;
+    buildRange(key,cut);
+    // Only when every month of the earlier stretch is on record: a part-stretch would mislead.
+    return rangeOf(key).length===n?[key]:[];
+  }
   if(m==="prev"||m==="pace") return prevPeriods(p,1);
   if(m==="yoy"||m==="yoyfull") return sameMonthLastYear(p);
   if(m==="avg3") return prevPeriods(p,3);
@@ -529,7 +588,7 @@ function metrics(p,coach){
   var booked=(d.s!=null&&d.x!=null)?(d.s+d.x):null;
   var days=daysUsed(p);
   // The projection is one figure for the whole month: the same whichever basis is chosen.
-  return { s:d.s, r:d.r, x:d.x, a:d.a, cv:d.c, mtdMissing:mtdMissing, ps:raw.ps, pr:raw.pr, pm:raw.pm,
+  return { s:d.s, r:d.r, x:d.x, a:d.a, cv:d.c, mtdMissing:mtdMissing||!!raw.mtdMissing, ps:raw.ps, pr:raw.pr, pm:raw.pm,
            rate:(d.r!=null&&d.s)?d.r/d.s:null, cpc:booked?d.x/booked*100:null,
            spd:(d.s!=null&&days)?d.s/days:null,
            conv:(d.a)?d.c/d.a*100:null };
@@ -632,7 +691,9 @@ function projBar(pct,target,st,small,tip){
     '<span class="pj-full"></span>'+(target<99.5?'<span class="pj-pace" style="left:'+tick.toFixed(2)+'%"></span>':"")+"</span>";
 }
 function renderProj(p){
-  var el=document.getElementById("proj"), t=projTeam(p);
+  var el=document.getElementById("proj");
+  if(isV(p)){ el.style.display="none"; el.innerHTML=""; return; }   // a projection is set for one month
+  var t=projTeam(p);
   if(!t.any){ el.style.display="none"; el.innerHTML=""; return; }
   el.style.display="";
   var target=projTarget(p), live=toDate(p), closed=(p!==currentPeriod());
@@ -705,7 +766,7 @@ function fmtInt(v){ return v==null?"—":Math.round(v).toLocaleString("en-US"); 
 var FREQ=[["under 1","#e14b4b","#1a0505"],["1","#e0a63c","#120800"],["2","#6f9fd8","#06101c"],["3","#5eb87a","#06140a"],["4","#3a9a5e","#e8f5ec"],["5 or more","#24713f","#e8f5ec"]];
 function dEsc(t){ return String(t==null?"":t).replace(/[&<>"']/g,function(ch){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]; }); }
 function clOf(p,c){ var v=LIVE&&LIVE.periods&&LIVE.periods[p]&&LIVE.periods[p][c]; return (v&&v.cl)||null; }
-function hasCl(p){ return !!(LIVE&&LIVE.periods&&LIVE.periods[p]&&Object.keys(LIVE.periods[p]).some(function(c){ return LIVE.periods[p][c].cl; })); }
+function hasCl(p){ if(isV(p)) return rangeOf(p).some(hasCl); return !!(LIVE&&LIVE.periods&&LIVE.periods[p]&&Object.keys(LIVE.periods[p]).some(function(c){ return LIVE.periods[p][c].cl; })); }
 // The last day that has happened: today for the month running (bookings ahead left out), else the month's end.
 function lastDay(p){
   if(p!==currentPeriod()) return monthDays(p);
@@ -715,12 +776,20 @@ function lastDay(p){
 function wOf(ch){ return ch==="1"||ch==="x"?1:ch==="h"?0.5:(ch>="2"&&ch<="9")?+ch:0; }
 // The same client across months: the name without package notes in brackets or punctuation.
 function nameKey(n){ return String(n).toLowerCase().replace(/\([^)]*\)/g," ").replace(/[^a-z0-9؀-ۿ]+/g," ").trim(); }
+// cm = months the client trained in, cw = the weeks of those months (so a client who joined
+// part-way through a stretch is measured over the time they were training, not the whole stretch).
 function clientsIn(p,c){
+  if(isV(p)){
+    var by={}, any=false;
+    rangeOf(p).forEach(function(q){ var l=clientsIn(q,c); if(!l) return; any=true;
+      l.forEach(function(x){ var o=by[x.key]||(by[x.key]={name:x.name,key:x.key,price:x.price,s:0,r:0,cm:0,cw:0}); o.name=x.name; o.price=x.price; o.s+=x.s; o.r+=x.s*(x.price||0); o.cm+=x.cm; o.cw+=x.cw; }); });
+    return any?Object.keys(by).map(function(k){ return by[k]; }):null;
+  }
   var rows=clOf(p,c); if(!rows) return null;
   var upto=lastDay(p);
   return rows.map(function(r){
     var s=0, m=String(r[2]||""); for(var i=0;i<Math.min(upto,m.length);i++) s+=wOf(m[i]);
-    return {name:r[0], key:nameKey(r[0]), price:r[1], s:s, m:m};
+    return {name:r[0], key:nameKey(r[0]), price:r[1], s:s, r:s*(r[1]||0), m:m, cm:s>0?1:0, cw:s>0?upto/7:0};
   });
 }
 function pIso(p,d){ return p+"-"+(d<10?"0":"")+d; }
@@ -756,12 +825,11 @@ function dCard(k,t,u,body){ return '<div class="dcard"><div class="dcard-h"><div
 
 /* 1. How often each coach's clients train */
 function freqData(p){
-  var upto=lastDay(p), weeks=upto/7;
   return coachesIn(p).map(function(c){
     var cl=clientsIn(p,c); if(!cl) return null;
-    var tr=cl.filter(function(x){ return x.s>0; }), b=[[],[],[],[],[],[]], tot=0;
-    tr.forEach(function(x){ var w=x.s/weeks; x.pw=w; tot+=x.s; b[Math.min(5,Math.floor(w))].push(x); });
-    return {c:c, n:tr.length, b:b, avg:tr.length?tot/tr.length/weeks:null, list:tr};
+    var tr=cl.filter(function(x){ return x.s>0; }), b=[[],[],[],[],[],[]], tot=0, wk=0;
+    tr.forEach(function(x){ var w=x.s/x.cw; x.pw=w; tot+=x.s; wk+=x.cw; b[Math.min(5,Math.floor(w))].push(x); });
+    return {c:c, n:tr.length, b:b, avg:wk?tot/wk:null, list:tr};
   }).filter(function(x){ return x&&x.n; }).sort(function(a,b){ return b.avg-a.avg; });
 }
 function panelFreq(p){
@@ -799,6 +867,7 @@ function drawFreq(p,rows,id){
 
 /* 2. Load: sessions this month against the coach's own best and recent average */
 function panelLoad(p){
+  if(isV(p)) return panelLoadRange(p);
   var now=(p===currentPeriod()), md=lastDay(p), days=monthDays(p);
   var rows=coachesIn(p).map(function(c){
     var d=(DATA[p]||{})[c]; if(!d) return null;
@@ -815,7 +884,27 @@ function panelLoad(p){
     '<div class="dchart" id="dLoad"></div><p class="dnote">A coach well under their own best month has room for more sessions with the clients they already have. '+
     (now?"On pace = sessions so far ÷ "+md+" days × "+days+". ":"")+"Leave and holidays are not taken out: read a low month with that in mind.</p></div>");
 }
-function drawLoad(rows,now,md,days){
+// Over a stretch: the coach's average month in it (the month running on pace), against their
+// best month and their average in the twelve and three months before the stretch.
+function panelLoadRange(p){
+  var ms=rangeOf(p), first=p.split(":")[1], cur=currentPeriod();
+  var rows=coachesIn(p).map(function(c){
+    var vals=ms.map(function(q){ var d=(DATA[q]||{})[c]; if(!d) return null;
+      if(q===cur){ var md=lastDay(q); return d.ms!=null&&md?d.ms/md*monthDays(q):d.s; } return d.s; }).filter(function(v){ return v!=null; });
+    if(!vals.length) return null;
+    var avg=vals.reduce(function(t,v){ return t+v; },0)/vals.length;
+    var past=PERIODS.filter(function(q){ return q<first&&q>=prevP(first,12); }).map(function(q){ var x=(DATA[q]||{})[c]; return x&&x.s!=null?{q:q,s:x.s}:null; }).filter(Boolean);
+    if(!past.length) return null;
+    var best=past.reduce(function(a,b){ return b.s>a.s?b:a; }), last3=past.slice(-3), avg3=last3.reduce(function(t,x){ return t+x.s; },0)/last3.length;
+    return {c:c, cur:avg, sofar:null, best:best, avg3:avg3, n3:last3.length, months:vals.length};
+  }).filter(Boolean).sort(function(a,b){ return b.cur/b.best.s-a.cur/a.best.s; });
+  if(!rows.length) return "";
+  setTimeout(function(){ drawLoad(rows,false,null,null,true); },0);
+  return dCard("Load","Each coach's average month against what they have already shown they can do","sessions in an average month of "+label(p),
+    '<div class="dcard-b"><div class="dleg"><span><i style="background:var(--accent)"></i>average month in the stretch</span><span><i style="background:var(--panel-3);outline:1px solid var(--line)"></i>best month in the 12 before it</span><span><i style="background:var(--ink);width:3px"></i>average of the 3 months before it</span></div>'+
+    '<div class="dchart" id="dLoad"></div><p class="dnote">The month running counts on pace. Leave and holidays are not taken out.</p></div>');
+}
+function drawLoad(rows,now,md,days,range){
   var host=document.getElementById("dLoad"); if(!host) return;
   var W=Math.max(320,host.clientWidth||600), rh=32, H=rows.length*rh+6, L=W<600?76:100, R=W<600?120:150;
   var mx=Math.max.apply(null,rows.map(function(r){ return Math.max(r.cur,r.best.s); }))*1.04;
@@ -828,7 +917,7 @@ function drawLoad(rows,now,md,days){
     s+='<rect x="'+(L+sx(r.avg3)-1)+'" y="'+(c-12)+'" width="2.5" height="24" rx="1" fill="var(--ink)"/>';
     s+=dTxt(L+Math.max(sx(r.best.s),sx(r.cur))+10,c+4,Math.round(r.cur)+" of "+Math.round(r.best.s)+" · "+Math.round(ratio*100)+"%",{s:11.5,c:ratio<.75?"var(--down)":ratio>=.95?"var(--up)":"var(--ink)"});
     areas.push({x:0,y:y0,w:W,h:rh,ax:L+sx(r.cur),ay:c-10,html:"<b>"+dEsc(r.c)+"</b>"+
-      (now?dRow("So far, to day "+md,fmtSess(r.sofar))+dRow("On pace for the month",Math.round(r.cur)):dRow("This month",fmtSess(r.cur)))+
+      (range?dRow("Average month in the stretch",Math.round(r.cur)+" ("+r.months+" months)"):now?dRow("So far, to day "+md,fmtSess(r.sofar))+dRow("On pace for the month",Math.round(r.cur)):dRow("This month",fmtSess(r.cur)))+
       dRow("Best month: "+label(r.best.q),fmtSess(r.best.s))+dRow("Average of the "+r.n3+" months before",Math.round(r.avg3))});
   });
   host.innerHTML=s+"</svg>"; dHits(host,areas);
@@ -836,22 +925,24 @@ function drawLoad(rows,now,md,days){
 
 /* 3. Revenue per client */
 function panelRpc(p){
-  var upto=lastDay(p), weeks=upto/7, now=(p===currentPeriod()), T={n:0,s:0,r:0};
+  var upto=lastDay(p), now=(p===currentPeriod()), V=isV(p), T={n:0,s:0,r:0,cm:0,cw:0};
   var rows=coachesIn(p).map(function(c){
     var cl=clientsIn(p,c); if(!cl) return null;
     var tr=cl.filter(function(x){ return x.s>0; }); if(!tr.length) return null;
-    var s=0,r=0; tr.forEach(function(x){ s+=x.s; r+=x.s*(x.price||0); });
-    T.n+=tr.length; T.s+=s; T.r+=r;
-    return {c:c,n:tr.length,s:s,r:r};
-  }).filter(Boolean).sort(function(a,b){ return b.r/b.n-a.r/a.n; });
+    var o={c:c,n:tr.length,s:0,r:0,cm:0,cw:0}; tr.forEach(function(x){ o.s+=x.s; o.r+=x.r; o.cm+=x.cm; o.cw+=x.cw; });
+    ["n","s","r","cm","cw"].forEach(function(k){ T[k]+=o[k]; });
+    return o;
+  }).filter(Boolean).sort(function(a,b){ return b.r/b.cm-a.r/a.cm; });
   if(!rows.length) return "";
+  // Over a stretch, "per client" is per client per month they trained (so a client who trained
+  // three months counts three times), which keeps a stretch comparable with a single month.
   function line(x,cls){
-    var spw=x.s/x.n/weeks;
-    return '<tr'+(cls?' class="'+cls+'"':"")+"><td>"+x.c+"</td><td>"+x.n+"</td><td>"+(x.s/x.n).toFixed(1)+'</td><td class="'+(spw>=3?"up":spw<2?"down":"")+'">'+spw.toFixed(1)+"</td><td>"+(x.s?fmtInt(x.r/x.s):"—")+'</td><td class="big">'+fmtInt(x.r/x.n)+"</td></tr>";
+    var spw=x.s/x.cw;
+    return '<tr'+(cls?' class="'+cls+'"':"")+"><td>"+x.c+"</td><td>"+x.n+"</td><td>"+(x.s/x.cm).toFixed(1)+'</td><td class="'+(spw>=3?"up":spw<2?"down":"")+'">'+spw.toFixed(1)+"</td><td>"+(x.s?fmtInt(x.r/x.s):"—")+'</td><td class="big">'+fmtInt(x.r/x.cm)+"</td></tr>";
   }
-  var body=rows.map(function(x){ return line(x); }).join("")+line({c:"Team",n:T.n,s:T.s,r:T.r},"total");
-  return dCard("Revenue per client","What each client is worth to the coach",(now?"day 1 to "+upto+" of "+label(p):label(p))+" · AED without VAT",
-    '<div style="overflow-x:auto"><table class="dtbl"><thead><tr><th>Coach</th><th>Clients<br>trained</th><th>Sessions<br>per client</th><th>Sessions a week<br>per client</th><th>Average<br>rate</th><th>Revenue<br>per client</th></tr></thead><tbody>'+body+
+  var body=rows.map(function(x){ return line(x); }).join("")+line({c:"Team",n:T.n,s:T.s,r:T.r,cm:T.cm,cw:T.cw},"total");
+  return dCard("Revenue per client","What each client is worth to the coach"+(V?", a month":""),(now?"day 1 to "+upto+" of "+label(p):label(p))+" · AED without VAT",
+    '<div style="overflow-x:auto"><table class="dtbl"><thead><tr><th>Coach</th><th>Clients<br>trained</th><th>Sessions per<br>client'+(V?" a month":"")+'</th><th>Sessions a week<br>per client</th><th>Average<br>rate</th><th>Revenue per<br>client'+(V?" a month":"")+'</th></tr></thead><tbody>'+body+
     '</tbody></table></div><div class="dcard-b" style="padding-top:4px"><p class="dnote" style="margin:0">Revenue per client = the revenue from client sessions ÷ the clients who trained at least once. High means fewer clients training often or at a higher rate; low means many light clients. '+
     "The two columns before it show which."+(now?" The month is still running, so these grow until it ends.":"")+"</p></div>");
 }
@@ -910,7 +1001,7 @@ function fmtDay(iso){ return +iso.slice(8,10)+" "+MONTHS[+iso.slice(5,7)-1]; }
 (function(){ var b=document.getElementById("btnNotes"); if(!b) return; var on=false; try{ on=localStorage.getItem("iam:notes")==="1"; }catch(e){}
   function set(){ document.body.classList.toggle("notes",on); b.classList.toggle("on",on); }
   b.addEventListener("click",function(){ on=!on; try{ localStorage.setItem("iam:notes",on?"1":"0"); }catch(e){} set(); }); set(); })();
-var deepT; window.addEventListener("resize",function(){ clearTimeout(deepT); deepT=setTimeout(function(){ if(ui.month&&DATA[ui.month]) renderDeep(ui.month); },200); });
+var deepT; window.addEventListener("resize",function(){ clearTimeout(deepT); deepT=setTimeout(function(){ if(ui.month&&DATA[ui.month]) renderDeep(viewKey()); },200); });
 document.addEventListener("scroll",function(){ dHide(); },{passive:true});
 function renderDeep(p){
   var el=document.getElementById("deep"); if(!el) return;
@@ -923,7 +1014,7 @@ function renderDeep(p){
         "These panels need each client's day-by-day row, which the next refresh reads. Press Refresh now, or wait for the next scheduled read.")+"</div>");
     return;
   }
-  el.innerHTML=panelFreq(p)+load+'<div class="dgrid">'+panelRpc(p)+panelLess(p)+"</div>";
+  el.innerHTML=panelFreq(p)+load+'<div class="dgrid">'+panelRpc(p)+panelLess(rangeTo(p))+"</div>";
 }
 
 // Online 1+1 sessions are counted as a half, so a session count can legitimately end in .5.
@@ -989,10 +1080,12 @@ function rankMark(r,span){
          'box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 0 7px hsla('+h+',72%,46%,.4)"></span>';
 }
 function render(){
-  var p=ui.month, tbl=document.getElementById("tbl"), empty=document.getElementById("empty");
+  var p=viewKey(), tbl=document.getElementById("tbl"), empty=document.getElementById("empty");
   var isNow=(p===currentPeriod()), chip=document.getElementById("chipMtd");
-  chip.style.display=isNow?"":"none";
-  if(isNow) chip.textContent=(ui.basis==="mtd")
+  relabelCompare(p);
+  chip.style.display=(isNow||isV(p))?"":"none";
+  if(isV(p)) chip.textContent=rangeOf(p).length+" months, "+label(p)+(rangeTo(p)===currentPeriod()?(ui.basis==="mtd"?" · "+MONTHS[+rangeTo(p).slice(5,7)-1]+" to day "+(cutoffDay(rangeTo(p))||dayOfMonth()):" · "+MONTHS[+rangeTo(p).slice(5,7)-1]+" whole month"):"");
+  else if(isNow) chip.textContent=(ui.basis==="mtd")
     ? ("Day "+(cutoffDay(p)||dayOfMonth())+" of "+monthDays(p))
     : ("Whole month \u00b7 includes bookings ahead");
 
@@ -1169,6 +1262,23 @@ function fillMonths(){
   sel.innerHTML=PERIODS.slice().reverse().map(function(p){ return '<option value="'+p+'">'+label(p)+"</option>"; }).join("");
   if(!ui.month||PERIODS.indexOf(ui.month)<0) ui.month=PERIODS[PERIODS.length-1]||null;
   sel.value=ui.month;
+  var from=document.getElementById("selFrom");
+  from.innerHTML=PERIODS.filter(function(q){ return q<ui.month; }).reverse().map(function(q){ return '<option value="'+q+'">from '+label(q)+"</option>"; }).join("");
+  if(!ui.from||ui.from>=ui.month||PERIODS.indexOf(ui.from)<0) ui.from=prevP(ui.month,2);
+  from.value=ui.from;
+  document.getElementById("selSpan").value=ui.span;
+  from.style.display=ui.span==="custom"?"":"none";
+}
+// Over a stretch, "last month" means the stretch of the same length before it.
+function relabelCompare(p){
+  var V=isV(p), sel=document.getElementById("selCompare");
+  var T={pace:["vs last month, same point","vs the stretch before, same point"],prev:["vs last month, full","vs the stretch before, full"],
+         yoy:["vs same month last year, same point","vs same stretch last year, same point"],yoyfull:["vs same month last year, full","vs same stretch last year, full"]};
+  Array.prototype.forEach.call(sel.options,function(o){
+    if(T[o.value]) o.textContent=T[o.value][V?1:0];
+    else if(o.value!=="none") o.hidden=V;
+  });
+  if(V&&!T[ui.compare]&&ui.compare!=="none"){ ui.compare="pace"; sel.value="pace"; }
 }
 function stampText(){
   if(!LIVE||!LIVE.generated) return "";
@@ -1412,7 +1522,9 @@ function unlock(){
 
 unlock().then(function(){
   paint();
-  document.getElementById("selMonth").addEventListener("change",function(e){ ui.month=e.target.value; render(); });
+  document.getElementById("selMonth").addEventListener("change",function(e){ ui.month=e.target.value; fillMonths(); render(); });
+  document.getElementById("selSpan").addEventListener("change",function(e){ ui.span=e.target.value; saveUi(); fillMonths(); render(); });
+  document.getElementById("selFrom").addEventListener("change",function(e){ ui.from=e.target.value; saveUi(); render(); });
   document.getElementById("selCompare").addEventListener("change",function(e){ ui.compare=e.target.value; saveUi(); render(); });
   Array.prototype.forEach.call(document.querySelectorAll("#segScope button"),function(b){
     b.addEventListener("click",function(){

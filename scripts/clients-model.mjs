@@ -277,7 +277,14 @@ export function buildClientsModel(sheets, opts = {}) {
      every month adds up. "New" joined with their first package that month; everyone else
      who joined came back (a renewal after a gap, a returning client). */
   const firstMonth = Math.max(loggedFrom, toSerial(2025, 1, 1));
-  const activeOn = (d) => { const s = new Set(); for (const c of clients.values()) if (statusOn(c, d).status === "Active") s.add(c.id); return s; };
+  // Who was active on a day, and with which coach (the coach of the package covering it).
+  // Today the coach on the Clients tab counts (a handoff changes it before any new package);
+  // on earlier days, the coach of the package that covered the day.
+  const coachAt = (c, st, d) => (d >= today ? c.coach || (st.last && st.last.coach) : (st.last && st.last.coach) || c.coach) || "(no coach)";
+  const activeOn = (d) => { const s = new Map(); for (const c of clients.values()) { const st = statusOn(c, d); if (st.status === "Active") s.set(c.id, coachAt(c, st, d)); } return s; };
+  const blank = () => ({ start: 0, nw: 0, back: 0, out: 0, outBack: 0, outLeft: 0, outWait: 0, movIn: 0, movOut: 0, movFrom: {}, movTo: {}, end: 0,
+    pk: { ren: 0, nw: 0, ret: 0 }, aed: { ren: 0, nw: 0, ret: 0 }, ses: { ren: 0, nw: 0, ret: 0 } });
+  const tKey = { Renewal: "ren", New: "nw", Returning: "ret" };
   const months = [];
   {
     const d0 = new Date(EPOCH + firstMonth * DAY_MS);
@@ -289,35 +296,46 @@ export function buildClientsModel(sheets, opts = {}) {
       const endM = toSerial(m === 12 ? y + 1 : y, m === 12 ? 1 : m + 1, 1) - 1;
       const at = Math.min(endM, today);
       const A1 = activeOn(at);
-      let nw = 0, back = 0, out = 0;
-      for (const id of A1) if (!A0.has(id)) { const c = clients.get(id); if (c.joined != null && c.joined >= start && c.joined <= endM) nw++; else back++; }
+      // The same figures for each coach, so a page can leave a coach out and still add up.
+      // A client who changed coach inside the month moves out of one and into the other.
+      const by = {};
+      const get = (k) => by[k] || (by[k] = blank());
+      for (const [, k] of A0) get(k).start++;
+      for (const [, k] of A1) get(k).end++;
+      for (const [id, k] of A1) {
+        if (A0.has(id)) {
+          const was = A0.get(id);
+          if (was !== k) { const a = get(k), b = get(was); a.movIn++; b.movOut++; a.movFrom[was] = (a.movFrom[was] || 0) + 1; b.movTo[k] = (b.movTo[k] || 0) + 1; }
+          continue;
+        }
+        const c = clients.get(id);
+        if (c.joined != null && c.joined >= start && c.joined <= endM) get(k).nw++; else get(k).back++;
+      }
       // Everyone whose package ended this month: did they buy again within the grace period
       // (came back later), not (left), or is it too early to say (still deciding)?
-      let outBack = 0, outLeft = 0, outWait = 0;
-      for (const id of A0) if (!A1.has(id)) {
-        out++;
+      for (const [id, k] of A0) if (!A1.has(id)) {
+        const o = get(k); o.out++;
         const c = clients.get(id);
         const again = c.pk.concat(c.sh).some((p) => p.date >= start && p.date <= Math.min(today, endM + grace));
-        if (again) outBack++; else if (endM + grace > today) outWait++; else outLeft++;
+        if (again) o.outBack++; else if (endM + grace > today) o.outWait++; else o.outLeft++;
       }
       const inMonth = packages.filter((p) => p.date >= start && p.date <= endM && own(p));
-      const by = (t) => inMonth.filter((p) => p.type === t);
-      const sum = (l) => Math.round(l.reduce((a, p) => a + (p.px || 0), 0));
       const coach = {};
       for (const p of inMonth) {
-        const k = p.coach || "(no coach)"; const o = coach[k] || (coach[k] = { s: 0, n: 0 });
-        o.s += p.px || 0; if (p.type === "New") o.n++;
+        const k = p.coach || "(no coach)", t = tKey[p.type]; if (!t) continue;
+        const o = get(k); o.pk[t]++; o.aed[t] += p.px || 0; if (p.unit !== "Months") o.ses[t] += p.size || 0;
+        const c2 = coach[k] || (coach[k] = { s: 0, n: 0 }); c2.s += p.px || 0; if (p.type === "New") c2.n++;
       }
       for (const k in coach) coach[k].s = Math.round(coach[k].s);
-      months.push({
-        p: `${y}-${String(m).padStart(2, "0")}`, partial: at < endM,
-        start: A0.size, nw, back, out, outBack, outLeft, outWait, end: A1.size,
-        pk: { ren: by("Renewal").length, nw: by("New").length, ret: by("Returning").length },
-        aed: { ren: sum(by("Renewal")), nw: sum(by("New")), ret: sum(by("Returning")) },
-        // Sessions bought, so a fall in renewals can be told apart from clients moving to bigger packages.
-        ses: Object.fromEntries([["ren", "Renewal"], ["nw", "New"], ["ret", "Returning"]].map(([k, t]) => [k, by(t).filter((p) => p.unit !== "Months").reduce((a, p) => a + (p.size || 0), 0)])),
-        coach,
-      });
+      for (const k in by) for (const t of ["ren", "nw", "ret"]) by[k].aed[t] = Math.round(by[k].aed[t]);
+      // The team: every coach added up (moves between coaches cancel out).
+      const tot = blank();
+      for (const k in by) {
+        for (const f of ["start", "nw", "back", "out", "outBack", "outLeft", "outWait", "end"]) tot[f] += by[k][f];
+        for (const g of ["pk", "aed", "ses"]) for (const t of ["ren", "nw", "ret"]) tot[g][t] += by[k][g][t];
+      }
+      delete tot.movIn; delete tot.movOut; delete tot.movFrom; delete tot.movTo;
+      months.push({ p: `${y}-${String(m).padStart(2, "0")}`, partial: at < endM, ...tot, coach, by });
       if (at < endM) break;
       A0 = A1; m++; if (m > 12) { m = 1; y++; }
     }
@@ -411,10 +429,13 @@ export function buildClientsModel(sheets, opts = {}) {
   });
   const ty = +iso(today).slice(0, 4), tm = +iso(today).slice(5, 7), td = +iso(today).slice(8, 10);
   const back = (n) => toSerial(ty, tm - n, td);       // Date.UTC rolls the month over the year
-  const mix = { now: mixFor(activeNow), at: {} };
+  // Also split by coach, so a page can leave a coach out.
+  const coachOn = (c, d) => coachAt(c, statusOn(c, d), d);
+  const byCoach = (list, d) => { const g = {}; for (const c of list) { const k = coachOn(c, d); (g[k] = g[k] || []).push(c); } const o = {}; for (const k in g) o[k] = mixFor(g[k]); return o; };
+  const mix = { now: mixFor(activeNow), nowBy: byCoach(activeNow, today), at: {} };
   for (const [k, d] of [["3", back(3)], ["6", back(6)], ["12", back(12)], ["y", toSerial(ty, 1, 1)]]) {
-    mix.at[k] = { d: iso(d), n: 0, ...mixFor([...clients.values()].filter((c) => statusOn(c, d).status === "Active")) };
-    mix.at[k].n = Object.values(mix.at[k].service).reduce((a, b) => a + b, 0);
+    const list = [...clients.values()].filter((c) => statusOn(c, d).status === "Active");
+    mix.at[k] = { d: iso(d), n: list.length, ...mixFor(list), by: byCoach(list, d) };
   }
 
   /* ---- Headline numbers ---- */
@@ -432,6 +453,9 @@ export function buildClientsModel(sheets, opts = {}) {
     nwMonth: new Set(thisMonth.filter((p) => p.type === "New").map((p) => p.id)).size,
     renMonth: thisMonth.filter((p) => p.type === "Renewal").length,
     carry: activeNow.filter((c) => !c.now.fromPackages).length,
+    // The same two counts per coach, so a page can leave a coach out.
+    activeBy: Object.fromEntries([...activeOn(today)].reduce((m, [, k]) => m.set(k, (m.get(k) || 0) + 1), new Map())),
+    active30By: Object.fromEntries([...activeOn(today - 30)].reduce((m, [, k]) => m.set(k, (m.get(k) || 0) + 1), new Map())),
   };
 
   /* ---- Things in the file worth a look ---- */

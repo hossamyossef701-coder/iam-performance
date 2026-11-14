@@ -231,6 +231,7 @@ body.locked{overflow:hidden;}
   <div class="bar">
     <span class="seg"><a href="./report.html">Performance</a><a class="on" href="./clients.html">Clients</a><a href="./overview.html">Overview</a><a href="./coach.html">Coach review</a></span>
     <span class="grow"></span>
+    <span class="seg" id="segScope"><button data-v="all">With Hossam</button><button data-v="team">Team only</button></span>
     <select id="selWin" aria-label="Period">
       <option value="3">Last 3 months</option><option value="6">Last 6 months</option>
       <option value="12">Last 12 months</option><option value="y">This year</option>
@@ -357,6 +358,47 @@ var PASS_KEY="iamclients:pass", CFG_KEY="iamlive:cfg", UI_KEY="iamclients:ui3";
 var MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 // Fixed colour per coach, in the order coaches are listed - never re-assigned by a filter.
 var PAL=["#ef691d","#3987e5","#5eb87a","#b8578a","#e0a63c","#8f7ee0","#4cb7b0","#d36a6a","#a39e96","#c08a5b","#6f9fd8","#9cc36b"];
+// With or without the Fitness Director's own clients: one switch shared by every page.
+var DIRECTOR="Hossam", SCOPE_KEY="iam:scope", scope="all";
+try{ scope=localStorage.getItem(SCOPE_KEY)==="team"?"team":"all"; }catch(e){}
+var M0=null;
+// The figures the page shows, with the director's clients left out when asked. Every count is
+// kept per coach in the data, so leaving one coach out still adds up; a client who moved to or
+// from that coach counts as came back / renewed later, as for any coach outside the view.
+function view(m0){
+  if(scope==="all") return m0;
+  var keep=function(c){ return c!==DIRECTOR; }, v=Object.assign({},m0);
+  var F=["start","nw","back","out","outBack","outLeft","outWait","end"], G=["pk","aed","ses"], T=["ren","nw","ret"];
+  v.months=m0.months.map(function(mo){
+    var t={start:0,nw:0,back:0,out:0,outBack:0,outLeft:0,outWait:0,end:0,pk:{ren:0,nw:0,ret:0},aed:{ren:0,nw:0,ret:0},ses:{ren:0,nw:0,ret:0}};
+    Object.keys(mo.by||{}).forEach(function(k){
+      if(!keep(k)) return; var o=mo.by[k];
+      F.forEach(function(f){ t[f]+=o[f]||0; });
+      Object.keys(o.movFrom||{}).forEach(function(f){ if(!keep(f)) t.back+=o.movFrom[f]; });
+      Object.keys(o.movTo||{}).forEach(function(f){ if(!keep(f)){ t.out+=o.movTo[f]; t.outBack+=o.movTo[f]; } });
+      G.forEach(function(g){ T.forEach(function(x){ t[g][x]+=o[g][x]||0; }); });
+    });
+    var coach={}; Object.keys(mo.coach||{}).forEach(function(k){ if(keep(k)) coach[k]=mo.coach[k]; });
+    return Object.assign({p:mo.p,partial:mo.partial,coach:coach,by:mo.by},t);
+  });
+  v.dec=m0.dec.filter(function(d){ return keep(d.c); });
+  v.cohort=m0.cohort.filter(function(r){ return keep(r.c); });
+  v.coaches=m0.coaches.filter(function(r){ return keep(r.c); });
+  var uc={}, soon=0, due=0, aedT=0;
+  Object.keys(m0.up.coach).forEach(function(k){ if(!keep(k)) return; var o=m0.up.coach[k]; uc[k]=o; due+=o.due; soon+=o.n-o.due; aedT+=o.aed; });
+  v.up=Object.assign({},m0.up,{coach:uc,soon:soon,due:due,aed:aedT});
+  var sum=function(o){ var t=0; Object.keys(o||{}).forEach(function(k){ if(keep(k)) t+=o[k]; }); return t; };
+  var last=v.months[v.months.length-1]||{coach:{},pk:{nw:0,ren:0}}, yr=m0.today.slice(0,4), ny=0;
+  v.months.forEach(function(mo){ if(mo.p.slice(0,4)===yr) Object.keys(mo.coach).forEach(function(k){ ny+=mo.coach[k].n; }); });
+  var sm=0; Object.keys(last.coach).forEach(function(k){ sm+=last.coach[k].s; });
+  v.kpi=Object.assign({},m0.kpi,{active:sum(m0.kpi.activeBy),active30:sum(m0.kpi.active30By),newYear:ny,salesMonth:sm,nwMonth:last.pk.nw,renMonth:last.pk.ren});
+  function mixSum(by){ var o={service:{},gender:{},age:{},lang:{}};
+    Object.keys(by||{}).forEach(function(k){ if(!keep(k)) return; ["service","gender","age","lang"].forEach(function(d){ var src=by[k][d]||{}; Object.keys(src).forEach(function(x){ o[d][x]=(o[d][x]||0)+src[x]; }); }); });
+    return o; }
+  var at={}; Object.keys(m0.mix.at).forEach(function(k){ var a=m0.mix.at[k], s=mixSum(a.by), n=0; Object.keys(s.service).forEach(function(x){ n+=s.service[x]; }); at[k]=Object.assign({d:a.d,n:n},s); });
+  v.mix=Object.assign({},m0.mix,{now:mixSum(m0.mix.nowBy),at:at});
+  return v;
+}
 var M=null, ui={win:"6", per:"m", xt:"age", surv:null, m:{g:"",age:"",svc:"",pkg:""}};
 try{ var sv=JSON.parse(localStorage.getItem(UI_KEY)||"{}"); for(var k in sv) ui[k]=sv[k]; }catch(e){}
 function saveUi(){ try{ localStorage.setItem(UI_KEY,JSON.stringify(ui)); }catch(e){} }
@@ -799,7 +841,7 @@ function coaches(){
       "<td>"+sv(s3)+"</td><td>"+sv(s6)+"</td><td>"+(nw||'<span class="dim">0</span>')+"</td><td>"+(sales?aed(sales):'<span class="dim">—</span>')+"</td></tr>";
   }).join("");
   var k3=km(M.cohort), n3=Math.round(k3.at(91.3)*100), n6=Math.round(k3.at(182.6)*100), tn=tot.kept+tot.moved+tot.lost;
-  body+='<tr class="total"><td class="l">Team</td><td>'+tot.a+"</td><td>"+aed(tot.up)+' <span class="dim">· '+tot.upn+'</span></td><td class="l"><span class="sml-n">'+tot.kept+" · "+tot.moved+" · "+tot.lost+"</span> "+'<span class="dim">+'+pendIn()+" deciding · </span>"+
+  body+='<tr class="total"><td class="l">'+(scope==="team"?"Team without Hossam":"Team")+'</td><td>'+tot.a+"</td><td>"+aed(tot.up)+' <span class="dim">· '+tot.upn+'</span></td><td class="l"><span class="sml-n">'+tot.kept+" · "+tot.moved+" · "+tot.lost+"</span> "+'<span class="dim">+'+pendIn()+" deciding · </span>"+
     '<span class="dim">'+pct(tot.kept+tot.moved,tn)+" stayed</span></td><td>"+pct(tot.e,tot.en)+"</td><td>"+n3+"%</td><td>"+n6+"%</td><td>"+tot.nw+"</td><td>"+aed(tot.sales)+"</td></tr>";
   $("coachTbl").innerHTML=head+"<tbody>"+body+"</tbody>";
 }
@@ -943,6 +985,8 @@ function checks(){
 
 /* ---------- page ---------- */
 function paint(){
+  M=view(M0);
+  Array.prototype.forEach.call($("segScope").querySelectorAll("button"),function(b){ b.classList.toggle("on",b.getAttribute("data-v")===scope); });
   var gen=M.generated?new Date(M.generated):null;
   $("stamp").innerHTML=(gen?"Read "+gen.toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"}):"")+"<br>"+M.kpi.total+" clients on file · AED without VAT";
   $("selWin").value=ui.win;
@@ -968,7 +1012,7 @@ function whyMissing(){
 function load(pass){
   return loadEnc("clients.enc.json").then(function(env){ return decrypt(env,pass); }).then(function(m){
     if(!m||m.v!==2) throw new Error("old");
-    M=m;
+    M0=m; M=view(M0);
   });
 }
 function unlock(){
@@ -1013,6 +1057,9 @@ unlock().then(function(pass){
   (function(){ var b=$("btnNotes"), on=false; try{ on=localStorage.getItem("iam:notes")==="1"; }catch(e){}
     function set(){ document.body.classList.toggle("notes",on); b.classList.toggle("on",on); }
     b.addEventListener("click",function(){ on=!on; try{ localStorage.setItem("iam:notes",on?"1":"0"); }catch(e){} set(); }); set(); })();
+  Array.prototype.forEach.call($("segScope").querySelectorAll("button"),function(b){
+    b.addEventListener("click",function(){ scope=b.getAttribute("data-v"); try{ localStorage.setItem(SCOPE_KEY,scope); }catch(e){} ui.surv=null; paint(); });
+  });
   $("btnReload").addEventListener("click",function(){
     var b=this; b.disabled=true; b.textContent="Reloading…";
     load(pass).then(paint).catch(function(){}).then(function(){ b.disabled=false; b.textContent="Reload"; });

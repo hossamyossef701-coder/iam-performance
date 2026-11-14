@@ -1,6 +1,6 @@
 // Network-first: the dashboard must never show yesterday's numbers from a cache. The cache
 // exists only so the app still opens when the phone is offline.
-const CACHE = "iam-perf-v15";
+const CACHE = "iam-perf-v18";
 const SHELL = ["./index.html", "./report.html", "./clients.html", "./overview.html", "./coach.html", "./common.js", "./common.css", "./manifest.webmanifest", "./report.webmanifest",
   "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png",
   "./fonts/alata.css", "./fonts/alata-latin-400-normal.woff2", "./fonts/alata-latin-ext-400-normal.woff2"];

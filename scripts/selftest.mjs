@@ -346,6 +346,24 @@ const PROJ_HEAD = [[0, "Commitment %"], [1, "Client Name"], ...days(2, 30), [34,
   check("join: two clients who both fit are left for a person to confirm", unl.names.unclear.map((x) => [x.name, x.sug.map((s) => s.id).sort()]), [["Omar", ["C0003", "C0004"]]]);
 }
 
+/* 9m. Sessions are counted against packages in order, so sessions before a late renewal belong to it. */
+{
+  const D = (y, m, d) => Math.round((Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 86400000);
+  const pk = (date, end) => ({ date, end, size: 24, unit: "Sessions", px: 5000, coach: "Sue", coaches: ["Sue"], type: "Renewal" });
+  const oct = "1".repeat(24) + ".".repeat(7);                      // 24 sessions, 1-24 Oct
+  const nov = "1.1.1.1" + ".".repeat(24);                           // 1, 3, 5 and 7 Nov
+  const periods = { "2026-10": { Sue: { cl: [["Lisa Roberts", 300, oct]] } }, "2026-11": { Sue: { cl: [["Lisa Roberts", 300, nov]] } } };
+  const run = (today, pks, status) => buildOverview({ inner: { today, grace: 90, loggedFrom: D(2026, 1, 1), vat: 5, decisions: [],
+    clients: [{ id: "C0001", name: "Lisa Roberts", coach: "Sue", status, P: pks[pks.length - 1].end, joined: D(2026, 10, 1), told: null, agreed: null, pk: pks }] },
+    periods, links: [], now: "2026-11", cutoffDay: today - D(2026, 10, 31), revenueOf: () => null }).inUse[0];
+  // 5 Nov, renewal not logged yet: 3 sessions beyond what is paid.
+  const before = run(D(2026, 11, 5), [pk(D(2026, 10, 1), D(2026, 11, 25))], "Active");
+  // 8 Nov, renewed on 6 Nov: the 3 sessions and the one on 7 Nov are the new package's first 4.
+  const after = run(D(2026, 11, 8), [pk(D(2026, 10, 1), D(2026, 11, 25)), pk(D(2026, 11, 6), D(2027, 1, 29))], "Active");
+  check("packages: sessions before a late renewal count toward it",
+    { before: [before.state, before.unpaid], after: [after.used, after.left] }, { before: ["unpaid", 3], after: [4, 20] });
+}
+
 /* 10. Month tab names. */
 check("sheet names", ["Oct 2026", "Sept 2026", "October 2026", " October 2022", "Assessment Report - 2026"].map(sheetNameToPeriod),
   ["2026-10", "2026-09", "2026-10", "2022-10", null]);

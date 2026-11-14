@@ -163,29 +163,61 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
     if (o.months.has(now) && c.status === "Ended") endedOnSheet.push({ coach: o.coach, name: o.name, id, until: c.P != null ? iso(c.P) : null });
   }
 
-  /* 5. Packages in use, per client ---- */
+  /* 5. Packages in use, per client ----
+     Sessions are counted against packages in order, not by date: a package takes sessions until
+     its size is used up, and every session after that belongs to the next package, whenever it
+     is paid for. So a client who finishes 24 sessions on 31 Oct, trains on 1, 3 and 5 Nov and
+     renews on 6 Nov has 3 of the new package used on the day it is bought - nothing has to look
+     back for them. Before the renewal is logged, those 3 show as sessions not yet paid for. And
+     a client who renews early uses up the old package first. */
+  const clMonths = [...new Set([...sheetNames.values()].flatMap((o) => [...o.months]))].sort();
+  const W0 = clMonths.length ? serial(clMonths[0] + "-01") : today;   // the first day the sheets cover
+  function ledger(c, d) {
+    const pk = c.pk.filter((p) => p.unit !== "Months" && p.size && p.date <= today);
+    if (!pk.length || c.pk.some((p) => p.unit === "Months" && p.date <= today && p.end >= today)) return null;
+    // Start at the first package bought inside the days the sheets cover (or the latest one).
+    let i = pk.findIndex((p) => p.date >= W0); if (i < 0) i = pk.length - 1;
+    const prev = pk[i - 1];
+    // Sessions before that package count toward it only after the package before it was due to end
+    // (for a first package: from two weeks before it, for a client who trained before paying).
+    const from = Math.max(W0, prev ? prev.end + 1 : pk[i].date - 14);
+    const ses = [...(d || new Map())].filter(([day]) => day >= from && day <= today).sort((a, b) => a[0] - b[0]);
+    const pkgs = pk.slice(i).map((p) => ({ date: p.date, end: p.end, size: p.size, used: 0 }));
+    let k = 0, over = 0, overRecent = 0, late = 0, lateRecent = 0;
+    for (const [day, w0] of ses) {
+      let w = w0;
+      while (w > 0) {
+        while (k < pkgs.length && pkgs[k].used >= pkgs[k].size) k++;
+        if (k >= pkgs.length) { over += w; if (day >= today - 30) overRecent += w; break; }
+        const take = Math.min(w, pkgs[k].size - pkgs[k].used);
+        pkgs[k].used += take; w -= take;
+        if (day > pkgs[k].end) { late += take; if (day >= today - 30) lateRecent += take; }
+      }
+    }
+    while (k < pkgs.length && pkgs[k].used >= pkgs[k].size) k++;
+    const cur = pkgs[Math.min(k, pkgs.length - 1)], last = pkgs[pkgs.length - 1];
+    const left = pkgs.reduce((t, p) => t + p.size - p.used, 0);
+    return { cur, last, left, over, overRecent, late, lateRecent };
+  }
   const inUse = [];
   for (const c of inner.clients) {
     if (!["Active", "Renewal due", "Ended"].includes(c.status)) continue;
     const d = daysOf.get(c.id);
-    const cur = c.pk.filter((p) => p.date <= today).pop();
-    const coach = (cur && cur.coach) || c.coach;
+    const curPk = c.pk.filter((p) => p.date <= today).pop();
+    const coach = (curPk && curPk.coach) || c.coach;
     const sheet = (namesOf.get(c.id) || []).find((x) => x.coach === coach) || (namesOf.get(c.id) || [])[0];
     const row = { id: c.id, name: c.name, coach, sheetName: sheet ? sheet.name : null, linked: !!d, status: c.status };
-    if (c.status === "Active" && cur && cur.unit !== "Months" && cur.size) {
-      const used = sumDays(d, cur.date, today), left = cur.size - used;
-      const pace = sumDays(d, today - 27, today) / 4;
-      const weeksLeft = Math.max(0, (cur.end - today) / 7);
-      Object.assign(row, { size: cur.size, start: iso(cur.date), end: iso(cur.end), used, left, pace: +pace.toFixed(2), weeksLeft: +weeksLeft.toFixed(1),
-        state: !d ? "unlinked" : left <= 2 ? "nearly" : left - pace * weeksLeft > 1 ? "short" : "ok" });
-      inUse.push(row);
-    } else if (c.status === "Active" && cur) {
-      inUse.push(Object.assign(row, { unit: cur.unit, end: iso(cur.end), state: !d ? "unlinked" : "ok" }));
-    } else if (c.P != null && d) {
-      // Ran out, but trained after the package ended (in the last 31 days).
-      const after = sumDays(d, Math.max(c.P + 1, today - 30), today);
-      if (after > 0) inUse.push(Object.assign(row, { end: iso(c.P), after, state: "expired" }));
-    }
+    if (!d) { if (c.status === "Active") inUse.push(Object.assign(row, { end: curPk ? iso(curPk.end) : null, state: "unlinked" })); continue; }
+    const L = ledger(c, d);
+    if (!L) { if (c.status === "Active" && curPk) inUse.push(Object.assign(row, { unit: curPk.unit, end: iso(curPk.end), state: "ok" })); continue; }
+    const pace = sumDays(d, today - 27, today) / 4;
+    const weeksLeft = Math.max(0, (L.last.end - today) / 7);
+    Object.assign(row, { size: L.cur.size, used: L.cur.used, left: L.left, end: iso(L.cur.end), lastEnd: iso(L.last.end), pace: +pace.toFixed(2), weeksLeft: +weeksLeft.toFixed(1), unpaid: L.overRecent, late: L.lateRecent });
+    if (L.overRecent > 0) row.state = "unpaid";                 // trained beyond every session paid for
+    else if (L.lateRecent > 0) row.state = "expired";           // using sessions after the package ended
+    else if (c.status !== "Active") continue;
+    else row.state = L.left <= 2 ? "nearly" : L.left - pace * weeksLeft > 1 ? "short" : "ok";
+    inUse.push(row);
   }
 
   // Up for renewal right now: cover from a package ending in the next 30 days, or run out within
@@ -193,7 +225,9 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
   const lastPx = (c) => { const l = c.pk.filter((p) => p.date <= today).pop(); return (l && l.px) || 0; };
   const soon = inner.clients.filter((c) => c.status === "Active" && c.P != null && c.P - today >= 0 && c.P - today <= 30 && c.pk.some((p) => p.end === c.P));
   const due = inner.clients.filter((c) => c.status === "Renewal due");
-  const up = { n: soon.length + due.length, due: due.length, aed: Math.round([...soon, ...due].reduce((t, c) => t + lastPx(c), 0)) };
+  const up = { n: soon.length + due.length, due: due.length, aed: Math.round([...soon, ...due].reduce((t, c) => t + lastPx(c), 0)), coach: {} };
+  for (const c of [...soon, ...due]) { const k = c.coach || "(no coach)", o = up.coach[k] || (up.coach[k] = { n: 0, due: 0, aed: 0 }); o.n++; if (c.status === "Renewal due") o.due++; o.aed += lastPx(c); }
+  for (const k in up.coach) up.coach[k].aed = Math.round(up.coach[k].aed);
 
   /* 6. Package sales against revenue, month by month ---- */
   const from = iso(inner.loggedFrom).slice(0, 7);
@@ -281,5 +315,8 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
     v: 1, today: iso(today), now, grace: inner.grace, loggedFrom: iso(inner.loggedFrom),
     names: { auto, byHand, ignored, unclear: unclear.sort((a, b) => (b.last || "").localeCompare(a.last || "") || a.coach.localeCompare(b.coach)), notInFile: notInFile.sort((a, b) => (b.last || "").localeCompare(a.last || "")), endedOnSheet, bad, hasTab: head >= 0 },
     inUse, up, months, perCoach, team, clientsOfCoach,
+    // Active clients per coach right now, by the coach on the Clients tab (a handoff updates it).
+    activeByCoach: inner.clients.filter((c) => c.status === "Active").reduce((o, c) => {
+      const k = c.coach || ((c.pk.filter((p) => p.date <= today).pop() || {}).coach) || "(no coach)"; o[k] = (o[k] || 0) + 1; return o; }, {}),
   };
 }
