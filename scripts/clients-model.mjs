@@ -438,6 +438,25 @@ export function buildClientsModel(sheets, opts = {}) {
     mix.at[k] = { d: iso(d), n: list.length, ...mixFor(list), by: byCoach(list, d) };
   }
 
+  /* ---- Existing clients kept: of the clients active at the start of a period, how many are
+     still active today, per coach (the coach they were with at the start). Unlike the renewal
+     figures this needs no package to have run out, so it covers every client, long-standing
+     ones included. A period that would start before purchases were fully logged starts there. ---- */
+  const withUs = (d) => { const s = new Map(); for (const c of clients.values()) { const st = statusOn(c, d);
+    if (st.status === "Active" || st.status === "Renewal due") s.set(c.id, { coach: coachAt(c, st, d), due: st.status === "Renewal due" }); } return s; };
+  const kept = {};
+  for (const [k, d0] of [["3", back(3)], ["6", back(6)], ["12", back(12)], ["y", toSerial(ty, 1, 1)]]) {
+    // A client inside the grace period (Renewal due) is still a client on both dates: only one whose
+    // grace period ran out, or who said they are stopping, counts as gone. wait = of those still
+    // here, how many are inside the grace period today, so the figure can show what is not settled.
+    const d = Math.max(d0, loggedFrom), then = withUs(d), nowA = withUs(today), by = {};
+    for (const [id, coach] of then) {
+      const o = by[coach.coach] || (by[coach.coach] = { start: 0, still: 0, same: 0, wait: 0 });
+      o.start++; if (nowA.has(id)) { o.still++; if (nowA.get(id).coach === coach.coach) o.same++; if (nowA.get(id).due) o.wait++; }
+    }
+    kept[k] = { d: iso(d), by };
+  }
+
   /* ---- Headline numbers ---- */
   const monthStart = toSerial(+iso(today).slice(0, 4), +iso(today).slice(5, 7), 1);
   const thisMonth = packages.filter((p) => p.date >= monthStart && p.date <= today && own(p));
@@ -477,7 +496,7 @@ export function buildClientsModel(sheets, opts = {}) {
   const out = {
     v: 2, today: iso(today),
     settings: { grace, reminder, vat, goLive: iso(goLive), carryUntil: iso(goLive + carryDays), loggedFrom: iso(loggedFrom), newCoachMonths: num(label(/^new coach priority/i)) ?? 3 },
-    kpi, months, up, coaches, dec, cohort, cl, mix, checks,
+    kpi, months, up, coaches, dec, cohort, cl, mix, kept, checks,
   };
   // For the refresh job only, never written to the Clients page: what the coach sheets are
   // joined to for the Overview and Coach review pages (which are locked with the Performance

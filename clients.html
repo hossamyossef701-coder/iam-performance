@@ -825,9 +825,12 @@ function survAt(c,m){
 }
 function coaches(){
   CUR="coach";
-  var s0=since(), list=decIn(), tot={a:0,up:0,upn:0,kept:0,moved:0,lost:0,nw:0,sales:0,e:0,en:0,as:0,ac:0};
+  var s0=since(), list=decIn(), tot={a:0,up:0,upn:0,kept:0,moved:0,lost:0,nw:0,sales:0,e:0,en:0,as:0,ac:0,ks:0,kk:0,kw:0};
+  var K=(M.kept&&M.kept[W()])||{d:s0,by:{}};
+  function kc(still,start,same,wait){ if(!start) return '<span class="dim">—</span>'; var v=Math.round(still/start*100);
+    return '<span class="'+(v>=75?"up":v<50?"down":"")+'" title="With us on '+fmtDate(K.d)+": "+start+". Still with us today: "+still+(same!=null?" ("+same+" with the same coach)":"")+(wait?". Of those, "+wait+" are past their package and still inside the grace period":"")+'">'+v+'%</span> <span class="dim" style="font-size:11px">'+still+" of "+start+"</span>"+(wait?'<div class="dim" style="font-size:11px;line-height:1.2">'+wait+" deciding</div>":""); }
   $("coachUnit").textContent="clients whose package ran out "+winLabel()+" · AED without VAT";
-  var head="<thead><tr>"+[["Coach","l"],["Active",""],["Up for<br>renewal",""],["Stayed · moved coach · left","l"],["Renewed<br>before expiry",""],["New clients still<br>here at 3 months",""],["At 6<br>months",""],["Assessments<br>converted",""],["New<br>clients",""],["Package<br>sales",""]]
+  var head="<thead><tr>"+[["Coach","l"],["Active",""],["Up for<br>renewal",""],["Existing clients<br>still with us",""],["Stayed · moved coach · left","l"],["Renewed<br>before expiry",""],["New clients still<br>here at 3 months",""],["At 6<br>months",""],["Assessments<br>converted",""],["New<br>clients",""],["Package<br>sales",""]]
     .map(function(c){ return '<th class="'+c[1]+'">'+c[0]+"</th>"; }).join("")+"</tr></thead>";
   var body=M.coaches.map(function(r){
     var mine=list.filter(function(d){ return d.c===r.c; }), o=stayedLeft(mine), n=o.kept+o.moved+o.lost;
@@ -836,24 +839,36 @@ function coaches(){
     // New clients and sales by calendar month, from the month the period starts in.
     var nw=0, sales=0; winMonths().forEach(function(m){ if(m.coach[r.c]){ nw+=m.coach[r.c].n; sales+=m.coach[r.c].s; } });
     // Assessments the coach completed in the period, and how many became clients (from the tracker).
-    var as={a:0,c:0}; if(M.assess) Object.keys(M.assess).forEach(function(q){ var x=M.assess[q][r.c]; if(q>=s0.slice(0,7)&&x){ as.a+=x.a; as.c+=x.c; } });
-    if(!r.active&&!n&&!up.n&&!nw&&!pendIn(r.c)&&!as.a) return "";
+    var as={a:0,c:0}; if(M.assess) Object.keys(M.assess).forEach(function(q){ if(q<s0.slice(0,7)) return; var b=M.assess[q], sq=function(t){ return String(t).toLowerCase().replace(/[^a-z]/g,""); }, me=sq(r.c), f=sq(String(r.c).split(" ")[0]);
+      // The tracker and the Clients file may spell a coach differently (full name against first name).
+      var ks=Object.keys(b).filter(function(k){ return sq(k)===me; }); if(!ks.length) ks=Object.keys(b).filter(function(k){ return sq(String(k).split(" ")[0])===f; });
+      ks.forEach(function(k){ as.a+=b[k].a; as.c+=b[k].c; }); });
+    // Of the clients active with this coach when the period started, how many are active today.
+    var kp=(K.by[r.c])||{start:0,still:0,same:0,wait:0};
+    if(!r.active&&!n&&!up.n&&!nw&&!pendIn(r.c)&&!as.a&&!kp.start) return "";
+    tot.ks+=kp.start; tot.kk+=kp.still; tot.kw+=kp.wait||0;
     tot.as+=as.a; tot.ac+=as.c;
     tot.a+=r.active; tot.up+=up.aed; tot.upn+=up.n; tot.kept+=o.kept; tot.moved+=o.moved; tot.lost+=o.lost; tot.nw+=nw; tot.sales+=sales; tot.e+=early; tot.en+=ren.length;
     var W=150, bars=n?[["kept","var(--up)"],["moved","var(--s-ret)"],["lost","var(--s-lost)"]].filter(function(p){ return o[p[0]]; }).map(function(p){
       return '<span style="width:'+(o[p[0]]/n*100)+'%;background:'+p[1]+'"></span>'; }).join(""):"";
     var s3=survAt(r.c,3), s6=survAt(r.c,6);
-    function cv(c,a){ if(!M.assess||!a) return '<span class="dim">—</span>'; var v=Math.round(c/a*100); return '<span class="'+(v>=70?"up":v<40?"down":"")+'">'+v+'%</span> <span class="dim" style="font-size:11px">'+c+" of "+a+"</span>"; }
+    function cv(c,a){ if(!M.assess) return '<span class="dim" style="font-size:11px">not read yet</span>'; if(!a) return '<span class="dim">—</span>'; var v=Math.round(c/a*100); return '<span class="'+(v>=70?"up":v<40?"down":"")+'">'+v+'%</span> <span class="dim" style="font-size:11px">'+c+" of "+a+"</span>"; }
     function sv(x){ if(!x) return '<span class="dim">—</span>'; var v=Math.round(x.v*100);
       return '<span class="'+(v>=75?"up":v<45?"down":"")+'" title="'+x.n+' new clients since '+fmtDate(M.settings.loggedFrom)+'">'+v+'%</span> <span class="dim" style="font-size:11px">('+x.n+")</span>"; }
     return '<tr><td class="l">'+esc(r.c)+(r.status==="Former"?' <span class="pill">former</span>':"")+"</td><td>"+r.active+"</td>"+
       "<td>"+(up.n?'<span class="'+(up.aed>=40000?"watch":"")+'">'+aed(up.aed)+'</span> <span class="dim">· '+up.n+"</span>":'<span class="dim">—</span>')+"</td>"+
+      "<td>"+kc(kp.still,kp.start,kp.same,kp.wait)+"</td>"+
       '<td class="l">'+(n?'<span class="sml"><span class="sml-bar">'+bars+'</span><span class="sml-n">'+o.kept+" · "+o.moved+" · "+o.lost+"</span>"+(pendIn(r.c)?'<span class="dim">+'+pendIn(r.c)+" deciding</span>":"")+"</span>":(pendIn(r.c)?'<span class="dim">'+pendIn(r.c)+" still deciding</span>":'<span class="dim">none in this period</span>'))+"</td>"+
       "<td>"+(ren.length?pct(early,ren.length)+' <span class="dim">of '+ren.length+"</span>":'<span class="dim">—</span>')+"</td>"+
       "<td>"+sv(s3)+"</td><td>"+sv(s6)+"</td><td>"+cv(as.c,as.a)+"</td><td>"+(nw||'<span class="dim">0</span>')+"</td><td>"+(sales?aed(sales):'<span class="dim">—</span>')+"</td></tr>";
   }).join("");
+  // Clients who were with a coach who has since left and is not listed above: one row, so the team total holds everyone.
+  var gone={start:0,still:0,wait:0}, listed={}; M.coaches.forEach(function(r){ listed[r.c]=1; });
+  Object.keys(K.by).forEach(function(c){ if(listed[c]||(scope==="team"&&c===DIRECTOR)) return; gone.start+=K.by[c].start; gone.still+=K.by[c].still; gone.wait+=K.by[c].wait||0; });
+  if(gone.start){ tot.ks+=gone.start; tot.kk+=gone.still; tot.kw+=gone.wait;
+    body+='<tr><td class="l dim">Coaches who left</td><td></td><td></td><td>'+kc(gone.still,gone.start,null,gone.wait)+"</td>"+new Array(8).join("<td></td>")+"</tr>"; }
   var k3=km(M.cohort), n3=Math.round(k3.at(91.3)*100), n6=Math.round(k3.at(182.6)*100), tn=tot.kept+tot.moved+tot.lost;
-  body+='<tr class="total"><td class="l">'+(scope==="team"?"Team without Hossam":"Team")+'</td><td>'+tot.a+"</td><td>"+aed(tot.up)+' <span class="dim">· '+tot.upn+'</span></td><td class="l"><span class="sml-n">'+tot.kept+" · "+tot.moved+" · "+tot.lost+"</span> "+'<span class="dim">+'+pendIn()+" deciding · </span>"+
+  body+='<tr class="total"><td class="l">'+(scope==="team"?"Team without Hossam":"Team")+'</td><td>'+tot.a+"</td><td>"+aed(tot.up)+' <span class="dim">· '+tot.upn+'</span></td><td>'+kc(tot.kk,tot.ks,null,tot.kw)+'</td><td class="l"><span class="sml-n">'+tot.kept+" · "+tot.moved+" · "+tot.lost+"</span> "+'<span class="dim">+'+pendIn()+" deciding · </span>"+
     '<span class="dim">'+pct(tot.kept+tot.moved,tn)+" stayed</span></td><td>"+pct(tot.e,tot.en)+"</td><td>"+n3+"%</td><td>"+n6+"%</td><td>"+(tot.as?pct(tot.ac,tot.as)+' <span class="dim" style="font-size:11px">'+tot.ac+" of "+tot.as+"</span>":"—")+"</td><td>"+tot.nw+"</td><td>"+aed(tot.sales)+"</td></tr>";
   $("coachTbl").innerHTML=head+"<tbody>"+body+"</tbody>";
 }
@@ -991,6 +1006,7 @@ function checks(){
     "<b>Active</b>: the client's latest package is still running (its length from the Settings tab, or the Extended until date).",
     "<b>Up for renewal</b>: a package ending in the next 30 days, or one that ran out in the last "+S.grace+" days with nothing new. Valued at the client's last package.",
     "<b>Stayed, moved coach, left</b>: counted in clients, once each per coach: the last time their package ran out in the period. Stayed = bought again with the same coach within "+S.grace+" days. Moved = bought again with another coach. Left = nothing new within "+S.grace+" days.",
+    "<b>Existing clients still with us</b>: of the clients with the coach on the first day of the period, how many are still clients today (with any coach). A client past their package and inside the grace period counts as still with us and is shown as deciding; a client counts as gone once the grace period runs out or they say they are stopping. It covers every client, not only new ones.",
     "<b>Renewed before expiry</b>: of the renewals in the period, the share bought on or before the day the package ran out.",
     "<b>Still here at 3 and 6 months</b>: of the coach's new clients since "+fmtDate(S.loggedFrom)+", how many were still clients that long after their first package. Clients still with us count for as long as we have watched them.",
     "<b>New, returning, renewal</b>: a first purchase is New; one more than "+S.grace+" days after the last package ran out is Returning; anything sooner is a Renewal.",
