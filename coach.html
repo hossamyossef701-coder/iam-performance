@@ -12,6 +12,29 @@
 <link rel="stylesheet" href="./fonts/alata.css">
 <link rel="stylesheet" href="./common.css">
 <style>
+/* The 1+1 table: the same KPIs, in the same order, as the coach KPI sheet. */
+.kt td,.kt th{padding:8px 9px;}
+.kt td.l,.kt th.l{text-align:left;}
+.kt td.nm{white-space:normal;min-width:190px;max-width:240px;line-height:1.35;}
+.kt td.nm .bw{display:block;font-size:10.5px;color:var(--ink-faint);}
+.kt td.m{min-width:58px;}
+.kt td.g{background:rgba(94,184,122,.16);color:#bfe5ca;}
+.kt td.r{background:rgba(225,75,75,.15);color:#f6c6c6;}
+.kt td.s{background:rgba(255,255,255,.045);}
+.kt td.p{color:var(--ink-faint);font-style:italic;}
+.kt th.sel,.kt td.sel{box-shadow:inset 0 2px 0 var(--accent),inset 0 -2px 0 var(--accent);}
+.kt th.sel{color:var(--accent-2);}
+.kt td.adv{white-space:normal;text-align:left;min-width:260px;max-width:380px;font-size:12px;color:var(--ink-soft);line-height:1.45;}
+.kt tbody tr{cursor:pointer;}
+.kt tbody tr.on td.nm{color:var(--accent-2);}
+.kt td.mid{color:var(--ink-faint);}
+.kt td.tr{font-size:12px;}
+.kt .sep{border-left:1px solid var(--line);}
+.copyb{padding:6px 11px;font-size:12px;}
+.who{display:grid;grid-template-columns:1fr auto;gap:5px 14px;font-size:13px;}
+.who .r{text-align:right;color:var(--ink-soft);font-variant-numeric:tabular-nums;}
+.who .h{grid-column:1/-1;font-size:9.5px;letter-spacing:.17em;text-transform:uppercase;color:var(--ink-faint);margin-top:10px;}
+.who .h:first-child{margin-top:0;}
 .agree{display:grid;grid-template-columns:minmax(90px,150px) 1fr 74px;gap:10px;align-items:center;padding:4px 0;font-size:12.5px;font-variant-numeric:tabular-nums;}
 .agree .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .agree .trk{position:relative;height:16px;}
@@ -23,11 +46,9 @@
 .room span:nth-child(even){text-align:right;font-variant-numeric:tabular-nums;}
 .room .sepr{grid-column:1/-1;border-top:1px solid var(--line-soft);margin:6px 0;}
 .room .tot{font-size:22px;color:var(--accent-2);}
-.keep{display:flex;height:30px;gap:2px;margin:4px 0 14px;}
-.keep span{display:flex;align-items:center;justify-content:center;font-size:12px;color:#120800;border-radius:4px;min-width:2px;}
-.kv{display:grid;grid-template-columns:1fr auto auto;gap:6px 16px;font-size:13.5px;align-items:baseline;}
-.kv span:nth-child(3n+2){text-align:right;font-size:15px;font-variant-numeric:tabular-nums;}
-.kv span:nth-child(3n){color:var(--ink-faint);font-size:12px;}
+.tiles.t4{grid-template-columns:repeat(4,1fr);}
+@media(max-width:800px){.tiles.t4{grid-template-columns:repeat(2,1fr);}}
+.tile .v.sm{font-size:17px;line-height:1.3;}
 </style>
 </head>
 <body class="locked">
@@ -55,26 +76,33 @@
     <span class="grow"></span>
     <span class="seg" id="segScope"></span>
     <select id="selCoach" aria-label="Coach"></select>
+    <select id="selMonth" aria-label="Month"></select>
     <button id="btnNames" style="display:none">Show names</button>
     <button id="btnNotes">Notes</button>
   </div>
 
-  <div class="tiles" id="tiles"></div>
+  <div class="tiles t4" id="tiles"></div>
 
   <div class="card section">
-    <div class="card-h"><div><div class="k" id="yrK">Your year</div><div class="t">Revenue each month</div></div><span class="unit">AED, without VAT · * month running, so far</span></div>
-    <div class="card-b"><div class="chart" id="chYear"></div></div>
+    <div class="card-h"><div><div class="k" id="kK">1+1 numbers</div><div class="t" id="kT"></div></div>
+      <span class="unit" id="kU"></span><button class="copyb" id="btnCopy">Copy month</button></div>
+    <div class="scroll"><table class="kt" id="kTbl"></table></div>
+    <div class="card-b" style="padding-top:6px">
+      <div class="legend" style="margin-top:6px"><span><i style="background:rgba(94,184,122,.45)"></i>better than the month before</span><span><i style="background:rgba(225,75,75,.45)"></i>worse</span><span><i style="background:rgba(255,255,255,.12)"></i>the same</span><span class="r">click a row for its chart</span></div>
+      <p class="note" id="kNote"></p>
+    </div>
+  </div>
+
+  <div class="card section">
+    <div class="card-h"><div><div class="k" id="cK"></div><div class="t" id="cT"></div></div><span class="unit" id="cU"></span></div>
+    <div class="card-b"><div class="chart" id="chKpi"></div></div>
   </div>
 
   <div id="one">
     <div class="cols2">
       <div class="card">
-        <div class="card-h"><div><div class="k">Your clients</div><div class="t">Sessions a week, against what was agreed</div></div><span class="unit">last 8 weeks</span></div>
-        <div class="card-b">
-          <div class="legend"><span><i style="background:var(--panel-3);outline:1px solid var(--line)"></i>agreed</span><span><i style="background:var(--up)"></i>on or above</span><span><i style="background:var(--watch)"></i>a little under</span><span><i style="background:var(--down)"></i>well under</span><span><i style="background:var(--ink-faint);width:2px"></i>3 a week</span></div>
-          <div id="clientList"></div>
-          <p class="note">Agreed = the sessions a week the client signed up for, from the Clients file when it has them; otherwise what their package needs to be used up in time (its sessions over its weeks), marked *. Actual = sessions on the coach sheets over the last 8 weeks, or since the package started if later.</p>
-        </div>
+        <div class="card-h"><div><div class="k">Behind the numbers</div><div class="t">The clients to talk about</div></div><span class="unit" id="whoU"></span></div>
+        <div class="card-b"><div class="who" id="who"></div><p class="note">Training less often = trained at half their own usual or less over the last 3 weeks of the month, against the 8 weeks before. Beyond what's paid = right now, sessions trained after every session paid for was used, with no renewal logged. Names come from the coach sheets.</p></div>
       </div>
       <div class="card">
         <div class="card-h"><div><div class="k">Room to grow</div><div class="t">What current clients could add, with no new client</div></div><span class="unit">a month</span></div>
@@ -82,16 +110,12 @@
       </div>
     </div>
     <div class="card section">
-      <div class="card-h"><div><div class="k">Keeping clients</div><div class="t" id="keepT"></div></div><span class="unit">last 12 months · team middle on the right</span></div>
-      <div class="card-b"><div class="keep" id="keepBar"></div><div class="kv" id="keepKv"></div>
-        <p class="note">Stayed = bought again with the same coach within the grace period. Moved = bought again with another coach. Left = nothing new within the grace period. Team middle = the coach in the middle of the team, so one coach's figures are never shown to another.</p></div>
-    </div>
-  </div>
-
-  <div id="team" style="display:none">
-    <div class="card section">
-      <div class="card-h"><div><div class="k">The team</div><div class="t">Each coach side by side</div></div><span class="unit" id="teamUnit"></span></div>
-      <div class="scroll"><table id="teamTbl"></table></div>
+      <div class="card-h"><div><div class="k">Their clients</div><div class="t">Sessions a week, against what was agreed</div></div><span class="unit">last 8 weeks</span></div>
+      <div class="card-b">
+        <div class="legend"><span><i style="background:var(--panel-3);outline:1px solid var(--line)"></i>agreed</span><span><i style="background:var(--up)"></i>on or above</span><span><i style="background:var(--watch)"></i>a little under</span><span><i style="background:var(--down)"></i>well under</span><span><i style="background:var(--ink-faint);width:2px"></i>3 a week</span></div>
+        <div id="clientList"></div>
+        <p class="note">Agreed = the sessions a week the client signed up for, from the Clients file when it has them; otherwise what their package needs to be used up in time (its sessions over its weeks), marked *. Actual = sessions on the coach sheets over the last 8 weeks, or since the package started if later.</p>
+      </div>
     </div>
   </div>
 </div>
@@ -100,87 +124,242 @@
 <script>
 (function(){
 "use strict";
-var C=window.IAM, $=C.$, esc=C.esc, aed=C.aed, D=null, sel="", showNames=false;
+var C=window.IAM, $=C.$, esc=C.esc, D=null, sel="", month="", kSel=0, showNames=false;
+// The coach KPI sheet's rows, in its order, with its advice (generated from the same list).
+var DEFS=[{"name": "Sessions delivered", "better": "Higher", "advice": ["Keep the weekly rhythm that produced this. Note which clients added sessions and offer the same to two more.", "Pick the two lightest days of your week and offer those slots to clients training under 3 a week.", "List the clients who trained less this month and message each one this week to rebook their usual days.", "Two months down: sit with Hossam and go client by client. Agree a weekly session target and review it every Monday."]}, {"name": "Revenue (AED, without VAT)", "better": "Higher", "advice": ["Good. Check whether it came from more sessions or a better rate, and repeat what caused it.", "Revenue follows sessions: raise one client from 2 to 3 sessions a week this month.", "Find the gap: fewer sessions, fewer clients, or lower-rate clients? Fix the biggest one first.", "Two months down: agree a recovery plan with Hossam: sessions target, renewals due, and one new client."]}, {"name": "Projection reached (%)", "better": "Higher", "advice": ["Your forecasting is getting sharper. Keep setting the projection on day 1 with holidays included.", "Review the projection mid-month and rebook any client who is behind their plan.", "Compare projected and actual per client: which clients fell short, and did you know in advance?", "Set next month's projection together with Hossam, client by client, and check it every week."]}, {"name": "Active clients", "better": "Higher", "advice": ["Protect the gain: book each new client's first four weeks in advance.", "Ask two happy clients for a referral this month and follow up on every assessment within 24 hours.", "Call each client who did not renew and ask why. Bring the reasons to the next 1+1.", "Two months down: review every client up for renewal with Hossam before their package ends."]}, {"name": "Sessions a week per client", "better": "Higher", "advice": ["Clients are training more often. Keep proposing fixed weekly days rather than booking session by session.", "Choose three clients under 3 a week and propose a fixed third day to each.", "Find who dropped a day and why (schedule, motivation, travel). Offer an alternative slot the same week.", "Two months down: rebuild each client's weekly plan with them and agree it in writing."]}, {"name": "Clients at 3+ a week (%)", "better": "Higher", "advice": ["More clients at the standard. Share what you said to move them: it will help the team.", "Name the two clients closest to 3 a week and ask for the extra day this week.", "Clients slipped below 3 a week: check their goals are still clear and their programme still excites them.", "Two months down: review programming and results with Hossam for every client under 3 a week."]}, {"name": "Revenue per client (AED)", "better": "Higher", "advice": ["Each client is worth more. Hold the frequency and renew at the same or a bigger package.", "Raise frequency before adding clients: one more session a week from three clients.", "Check whether clients moved to fewer sessions or a lower rate, and address the main cause.", "Two months down: agree with Hossam which clients to move up in frequency or package size."]}, {"name": "Existing clients still with us (%)", "better": "Higher", "advice": ["Clients are staying. Keep the progress reviews that show them their results.", "Book a progress review with every client whose package ends in the next 30 days.", "Someone left: find out why within a week, while it is fresh, and write it down.", "Two months down: review every client's last 4 weeks with Hossam and plan a retention talk for each."]}, {"name": "Renewed before expiry (%)", "better": "Higher", "advice": ["Renewals are happening on time. Keep raising it two weeks before the package ends.", "Start the renewal conversation when 4 sessions are left, not on the last one.", "Renewals are coming late: check the 'nearly used up' list every Monday and talk to those clients first.", "Two months down: give Hossam your list of packages ending this month and agree a date to speak to each client."]}, {"name": "Assessments converted (%)", "better": "Higher", "advice": ["Assessments are converting. Note what you did in the ones that converted and keep doing it.", "Finish every assessment with a clear plan and a proposed start date before the client leaves.", "Follow up every assessment within 24 hours, and ask one who did not join what held them back.", "Two months down: run your next assessment with Hossam watching, and review it together."]}, {"name": "New clients", "better": "Higher", "advice": ["New clients are coming. Make their first month excellent so they renew.", "Ask for one referral a week and post one client result a week.", "Fewer new clients: check how many assessments you had and how many converted.", "Two months down: agree a plan with Hossam for assessments, referrals and floor time."]}, {"name": "Cancelled sessions (%)", "better": "Lower", "advice": ["Fewer cancellations. Keep confirming sessions the day before.", "Confirm every session the evening before and offer a same-week slot when a client cancels.", "Cancellations rose: see whether it is a few clients or everyone, and rebook each cancelled session the same week.", "Two months up: review the cancellation policy with the clients who cancel most, with Hossam's support."]}, {"name": "Clients training less often", "better": "Lower", "advice": ["Fewer clients are dropping off. Keep checking in when someone misses a week.", "Message any client who misses two sessions in a row the same day.", "More clients are training below their usual: speak to each one this week and ask what changed.", "Two months up: go through the list with Hossam and agree an action for each client."]}, {"name": "Clients training beyond what's paid", "better": "Lower", "advice": ["Renewals are being logged on time. Keep telling admin the day a client renews.", "Check your list every Monday and remind clients before their last paid session.", "More clients are training without a paid package: raise the renewal before the next session.", "Two months up: no further sessions for these clients until the renewal is agreed, with Hossam's backing."]}];
+var KEYS=["ses","rev","proj","act","spw","p3","rpc","kept","early","conv","nw","canc","less","up"];
+var PCT={proj:1,p3:1,kept:1,early:1,conv:1,canc:1}, AED={rev:1,rpc:1}, DEC={spw:1};
+// For the team column: counts add up, rates take the coach in the middle.
+var SUM={ses:1,rev:1,act:1,nw:1,less:1,up:1};
 
 function now(){ return D.live.cutoffPeriod; }
+function sq(t){ return String(t||"").toLowerCase().replace(/[^a-z]/g,""); }
 function coaches(){
   var p=now(), set={};
-  Object.keys(D.live.periods[p]||{}).forEach(function(c){ set[c]=1; });
-  Object.keys(D.live.periods[C.prevP(p,1)]||{}).forEach(function(c){ set[c]=1; });
+  [0,1,2].forEach(function(i){ Object.keys(D.live.periods[C.prevP(p,i)]||{}).forEach(function(c){ set[c]=1; }); });
   return Object.keys(set).filter(C.keep).sort();
 }
+// The Clients file and the coach sheets may spell a coach differently ("Shayla" / "Shyla").
+var nameCache={};
+function fileName(c){
+  if(c in nameCache) return nameCache[c];
+  var keys=Object.keys((D.ov&&D.ov.kpiM&&D.ov.kpiM.by)||{}), a=sq(c), f=sq(String(c).split(" ")[0]), hit=null;
+  keys.forEach(function(k){ if(!hit&&sq(k)===a) hit=k; });
+  keys.forEach(function(k){ if(!hit&&sq(String(k).split(" ")[0])===f) hit=k; });
+  keys.forEach(function(k){ var b=sq(k); if(!hit&&b.length>=4&&f.length>=4&&(b.indexOf(f.slice(0,4))===0)&&Math.abs(b.length-f.length)<=1) hit=k; });
+  return (nameCache[c]=hit);
+}
+function months(){
+  var out=[], p=now(), first=Object.keys(D.live.periods).sort()[0];
+  for(var i=0;i<24;i++){ var q=C.prevP(p,i); if(q<first) break; out.push(q); }
+  return out;
+}
+
+/* ---- the fourteen numbers for one coach in one month ---- */
+var cache={};
+function val(c,p){
+  var key=c+"|"+p; if(cache[key]) return cache[key];
+  var live=D.live, x=(live.periods[p]||{})[c], part=p===now(), o={};
+  KEYS.forEach(function(k){ o[k]=null; });
+  if(x){
+    var s=part&&x.ms!=null?x.ms:x.s, r=part&&x.mr!=null?x.mr:x.r, cx=part&&x.mx!=null?x.mx:x.x;
+    o.ses=s; o.rev=r;
+    if(x.pr&&r!=null){ var share=part&&x.md?x.md/C.daysIn(p):1; o.proj=r/(x.pr*share)*100; o.projD="AED "+C.full(r)+" of "+C.full(x.pr)+(part?" (to day "+x.md+")":""); }
+    if(cx!=null&&s!=null&&s+cx>0){ o.canc=cx/(s+cx)*100; o.cancD=C.full(cx)+" cancelled of "+C.full(s+cx)+" booked"; }
+    var cl=C.clientsIn(live,p,c);
+    if(cl){
+      var tr=cl.filter(function(z){ return z.s>0; }), wk=C.lastDay(live,p)/7, ss=0, rr=0, n3=0;
+      tr.forEach(function(z){ ss+=z.s; rr+=z.s*(z.price||0); if(z.s/wk>=3) n3++; });
+      if(tr.length){ o.spw=ss/tr.length/wk; o.p3=n3/tr.length*100; o.p3D=n3+" of "+tr.length+" clients"; o.rpc=rr/tr.length; o.rpcD=tr.length+" clients trained"; }
+      var lo=C.lessOften(live,p,c); o.less=lo?lo.length:null; o.lessL=lo||[];
+      var um=D.ov&&D.ov.kpiM&&D.ov.kpiM.up; o.up=um?((um[c]||{})[p]||0):null;
+    }
+  }
+  var as=live.assess&&live.assess[p]&&live.assess[p][c];
+  if(as&&as.a){ o.conv=as.c/as.a*100; o.convD=as.c+" of "+as.a+" assessments"; }
+  var K=D.ov&&D.ov.kpiM, f=fileName(c);
+  if(K&&K.from&&p>=K.from){
+    var m=(f&&K.by[f]&&K.by[f][p])||{act:0,ks:0,kk:0,nw:0,rn:0,re:0};
+    o.act=m.act; o.nw=m.nw;
+    if(m.ks){ o.kept=m.kk/m.ks*100; o.keptD=m.kk+" of "+m.ks+" clients"; }
+    if(m.rn){ o.early=m.re/m.rn*100; o.earlyD=m.re+" of "+m.rn+" renewals"; }
+  }
+  return (cache[key]=o);
+}
+// The number as it goes into the sheet: whole numbers, one decimal for sessions a week.
+function rnd(k,v){ if(v==null||!isFinite(v)) return null; return DEC[k]?Math.round(v*10)/10:k==="ses"?Math.round(v*2)/2:Math.round(v); }
+function show(k,v){ v=rnd(k,v); if(v==null) return '<span class="dim">—</span>'; return DEC[k]?v.toFixed(1):PCT[k]?v+"%":C.full(v); }
+// +1 better than the month before, -1 worse, 0 the same, null when either is missing.
+function move(i,a,b){ a=rnd(KEYS[i],a); b=rnd(KEYS[i],b); if(a==null||b==null) return null; var d=a>b?1:a<b?-1:0; return DEFS[i].better==="Lower"?-d:d; }
+
+function middleOf(p,k){ return C.median(coaches().map(function(c){ return val(c,p)[k]; })); }
+function teamVal(p,k){
+  if(SUM[k]){ var t=0, any=false; coaches().forEach(function(c){ var v=val(c,p)[k]; if(v!=null){ t+=v; any=true; } }); return any?t:null; }
+  return middleOf(p,k);
+}
+function seriesOf(c,i,upto,n){ var out=[]; for(var j=n-1;j>=0;j--){ var q=C.prevP(upto,j); out.push({p:q,v:c?val(c,q)[KEYS[i]]:teamVal(q,KEYS[i])}); } return out; }
+// Where a KPI stands at a month: its last move and how many months in a row it has gone that way.
+function state(c,i,p){
+  var ref=p===now()?C.prevP(p,1):p, s=seriesOf(c,i,ref,13), mv=[];
+  for(var j=1;j<s.length;j++) mv.push(move(i,s[j].v,s[j-1].v));
+  var last=mv[mv.length-1]; if(last==null) return {last:null,run:0,ref:ref};
+  var run=0; for(var k=mv.length-1;k>=0&&mv[k]===last;k--) run++;
+  return {last:last,run:run,ref:ref};
+}
+function advice(i,st){ if(st.last==null) return "Two months of figures are needed for advice."; return DEFS[i].advice[st.last===1?0:st.last===0?1:st.run>=2?3:2]; }
+function trendTxt(st){ if(st.last==null) return '<span class="dim">—</span>'; return st.last===1?'<span class="up">▲ '+st.run+" up</span>":st.last===-1?'<span class="down">▼ '+st.run+" down</span>":'<span class="dim">● same</span>'; }
+
+/* ---- the page ---- */
 function fillCoaches(){
   var cs=coaches(); if(sel&&cs.indexOf(sel)<0) sel="";
   $("selCoach").innerHTML='<option value="">Whole team</option>'+cs.map(function(c){ return "<option"+(c===sel?" selected":"")+">"+esc(c)+"</option>"; }).join("");
 }
-/* One coach's figures, used for the coach and for the team middle. */
-function stats(c){
-  var live=D.live, ov=D.ov, p=now(), x=(live.periods[p]||{})[c]||{}, md=live.cutoffDay, days=C.daysIn(p);
-  var o={c:c};
-  o.rev=x.mr!=null?x.mr:x.r; o.pr=x.pr||null; o.paceRev=x.mr!=null&&md?x.mr/md*days:null;
-  o.ses=x.ms!=null&&md?x.ms/md*days:x.s;
-  var past=[]; for(var i=1;i<=12;i++){ var q=C.prevP(p,i), y=(live.periods[q]||{})[c]; if(y&&y.s!=null) past.push(y.s); }
-  o.best=past.length?Math.max.apply(null,past):null;
-  var cl=C.clientsIn(live,p,c), upto=C.lastDay(live,p);
-  if(cl){ var tr=cl.filter(function(z){ return z.s>0; }), s=0; tr.forEach(function(z){ s+=z.s; }); o.trained=tr.length; o.spw=tr.length?s/tr.length/(upto/7):null; }
-  // Average rate: the last complete month the coach has rows for.
-  for(var j=1;j<=3&&o.rate==null;j++){ var cq=C.clientsIn(live,C.prevP(p,j),c); if(cq){ var ss=0,rr=0; cq.forEach(function(z){ ss+=z.s; rr+=z.s*(z.price||0); }); if(ss) o.rate=rr/ss; } }
-  var k=ov&&ov.perCoach[c];
-  if(k){ o.kept=k.kept; o.moved=k.moved; o.lost=k.lost; o.n=k.kept+k.moved+k.lost; o.keptShare=o.n?k.kept/o.n:null; o.early=k.renewals?k.early/k.renewals:null; o.stay=k.stay?k.stay.months:null; o.stayN=k.stay?k.stay.n:0; o.common=k.common; }
-  var list=(ov&&ov.clientsOfCoach[c])||[];
-  o.clients=list;
-  var ag=0, ac=0, gap=0, gaps=[];
-  list.forEach(function(z){ if(z.actual==null||z.agreed==null) return; ag+=z.agreed; ac+=z.actual; var g=Math.max(0,z.agreed-z.actual); gap+=g; if(g>0.25) gaps.push({name:z.name,g:g}); });
-  o.agreedM=ag*4.33; o.actualM=ac*4.33; o.gapM=gap*4.33; o.room=o.rate?gap*4.33*o.rate:null;
-  o.gaps=gaps.sort(function(a,b){ return b.g-a.g; });
-  o.year=[]; for(var m=11;m>=0;m--){ var qq=C.prevP(p,m), yy=(live.periods[qq]||{})[c]; o.year.push({p:qq,v:yy?(qq===p&&yy.mr!=null?yy.mr:yy.r):null,partial:qq===p}); }
-  return o;
+function fillMonths(){
+  var ms=months(); if(!month||ms.indexOf(month)<0) month=ms[1]||ms[0];
+  $("selMonth").innerHTML=ms.map(function(p){ return '<option value="'+p+'"'+(p===month?" selected":"")+">"+C.label(p)+(p===now()?" (so far)":"")+"</option>"; }).join("");
 }
-function middle(key){ return C.median(coaches().map(function(c){ return stats(c)[key]; })); }
+function tile(k,v,sub,lead,small){ return '<div class="tile'+(lead?" lead":"")+'"><div class="k">'+k+'</div><div class="v'+(small?" sm":"")+'">'+v+'</div><div class="sub">'+sub+"</div></div>"; }
+function cols(){ var out=[]; for(var j=5;j>=0;j--){ var q=C.prevP(month,j); if(q>=months()[months().length-1]) out.push(q); } return out; }
 
-function tile(k,v,sub,lead){ return '<div class="tile'+(lead?" lead":"")+'"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="sub">'+sub+"</div></div>"; }
 function render(){
+  cache={};
   $("stamp").innerHTML="Read "+new Date(D.ov?D.ov.generated:D.live.generated).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"})+"<br>AED without VAT";
-  var team=sel==="", p=now();
-  $("one").style.display=team?"none":""; $("team").style.display=team?"":"none"; $("btnNames").style.display=team?"":"none";
+  var team=sel==="";
+  $("one").style.display=team?"none":""; $("btnNames").style.display=team?"":"none";
   $("h1").textContent=team?"The team":sel;
-  $("yrK").textContent=team?"The team's year":"Your year";
-  if(team) return renderTeam();
-  var o=stats(sel), mSpw=middle("spw"), mKeep=middle("keptShare");
-  $("tiles").innerHTML=
-    tile("Revenue, "+C.label(p,true)+" so far",aed(o.rev),o.pr?"projected "+aed(o.pr)+(o.paceRev?" · on pace for "+Math.round(o.paceRev/o.pr*100)+"%":""):"no projection",1)+
-    tile("Sessions, on pace",o.ses!=null?Math.round(o.ses):"—",o.best!=null?"best month "+Math.round(o.best):"")+
-    tile("Clients trained",o.trained!=null?o.trained:"—",(o.clients.length)+" with a running package")+
-    tile("Sessions a week per client",o.spw!=null?o.spw.toFixed(1):"—",mSpw!=null?"team middle "+mSpw.toFixed(1):"")+
-    tile("Clients kept",o.n?o.kept+"<small>of "+o.n+"</small>":"—",mKeep!=null?"team middle "+Math.round(mKeep*100)+"%":"");
-  chartYear(o.year);
-  clientList(o);
-  room(o);
-  keep(o);
+  if(team) renderTeam(); else renderOne();
+  chart();
 }
 
-function chartYear(year){
-  var host=$("chYear"), pts=year.filter(function(x){ return x.v!=null; });
-  if(!pts.length){ host.innerHTML='<div class="empty">No months yet.</div>'; return; }
-  var W=C.width(host),H=260,L=44,R=10,T=20,B=26, step=(W-L-R)/year.length, bw=Math.min(44,step*.56);
-  var done=pts.filter(function(x){ return !x.partial; }), avg=done.length?done.reduce(function(t,x){ return t+x.v; },0)/done.length:null;
-  var mx=C.niceMax(Math.max.apply(null,pts.map(function(x){ return x.v; }))*1.12), y=function(v){ return T+(H-T-B)*(1-v/mx); };
-  var s='<svg viewBox="0 0 '+W+" "+H+'"><rect class="hl" rx="6" fill="rgba(255,255,255,.035)" style="opacity:0"/>'+C.grid(W,L,R,y,[0,mx/2,mx],aed);
-  var areas=[];
-  year.forEach(function(x,i){
-    var c=L+step*(i+.5);
-    s+='<text x="'+c+'" y="'+(H-6)+'" text-anchor="middle" style="font-size:10.5px;fill:var(--ink-faint)">'+C.label(x.p,true)+(x.partial?"*":"")+"</text>";
-    if(x.v==null) return;
-    s+=C.bar(c-bw/2,y(x.v),bw,y(0)-y(x.v),x.partial?"#7a3a17":"var(--accent)");
-    s+=C.txt(c,y(x.v)-6,aed(x.v),{s:10.5});
-    areas.push({x:L+step*i,y:T,w:step,h:H-T-B,ax:c,ay:y(x.v),html:"<b>"+C.label(x.p)+(x.partial?" (so far)":"")+"</b>"+C.trow("Revenue","AED "+C.full(x.v))});
+function renderOne(){
+  var c=sel, ps=cols(), part=month===now(), sts=DEFS.map(function(d,i){ return state(c,i,month); });
+  var up=0, dn=0, same=0, worst=null;
+  sts.forEach(function(st,i){ if(st.last===1) up++; else if(st.last===-1){ dn++; if(!worst||st.run>sts[worst].run) worst=i; } else if(st.last===0) same++; });
+  var ref=sts[0].ref;
+  $("tiles").innerHTML=tile("Better in "+C.label(ref,true),up+"<small>of "+DEFS.length+"</small>","than "+C.label(C.prevP(ref,1)),1)+
+    tile("Worse",dn+"<small>of "+DEFS.length+"</small>",same?same+" the same":"")+
+    tile("Look at first",worst!=null?esc(DEFS[worst].name):"Nothing slipped",worst!=null?"down "+sts[worst].run+" month"+(sts[worst].run>1?"s":"")+" in a row":"",0,1)+
+    tile("Revenue, "+C.label(month,true)+(part?" so far":""),C.aed(val(c,month).rev),val(c,month).proj!=null?Math.round(val(c,month).proj)+"% of projection":"");
+  $("kK").textContent="1+1 numbers · "+c;
+  $("kT").textContent=part?C.label(month)+" so far: colours and advice are on "+C.label(ref)+", the last full month":"The coach KPI sheet's rows, "+C.label(ps[0])+" to "+C.label(month);
+  $("kU").textContent="team middle = the coach in the middle of the team";
+  $("btnCopy").textContent="Copy "+C.label(month,true);
+  var head='<thead><tr><th class="l">KPI</th>'+ps.map(function(p){ return '<th class="'+(p===month?"sel":"")+'">'+C.label(p,true)+(p===now()?"*":"")+"</th>"; }).join("")+
+    '<th class="sep">Team<br>middle</th><th>Trend</th><th class="l">What to do next</th></tr></thead>';
+  var body=DEFS.map(function(d,i){
+    var k=KEYS[i], st=sts[i];
+    var cells=ps.map(function(p,j){
+      var o=val(c,p), v=o[k], cls="m"+(p===month?" sel":"");
+      if(p===now()) cls+=" p";
+      else { var mv=move(i,v,val(c,C.prevP(p,1))[k]); if(mv===1) cls+=" g"; else if(mv===-1) cls+=" r"; else if(mv===0) cls+=" s"; }
+      return '<td class="'+cls+'"'+(o[k+"D"]?' title="'+esc(o[k+"D"])+'"':"")+">"+show(k,v)+"</td>";
+    }).join("");
+    return '<tr data-i="'+i+'"'+(i===kSel?' class="on"':"")+'><td class="l nm">'+esc(d.name)+'<span class="bw">'+(d.better==="Lower"?"lower is better":"higher is better")+"</span></td>"+cells+
+      '<td class="mid sep">'+show(k,middleOf(month,k))+'</td><td class="tr">'+trendTxt(st)+'</td><td class="adv">'+esc(advice(i,st))+"</td></tr>";
+  }).join("");
+  $("kTbl").innerHTML=head+"<tbody>"+body+"</tbody>";
+  bindRows();
+  $("kNote").innerHTML="Copy "+C.label(month,true)+" puts this month's 14 numbers on the clipboard in the sheet's order: click the month's first cell on the coach's sheet and paste. "+
+    "Colours compare each month with the one before, the way the sheet does (for the lower-is-better rows a drop is green). * = the month running, counted to the last refresh, not coloured. Hover a cell for what it is made of.<br>"+defs();
+  who(c); room(c);
+}
+
+function renderTeam(){
+  var cs=coaches(), p=month, part=p===now();
+  var order=cs.slice().sort(function(a,b){ return (val(b,p).rev||0)-(val(a,p).rev||0); });
+  var lab=function(c,i){ return showNames?esc(c):"Coach "+String.fromCharCode(65+i); };
+  $("tiles").innerHTML=tile("Revenue, "+C.label(p,true)+(part?" so far":""),C.aed(teamVal(p,"rev")),"",1)+
+    tile("Sessions",C.full(teamVal(p,"ses")),"")+tile("Active clients",teamVal(p,"act")!=null?teamVal(p,"act"):"—","at the month's end")+tile("New clients",teamVal(p,"nw")!=null?teamVal(p,"nw"):"—","");
+  $("kK").textContent="1+1 numbers · every coach";
+  $("kT").textContent=C.label(p)+(part?" so far":"")+": each coach against their own month before";
+  $("kU").textContent=showNames?"names shown":"coaches as letters · Show names to reveal";
+  $("btnCopy").textContent="Copy "+C.label(p,true)+" (team)";
+  var head='<thead><tr><th class="l">KPI</th><th class="sep">Team</th>'+order.map(function(c,i){ return "<th>"+lab(c,i)+"</th>"; }).join("")+"</tr></thead>";
+  var body=DEFS.map(function(d,i){
+    var k=KEYS[i];
+    return '<tr data-i="'+i+'"'+(i===kSel?' class="on"':"")+'><td class="l nm">'+esc(d.name)+'<span class="bw">'+(SUM[k]?"team total":"team middle")+" · "+(d.better==="Lower"?"lower is better":"higher is better")+'</span></td><td class="sep">'+show(k,teamVal(p,k))+"</td>"+
+      order.map(function(c){
+        var o=val(c,p), cls="m";
+        if(part) cls+=" p"; else { var mv=move(i,o[k],val(c,C.prevP(p,1))[k]); if(mv===1) cls+=" g"; else if(mv===-1) cls+=" r"; else if(mv===0) cls+=" s"; }
+        return '<td class="'+cls+'"'+(o[k+"D"]?' title="'+esc(o[k+"D"])+'"':"")+">"+show(k,o[k])+"</td>";
+      }).join("")+"</tr>";
+  }).join("");
+  $("kTbl").innerHTML=head+"<tbody>"+body+"</tbody>";
+  bindRows();
+  $("kNote").innerHTML="Each coach's cell is coloured against that coach's own month before. Team = the team's total for counts, and the coach in the middle for rates. Choose a coach above for their 1+1 view and advice.<br>"+defs();
+}
+
+function defs(){
+  return "<b>Definitions.</b> Sessions and revenue: from the coach sheets (revenue without VAT). Projection reached: revenue against the projection set at the start of the month. "+
+    "Sessions a week per client, clients at 3+ a week, revenue per client: from each client's row on the coach sheets, clients who trained at least once in the month. "+
+    "Active clients: on the Clients file at the month's end. Existing clients still with us: of the clients with the coach the day before the month began, how many are still clients at its end (inside the grace period counts as still with us). "+
+    "Renewed before expiry: of the packages that ran out in the month and were renewed, how many were renewed on or before the day they ran out. Assessments converted: from the assessment tracker. "+
+    "New clients: New packages in the Clients file. Cancelled: cancelled ÷ (trained + cancelled). Training less often: clients at half their usual or less over the month's last 3 weeks. "+
+    "Beyond what's paid: clients who trained in the month past every session paid for by its end (a renewal logged later the same month clears it).";
+}
+
+function bindRows(){
+  Array.prototype.forEach.call($("kTbl").querySelectorAll("tbody tr"),function(tr){
+    tr.addEventListener("click",function(){ kSel=+tr.getAttribute("data-i"); try{ localStorage.setItem("iamcoach:k",kSel); }catch(x){} Array.prototype.forEach.call($("kTbl").querySelectorAll("tbody tr"),function(t){ t.classList.toggle("on",t===tr); }); chart(); });
   });
-  if(avg!=null) s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(avg)+'" y2="'+y(avg)+'" stroke="var(--ink)" stroke-dasharray="4 4" stroke-width="1"/>'+C.txt(W-R,y(avg)-6,"average "+aed(avg),{a:"end",c:"var(--ink)",s:10.5});
-  host.innerHTML=s+"</svg>"; C.hits(host,areas);
 }
 
-function clientList(o){
-  var list=o.clients.filter(function(z){ return z.agreed!=null; }).sort(function(a,b){ return ((a.actual==null?0:a.actual)-a.agreed)-((b.actual==null?0:b.actual)-b.agreed); });
+/* The chosen KPI over twelve months, with the team middle as a line. */
+function chart(){
+  var i=kSel, k=KEYS[i], d=DEFS[i], c=sel||null, host=$("chKpi");
+  var s=seriesOf(c,i,month,12), mid=c?s.map(function(x){ return middleOf(x.p,k); }):null;
+  $("cK").textContent=(c?c:"The team")+" · twelve months";
+  $("cT").textContent=d.name+(c?"":SUM[k]?", team total":", team middle");
+  $("cU").textContent=(d.better==="Lower"?"lower is better":"higher is better")+(c?" · line = team middle":"")+(s.some(function(x){ return x.p===now(); })?" · * so far":"");
+  var vals=s.map(function(x){ return x.v; }).concat(mid||[]).filter(function(v){ return v!=null&&isFinite(v); });
+  if(!vals.length){ host.innerHTML='<div class="empty">No figures for this yet.</div>'; return; }
+  var W=C.width(host),H=240,L=46,R=12,T=22,B=26, step=(W-L-R)/s.length, bw=Math.min(40,step*.56);
+  var top=Math.max.apply(null,vals); var mx=PCT[k]?Math.max(100,C.niceMax(top*1.1)):C.niceMax(top*1.15||1), y=function(v){ return T+(H-T-B)*(1-v/mx); };
+  var fmt=function(v){ return PCT[k]?Math.round(v)+"%":AED[k]?C.aed(v):DEC[k]?(+v).toFixed(1):C.full(v); };
+  var out='<svg viewBox="0 0 '+W+" "+H+'"><rect class="hl" rx="6" fill="rgba(255,255,255,.035)" style="opacity:0"/>'+C.grid(W,L,R,y,[0,mx/2,mx],fmt), areas=[], pts=[];
+  s.forEach(function(x,j){
+    var cx=L+step*(j+.5), part=x.p===now(), mv=j?move(i,x.v,s[j-1].v):null;
+    out+='<text x="'+cx+'" y="'+(H-6)+'" text-anchor="middle" style="font-size:10.5px;fill:'+(x.p===month?"var(--accent-2)":"var(--ink-faint)")+'">'+C.label(x.p,true)+(part?"*":"")+"</text>";
+    if(mid&&mid[j]!=null) pts.push([cx,y(mid[j])]);
+    if(x.v==null) return;
+    var col=part?"#5a5550":mv===1?"var(--up)":mv===-1?"var(--down)":"var(--ink-faint)";
+    out+=C.bar(cx-bw/2,y(x.v),bw,y(0)-y(x.v),col)+C.txt(cx,y(x.v)-6,fmt(rnd(k,x.v)),{s:10.5});
+    areas.push({x:L+step*j,y:T,w:step,h:H-T-B,ax:cx,ay:y(x.v),html:"<b>"+C.label(x.p)+(part?" (so far)":"")+"</b>"+C.trow(c?c:"Team",fmt(rnd(k,x.v)))+(mid&&mid[j]!=null?C.trow("Team middle",fmt(rnd(k,mid[j]))):"")});
+  });
+  if(pts.length>1) out+='<polyline fill="none" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="4 4" points="'+pts.map(function(q){ return q[0]+","+q[1]; }).join(" ")+'"/>';
+  host.innerHTML=out+"</svg>"; C.hits(host,areas);
+}
+
+/* ---- the clients behind the lower-is-better rows, and room to grow ---- */
+function clientsOf(c){ var f=fileName(c); return (D.ov&&D.ov.clientsOfCoach&&(D.ov.clientsOfCoach[f]||D.ov.clientsOfCoach[c]))||[]; }
+function who(c){
+  var o=val(c,month), lo=(o.lessL||[]).slice().sort(function(a,b){ return a.now/a.usual-b.now/b.usual; }), f=fileName(c);
+  var unpaid=((D.ov&&D.ov.inUse)||[]).filter(function(r){ return r.state==="unpaid"&&(r.coach===f||r.coach===c); });
+  var below=clientsOf(c).filter(function(z){ return z.actual!=null&&z.agreed!=null&&z.actual<z.agreed-1.2; });
+  $("whoU").textContent=C.label(month)+(month===now()?" so far":"");
+  var h='<span class="h">Training less often · '+lo.length+"</span>";
+  h+=lo.length?lo.map(function(x){ return "<span>"+esc(x.name)+'</span><span class="r">'+x.usual.toFixed(1)+" → "+x.now.toFixed(1)+" a week</span>"; }).join(""):'<span class="dim">None</span><span></span>';
+  h+='<span class="h">Beyond what\'s paid, right now · '+unpaid.length+"</span>";
+  h+=unpaid.length?unpaid.map(function(r){ return "<span>"+esc(r.sheetName||r.name)+'</span><span class="r">'+r.unpaid+" session"+(r.unpaid===1?"":"s")+" unpaid</span>"; }).join(""):'<span class="dim">None</span><span></span>';
+  h+='<span class="h">Well under what they agreed · '+below.length+"</span>";
+  h+=below.length?below.map(function(z){ return "<span>"+esc(z.name)+'</span><span class="r">'+z.actual.toFixed(1)+" of "+z.agreed.toFixed(1)+(z.signed?"":"*")+" a week</span>"; }).join(""):'<span class="dim">None</span><span></span>';
+  $("who").innerHTML=h;
+  clientList(c);
+}
+function rateOf(c){ for(var j=1;j<=3;j++){ var cq=C.clientsIn(D.live,C.prevP(now(),j),c); if(cq){ var ss=0,rr=0; cq.forEach(function(z){ ss+=z.s; rr+=z.s*(z.price||0); }); if(ss) return rr/ss; } } return null; }
+function room(c){
+  var list=clientsOf(c), rate=rateOf(c), ag=0, ac=0, gap=0, gaps=[];
+  list.forEach(function(z){ if(z.actual==null||z.agreed==null) return; ag+=z.agreed; ac+=z.actual; var g=Math.max(0,z.agreed-z.actual); gap+=g; if(g>0.25) gaps.push({name:z.name,g:g}); });
+  gaps.sort(function(a,b){ return b.g-a.g; });
+  if(!list.length){ $("room").innerHTML='<span class="dim">No running packages.</span><span></span>'; $("roomNote").textContent=""; return; }
+  $("room").innerHTML="<span>Sessions their clients agreed to</span><span>"+Math.round(ag*4.33)+" a month</span><span>Sessions delivered to them</span><span>"+Math.round(ac*4.33)+" a month</span>"+
+    '<span>Short of what was agreed</span><span class="watch">'+Math.round(gap*4.33)+" sessions</span>"+'<span class="sepr"></span>'+
+    "<span>At their average rate"+(rate?" of AED "+Math.round(rate):"")+'</span><span class="tot">'+(rate?C.full(gap*4.33*rate):"—")+"</span>"+
+    (gaps.length?'<span class="sepr"></span><span class="dim">Biggest gaps: '+gaps.slice(0,3).map(function(g){ return esc(g.name)+" ("+g.g.toFixed(1)+" a week)"; }).join(", ")+"</span><span></span>":"");
+  $("roomNote").textContent="Only clients whose sessions fall short count: a client training above what was agreed does not cancel out one below. A month = 4.33 weeks. Right now, whatever month is chosen above.";
+}
+function clientList(c){
+  var list=clientsOf(c).filter(function(z){ return z.agreed!=null; }).sort(function(a,b){ return ((a.actual==null?0:a.actual)-a.agreed)-((b.actual==null?0:b.actual)-b.agreed); });
   if(!list.length){ $("clientList").innerHTML='<div class="empty">No running session packages linked yet.</div>'; return; }
   var mx=Math.max(4,Math.max.apply(null,list.map(function(z){ return Math.max(z.agreed,z.actual||0); })));
   $("clientList").innerHTML=list.map(function(z){
@@ -190,56 +369,28 @@ function clientList(o){
       '<span class="v">'+(a!=null?a.toFixed(1):"not linked")+" of "+z.agreed.toFixed(1)+(z.signed?"":"*")+"</span></div>";
   }).join("");
 }
-function room(o){
-  if(!o.clients.length){ $("room").innerHTML='<span class="dim">No running packages.</span><span></span>'; $("roomNote").textContent=""; return; }
-  $("room").innerHTML="<span>Sessions your clients agreed to</span><span>"+Math.round(o.agreedM)+" a month</span><span>Sessions delivered to them</span><span>"+Math.round(o.actualM)+" a month</span>"+
-    '<span>Short of what was agreed</span><span class="watch">'+Math.round(o.gapM)+" sessions</span>"+'<span class="sepr"></span>'+
-    "<span>At your average rate"+(o.rate?" of AED "+Math.round(o.rate):"")+'</span><span class="tot">'+(o.room!=null?C.full(o.room):"—")+"</span>"+
-    (o.gaps.length?'<span class="sepr"></span><span class="dim">Biggest gaps: '+o.gaps.slice(0,3).map(function(g){ return esc(g.name)+" ("+g.g.toFixed(1)+" a week)"; }).join(", ")+"</span><span></span>":"");
-  $("roomNote").textContent="Only clients whose sessions fall short count: a client training above what was agreed does not cancel out one below. A month = 4.33 weeks.";
-}
-function keep(o){
-  var mid={keep:middle("keptShare"),early:middle("early"),stay:middle("stay")};
-  $("keepT").textContent=o.n?"Of your "+o.n+" clients whose package ran out, "+o.kept+" stayed with you":"No packages have run out yet";
-  $("keepBar").innerHTML=o.n?[["kept",o.kept,"var(--up)","stayed"],["moved",o.moved,"var(--s-ret)","moved coach"],["lost",o.lost,"var(--s-lost)","left"]].filter(function(x){ return x[1]; })
-    .map(function(x){ return '<span style="flex:'+x[1]+";background:"+x[2]+'" title="'+x[1]+" "+x[3]+'">'+x[1]+" "+x[3]+"</span>"; }).join(""):"";
-  function pc(v){ return v==null?"—":Math.round(v*100)+"%"; }
-  $("keepKv").innerHTML="<span>Stayed with you</span><span>"+pc(o.keptShare)+"</span><span>"+pc(mid.keep)+"</span>"+
-    "<span>Renewed before the package ended</span><span>"+pc(o.early)+"</span><span>"+pc(mid.early)+"</span>"+
-    "<span>Months a new client stays in their first year</span><span>"+(o.stay!=null?o.stay.toFixed(1):"—")+"</span><span>"+(mid.stay!=null?mid.stay.toFixed(1):"—")+"</span>"+
-    "<span>Package you sell most</span><span>"+(o.common?o.common+" sessions":"—")+"</span><span></span>";
-}
 
-function renderTeam(){
-  var cs=coaches(), S=cs.map(stats), p=now();
-  var rev=0, pr=0, pace=0, ses=0, tr=0, k=0, n=0;
-  S.forEach(function(o){ rev+=o.rev||0; pr+=o.pr||0; pace+=o.paceRev||0; ses+=o.ses||0; tr+=o.trained||0; k+=o.kept||0; n+=o.n||0; });
-  $("tiles").innerHTML=tile("Revenue, "+C.label(p,true)+" so far",aed(rev),pr?"projected "+aed(pr)+" · on pace for "+Math.round(pace/pr*100)+"%":"",1)+
-    tile("Sessions, on pace",Math.round(ses),"")+tile("Clients trained",tr,cs.length+" coaches")+
-    tile("Sessions a week per client",(middle("spw")||0).toFixed(1),"team middle")+tile("Clients kept",k+"<small>of "+n+"</small>",C.pct(k,n)+" · last 12 months");
-  var year=[]; for(var m=11;m>=0;m--){ var q=C.prevP(p,m), v=0, any=false; S.forEach(function(o){ var x=o.year[11-m]; if(x.v!=null){ v+=x.v; any=true; } }); year.push({p:q,v:any?v:null,partial:q===p}); }
-  chartYear(year);
-  // Coaches are letters unless names are switched on, so the team can see the spread without seeing who.
-  var order=S.slice().sort(function(a,b){ return (b.rev||0)-(a.rev||0); });
-  $("teamUnit").textContent=showNames?"names shown":"coaches as letters · Show names to reveal";
-  $("teamTbl").innerHTML='<thead><tr><th class="l">Coach</th><th>Revenue<br>so far</th><th>Sessions a week<br>per client</th><th>Clients<br>kept</th><th>Months in<br>first year</th><th>Room to grow<br>a month</th></tr></thead><tbody>'+
-    order.map(function(o,i){
-      return '<tr><td class="l">'+(showNames?esc(o.c):"Coach "+String.fromCharCode(65+i))+"</td><td>"+aed(o.rev)+"</td><td>"+(o.spw!=null?o.spw.toFixed(1):"—")+"</td><td>"+(o.n?o.kept+' <span class="dim">of '+o.n+"</span>":"—")+
-        "</td><td>"+(o.stay!=null?o.stay.toFixed(1):"—")+"</td><td>"+(o.room!=null?aed(o.room):"—")+"</td></tr>";
-    }).join("")+"</tbody>";
+/* Copy: the month's numbers in the sheet's order, one per line, ready to paste down a column. */
+function copyMonth(){
+  var lines=KEYS.map(function(k){ var v=rnd(k,sel?val(sel,month)[k]:teamVal(month,k)); return v==null?"":String(v); }).join("\n"), b=$("btnCopy"), t=b.textContent;
+  function done(ok){ b.textContent=ok?"Copied":"Copy failed"; setTimeout(function(){ b.textContent=t; },1400); }
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(lines).then(function(){ done(true); },function(){ done(false); });
+  else { var ta=document.createElement("textarea"); ta.value=lines; document.body.appendChild(ta); ta.select(); var ok=false; try{ ok=document.execCommand("copy"); }catch(e){} document.body.removeChild(ta); done(ok); }
 }
 
 C.unlock(function(d){
   D=d;
-  if(!D.ov) document.querySelector(".wrap").insertAdjacentHTML("afterbegin",'<div class="card section"><div class="empty">The coach sheets have not been joined to the Clients file yet, so client figures are missing. Press Refresh now on the Performance page.</div></div>');
-  try{ sel=localStorage.getItem("iamcoach:sel")||""; }catch(e){}
-  fillCoaches();
+  if(!D.ov||!D.ov.kpiM) document.querySelector(".wrap").insertAdjacentHTML("afterbegin",'<div class="card section"><div class="empty">The client figures (active clients, still with us, renewals, new clients, beyond what\'s paid) arrive with the next refresh. Press Refresh now on the Performance page.</div></div>');
+  try{ sel=localStorage.getItem("iamcoach:sel")||""; kSel=+(localStorage.getItem("iamcoach:k")||0)||0; }catch(e){}
+  fillCoaches(); fillMonths();
   C.scopeSwitch($("segScope"),function(){ fillCoaches(); render(); });
   $("selCoach").addEventListener("change",function(e){ sel=e.target.value; try{ localStorage.setItem("iamcoach:sel",sel); }catch(x){} render(); });
+  $("selMonth").addEventListener("change",function(e){ month=e.target.value; render(); });
   $("btnNames").addEventListener("click",function(){ showNames=!showNames; this.classList.toggle("on",showNames); this.textContent=showNames?"Hide names":"Show names"; render(); });
+  $("btnCopy").addEventListener("click",copyMonth);
   C.notes($("btnNotes"));
   render();
-  var rt; window.addEventListener("resize",function(){ clearTimeout(rt); rt=setTimeout(render,150); });
+  var rt; window.addEventListener("resize",function(){ clearTimeout(rt); rt=setTimeout(chart,150); });
 });
 if("serviceWorker" in navigator){ navigator.serviceWorker.register("./sw.js").catch(function(){}); }
 })();

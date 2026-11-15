@@ -172,26 +172,26 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
      a client who renews early uses up the old package first. */
   const clMonths = [...new Set([...sheetNames.values()].flatMap((o) => [...o.months]))].sort();
   const W0 = clMonths.length ? serial(clMonths[0] + "-01") : today;   // the first day the sheets cover
-  function ledger(c, d) {
-    const pk = c.pk.filter((p) => p.unit !== "Months" && p.size && p.date <= today);
-    if (!pk.length || c.pk.some((p) => p.unit === "Months" && p.date <= today && p.end >= today)) return null;
+  function ledger(c, d, T = today, fromDay = T - 30) {
+    const pk = c.pk.filter((p) => p.unit !== "Months" && p.size && p.date <= T);
+    if (!pk.length || c.pk.some((p) => p.unit === "Months" && p.date <= T && p.end >= T)) return null;
     // Start at the first package bought inside the days the sheets cover (or the latest one).
     let i = pk.findIndex((p) => p.date >= W0); if (i < 0) i = pk.length - 1;
     const prev = pk[i - 1];
     // Sessions before that package count toward it only after the package before it was due to end
     // (for a first package: from two weeks before it, for a client who trained before paying).
     const from = Math.max(W0, prev ? prev.end + 1 : pk[i].date - 14);
-    const ses = [...(d || new Map())].filter(([day]) => day >= from && day <= today).sort((a, b) => a[0] - b[0]);
+    const ses = [...(d || new Map())].filter(([day]) => day >= from && day <= T).sort((a, b) => a[0] - b[0]);
     const pkgs = pk.slice(i).map((p) => ({ date: p.date, end: p.end, size: p.size, used: 0 }));
     let k = 0, over = 0, overRecent = 0, late = 0, lateRecent = 0;
     for (const [day, w0] of ses) {
       let w = w0;
       while (w > 0) {
         while (k < pkgs.length && pkgs[k].used >= pkgs[k].size) k++;
-        if (k >= pkgs.length) { over += w; if (day >= today - 30) overRecent += w; break; }
+        if (k >= pkgs.length) { over += w; if (day >= fromDay) overRecent += w; break; }
         const take = Math.min(w, pkgs[k].size - pkgs[k].used);
         pkgs[k].used += take; w -= take;
-        if (day > pkgs[k].end) { late += take; if (day >= today - 30) lateRecent += take; }
+        if (day > pkgs[k].end) { late += take; if (day >= fromDay) lateRecent += take; }
       }
     }
     while (k < pkgs.length && pkgs[k].used >= pkgs[k].size) k++;
@@ -311,10 +311,30 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
       actual: d ? +(sumDays(d, since, today) / weeks).toFixed(2) : null, agreed: agreed != null ? +agreed.toFixed(2) : null, signed: c.agreed != null });
   }
 
+  /* 9. Month by month: clients who trained in the month beyond every session paid for by its
+     end (a renewal logged later in the same month clears it). Put under the coach whose sheet
+     has most of that client's sessions in the month. */
+  const upM = {};
+  const byCoachDays = new Map();                       // id -> [{coach, days}]
+  for (const [k, id] of linkOf) { const o = sheetNames.get(k); (byCoachDays.get(id) || byCoachDays.set(id, []).get(id)).push({ coach: o.coach, days: o.days }); }
+  for (const p of clMonths.filter((q) => q <= now)) {
+    const s0 = serial(p + "-01"), T = Math.min(serial(p + "-" + String(daysIn(p)).padStart(2, "0")), today);
+    for (const [id, d] of daysOf) {
+      const c = clients.get(id); if (!c || !sumDays(d, s0, T)) continue;
+      const L = ledger(c, d, T, s0); if (!L || !L.overRecent) continue;
+      let best = null, bw = 0;
+      for (const x of byCoachDays.get(id) || []) { const w = sumDays(x.days, s0, T); if (w > bw) { bw = w; best = x.coach; } }
+      if (!best) continue;
+      const b = upM[best] || (upM[best] = {}); b[p] = (b[p] || 0) + 1;
+    }
+  }
+
   return {
     v: 1, today: iso(today), now, grace: inner.grace, loggedFrom: iso(inner.loggedFrom),
     names: { auto, byHand, ignored, unclear: unclear.sort((a, b) => (b.last || "").localeCompare(a.last || "") || a.coach.localeCompare(b.coach)), notInFile: notInFile.sort((a, b) => (b.last || "").localeCompare(a.last || "")), endedOnSheet, bad, hasTab: head >= 0 },
     inUse, up, months, perCoach, team, clientsOfCoach,
+    // Month by month, per coach, for the Coach review page's KPIs.
+    kpiM: { ...(inner.monthly || { from: null, by: {} }), up: upM },
     // Active clients per coach right now, by the coach on the Clients tab (a handoff updates it).
     activeByCoach: inner.clients.filter((c) => c.status === "Active").reduce((o, c) => {
       const k = c.coach || ((c.pk.filter((p) => p.date <= today).pop() || {}).coach) || "(no coach)"; o[k] = (o[k] || 0) + 1; return o; }, {}),

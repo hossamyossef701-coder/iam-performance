@@ -49,7 +49,7 @@
   </div>
 
   <div class="card section">
-    <div class="card-h"><div><div class="k">Sold and delivered</div><div class="t">Package sales against revenue</div></div><span class="unit">AED, without VAT</span><select class="win" data-k="sold" aria-label="Period"><option value="3">Last 3 months</option><option value="6">Last 6 months</option><option value="12">Last 12 months</option><option value="all">Everything logged</option></select></div>
+    <div class="card-h"><div><div class="k">Sold and delivered</div><div class="t">Package sales against revenue</div></div><span class="unit">AED, without VAT</span><select class="win" data-k="sold" aria-label="Period"><option value="3">Last 3 months</option><option value="6">Last 6 months</option><option value="y">This year</option><option value="12">Last 12 months</option><option value="all">Everything logged</option></select></div>
     <div class="card-b">
       <div class="legend"><span><i style="background:var(--accent)"></i>package sales: what clients paid</span><span><i style="background:var(--s-ret)"></i>revenue: sessions delivered × rate</span><span class="r">on top: sold − delivered</span></div>
       <div class="chart" id="chSold"></div>
@@ -58,7 +58,7 @@
   </div>
 
   <div class="card section">
-    <div class="card-h"><div><div class="k">Unused sessions</div><div class="t">Paid for and not yet trained, since <span id="ovFrom"></span></div></div><span class="unit">AED, running total</span><select class="win" data-k="unused" aria-label="Period"><option value="3">Last 3 months</option><option value="6">Last 6 months</option><option value="12">Last 12 months</option><option value="all">Everything logged</option></select></div>
+    <div class="card-h"><div><div class="k">Unused sessions</div><div class="t">Paid for and not yet trained, since <span id="ovFrom"></span></div></div><span class="unit">AED, running total</span><select class="win" data-k="unused" aria-label="Period"><option value="3">Last 3 months</option><option value="6">Last 6 months</option><option value="y">This year</option><option value="12">Last 12 months</option><option value="all">Everything logged</option></select></div>
     <div class="card-b">
       <div class="chart" id="chUnused"></div>
       <p class="note">Running total of package sales minus revenue. Rising: selling faster than delivering. Falling: delivering sessions sold earlier. It starts at zero on the first logged month, so it shows the change since then, not the full amount owed (packages bought before then are not in it).</p>
@@ -74,7 +74,7 @@
 
   <div class="card section">
     <div class="card-h"><div><div class="k">Share of the team</div><div class="t">Each coach's share of the active clients, the sessions and the revenue</div></div>
-      <span class="seg sm" id="segShare"><button data-v="1">Last month</button><button data-v="3">Last 3 months</button><button data-v="0">This month so far</button></span></div>
+      <span class="seg sm" id="segShare"><button data-v="1">Last month</button><button data-v="3">Last 3 months</button><button data-v="0">This month so far</button><button data-v="-1">This year</button></span></div>
     <div class="card-b">
       <div class="legend"><span><i style="background:var(--ink-soft)"></i>active clients, now</span><span><i style="background:var(--s-ret)"></i>sessions</span><span><i style="background:var(--accent)"></i>revenue</span><span class="r">right: revenue share ÷ client share</span></div>
       <div class="chart" id="chShare"></div>
@@ -159,7 +159,7 @@ function thisMonth(){
 
 /* ---- each chart's own period ---- */
 var win={sold:"12",unused:"all"}; try{ var sw=JSON.parse(localStorage.getItem("iamov:win")||"{}"); for(var wk in sw) win[wk]=sw[wk]; }catch(e){}
-function inWin(k,list){ if(win[k]==="all") return list; var from=C.prevP(D.ov.now,+win[k]-1); return list.filter(function(m){ return m.p>=from; }); }
+function inWin(k,list){ if(win[k]==="all") return list; var from=win[k]==="y"?D.ov.now.slice(0,4)+"-01":C.prevP(D.ov.now,+win[k]-1); return list.filter(function(m){ return m.p>=from; }); }
 
 /* ---- Sold and delivered ---- */
 function chartSold(){
@@ -209,7 +209,8 @@ var shareN=1; try{ shareN=+(localStorage.getItem("iamov:share")||1); }catch(e){}
 function share(){
   var live=D.live, ov=D.ov, act=ov.activeByCoach||{}, p=ov.now;
   Array.prototype.forEach.call($("segShare").querySelectorAll("button"),function(b){ b.classList.toggle("on",+b.getAttribute("data-v")===shareN); });
-  var months=shareN===0?[p]:[1,2,3].slice(0,shareN).map(function(n){ return C.prevP(p,n); });
+  // This year: every month from January to the month running (so far).
+  var months=shareN===0?[p]:shareN===-1?(function(){ var o=[]; for(var q=p;q.slice(0,4)===p.slice(0,4);q=C.prevP(q,1)) o.push(q); return o; })():[1,2,3].slice(0,shareN).map(function(n){ return C.prevP(p,n); });
   var ses={}, rev={};
   months.forEach(function(q){ var P=live.periods[q]||{}; Object.keys(P).filter(C.keep).forEach(function(c){ var x=P[c], cur=q===p&&x.mr!=null;
     ses[c]=(ses[c]||0)+((cur?x.ms:x.s)||0); rev[c]=(rev[c]||0)+((cur?x.mr:x.r)||0); }); });

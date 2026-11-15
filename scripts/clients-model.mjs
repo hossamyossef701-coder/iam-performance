@@ -457,6 +457,29 @@ export function buildClientsModel(sheets, opts = {}) {
     kept[k] = { d: iso(d), by };
   }
 
+  /* ---- Month by month, per coach: the client figures the Coach review page tracks ----
+     act = active at the month's end (today for the month running). ks/kk = clients with the coach
+     the day before the month started / of them, still with us at its end (the grace period counts
+     as still with us). nw = new clients. rn/re = packages that ran out in the month and were
+     renewed / of them, renewed on or before the day they ran out. For the refresh job only. */
+  const monthly = { from: iso(loggedFrom).slice(0, 7), by: {} };
+  {
+    let y = +iso(loggedFrom).slice(0, 4), m = +iso(loggedFrom).slice(5, 7);
+    for (;;) {
+      const s0 = toSerial(y, m, 1); if (s0 > today) break;
+      const e = Math.min(toSerial(m === 12 ? y + 1 : y, m === 12 ? 1 : m + 1, 1) - 1, today);
+      const p = iso(s0).slice(0, 7);
+      const cell = (c) => { const b = monthly.by[c || "(no coach)"] || (monthly.by[c || "(no coach)"] = {}); return b[p] || (b[p] = { act: 0, ks: 0, kk: 0, nw: 0, rn: 0, re: 0 }); };
+      for (const [, k] of activeOn(e)) cell(k).act++;
+      const W1 = withUs(e);
+      for (const [id, x] of withUs(s0 - 1)) { const o = cell(x.coach); o.ks++; if (W1.has(id)) o.kk++; }
+      // Counted as the Clients page counts them: each New package in the month.
+      for (const pk of packages) if (pk.type === "New" && pk.date >= s0 && pk.date <= e && own(pk)) cell(pk.coach).nw++;
+      for (const x of decisions) if (x.E >= s0 && x.E <= e && (x.outcome === "kept" || x.outcome === "moved")) { const o = cell(x.coach); o.rn++; if (x.at <= x.E) o.re++; }
+      if (m === 12) { y++; m = 1; } else m++;
+    }
+  }
+
   /* ---- Headline numbers ---- */
   const monthStart = toSerial(+iso(today).slice(0, 4), +iso(today).slice(5, 7), 1);
   const thisMonth = packages.filter((p) => p.date >= monthStart && p.date <= today && own(p));
@@ -507,7 +530,7 @@ export function buildClientsModel(sheets, opts = {}) {
       id: c.id, name: c.name, coach: c.coach, status: c.now.status, P: c.now.P, joined: c.joined, told: c.told, agreed: c.agreed,
       pk: c.pk.concat(c.sh).sort((a, b) => a.date - b.date).map((p) => ({ date: p.date, end: p.end, size: p.size, unit: p.unit, px: p.px, coach: p.coach, coaches: [p.coach, p.coach2, p.coach3].filter(Boolean), type: p.type })),
     })),
-    decisions,
+    decisions, monthly,
   };
   // For the self-test only: which clients landed where. Never written to the page's data.
   if (opts.debug) out.debug = {
