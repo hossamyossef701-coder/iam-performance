@@ -54,6 +54,10 @@ button:disabled{opacity:.6;cursor:default;}
 .seg button+button,.seg a+a{border-left:1px solid var(--line);}
 .seg .on{background:var(--accent);color:#120800;}
 .seg.sm button{padding:5px 10px;font-size:11.5px;}
+.ctl{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;}
+.ctl select{padding:5px 8px;font-size:11.5px;}
+.card-h{align-items:center;}
+.card-h .unit{margin-left:auto;}
 
 /* tiles */
 .tiles{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:8px;}
@@ -232,15 +236,9 @@ body.locked{overflow:hidden;}
     <span class="seg"><a href="./report.html">Performance</a><a class="on" href="./clients.html">Clients</a><a href="./overview.html">Overview</a><a href="./coach.html">Coach review</a></span>
     <span class="grow"></span>
     <span class="seg" id="segScope"><button data-v="all">With Hossam</button><button data-v="team">Team only</button></span>
-    <select id="selWin" aria-label="Period">
-      <option value="3">Last 3 months</option><option value="6">Last 6 months</option>
-      <option value="12">Last 12 months</option><option value="y">This year</option>
-    </select>
-    <span class="seg" id="segPer"><button data-v="m">Month</button><button data-v="q">Quarter</button><button data-v="y">Year</button></span>
     <button id="btnNotes">Notes</button>
     <button id="btnReload">Reload</button>
   </div>
-  <p class="defline" id="winNote" style="margin-top:-8px"></p>
 
   <div class="tiles" id="tiles"></div>
   <p class="defline" id="defline"></p>
@@ -354,7 +352,7 @@ window.addEventListener("unhandledrejection",function(e){console.error("[clients
 
 var GH_OWNER="hossamyossef701-coder", GH_REPO="iam-performance", GH_BRANCH="main";
 // Its own passphrase, kept apart from the Performance page's: opening one never opens the other.
-var PASS_KEY="iamclients:pass", CFG_KEY="iamlive:cfg", UI_KEY="iamclients:ui3";
+var PASS_KEY="iamclients:pass", CFG_KEY="iamlive:cfg", UI_KEY="iamclients:ui4";
 var MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 // Fixed colour per coach, in the order coaches are listed - never re-assigned by a filter.
 var PAL=["#ef691d","#3987e5","#5eb87a","#b8578a","#e0a63c","#8f7ee0","#4cb7b0","#d36a6a","#a39e96","#c08a5b","#6f9fd8","#9cc36b"];
@@ -441,13 +439,18 @@ function full(v){ return Math.round(v).toLocaleString("en-US"); }
 function pct(a,b){ return b?Math.round(a/b*100)+"%":"—"; }
 
 /* ---------- the period and the step picked at the top: they drive every chart ---------- */
-function since(){ return ui.win==="y"?M.today.slice(0,4)+"-01-01":addMonths(M.today,-(+ui.win)); }
-function winLabel(){ return ui.win==="y"?"this year":"in the last "+ui.win+" months"; }
+// Each panel has its own period (and step, for the charts over time), picked in its header.
+// CUR is the panel being drawn; the helpers below read that panel's choice.
+var CUR="tiles", DEF_W={move:"6",rate:"12",buy:"6",sales:"6",ladder:"12",coach:"12",xt:"12",src:"y",mix:"6",tiles:"12"};
+function W(){ return (ui.w&&ui.w[CUR])||DEF_W[CUR]||"12"; }
+function PER(){ return (ui.p&&ui.p[CUR])||"m"; }
+function since(){ return W()==="y"?M.today.slice(0,4)+"-01-01":addMonths(M.today,-(+W())); }
+function winLabel(){ return W()==="y"?"this year":"in the last "+W()+" months"; }
 // The months the period covers, from the month it starts in.
 function winMonths(){ var s=since().slice(0,7); return M.months.filter(function(m){ return m.p>=s; }); }
-function bucketOf(p){ var y=p.slice(0,4), m=+p.slice(5,7); return ui.per==="m"?p.slice(0,7):ui.per==="q"?y+" Q"+Math.ceil(m/3):y; }
-function bucketLabel(key){ return ui.per==="m"?monthLabel(key,true):key; }
-function bucketLong(key){ return ui.per==="m"?monthLabel(key):key; }
+function bucketOf(p){ var y=p.slice(0,4), m=+p.slice(5,7); return PER()==="m"?p.slice(0,7):PER()==="q"?y+" Q"+Math.ceil(m/3):y; }
+function bucketLabel(key){ return PER()==="m"?monthLabel(key,true):key; }
+function bucketLong(key){ return PER()==="m"?monthLabel(key):key; }
 
 /* ---------- tooltip ---------- */
 var tip=$("tip");
@@ -510,6 +513,7 @@ function pendIn(coach){
   return Object.keys(seen).length;
 }
 function tiles(){
+  CUR="tiles";
   var k=M.kpi, d=k.active-k.active30, all=decIn();
   // Company figure: one outcome per client, whichever coach they were with.
   var last={}; all.forEach(function(x){ if(!last[x.k]||last[x.k].E<=x.E) last[x.k]=x; });
@@ -518,7 +522,7 @@ function tiles(){
   var T=[
     {k:"Active clients",v:k.active,lead:1,sub:(d===0?"same as 30 days ago":'<span class="'+(d>0?"up":"down")+'">'+(d>0?"+":"")+d+"</span> vs 30 days ago")},
     {k:"Up for renewal",v:aed(M.up.aed)+"<small>AED</small>",sub:'<span class="watch">'+(M.up.soon+M.up.due)+" clients</span> · "+M.up.due+" already ran out"},
-    {k:"Clients kept, "+winLabel().replace("in the ",""),v:st+"<small>of "+(st+lf)+" decided</small>",sub:'<span class="down">'+lf+" left</span> · "+pend+" still deciding"},
+    {k:"Clients kept, last 12 months",v:st+"<small>of "+(st+lf)+" decided</small>",sub:'<span class="down">'+lf+" left</span> · "+pend+" still deciding"},
     {k:"New clients "+M.today.slice(0,4),v:k.newYear,sub:"first package ever"},
     {k:"Package sales, "+MONTHS[+M.today.slice(5,7)-1],v:aed(k.salesMonth)+"<small>AED</small>",sub:k.nwMonth+" new · "+k.renMonth+" renewals · without VAT"}
   ];
@@ -528,8 +532,6 @@ function tiles(){
   $("defline").textContent="Up for renewal = "+M.up.soon+" packages ending in the next "+M.up.days+" days + "+M.up.due+" that ran out in the last "+M.settings.grace+
     " days with nothing new. Value = each client's last package. Kept = clients whose package ran out "+winLabel()+" and who bought again within "+M.settings.grace+
     " days, with any coach. Still deciding = their package ran out less than "+M.settings.grace+" days ago, so it is too early to call them gone.";
-  $("winNote").textContent="Period and step apply to every chart on the page. * = still running."+(since()<M.settings.loggedFrom?" Purchases are fully logged from "+fmtDate(M.settings.loggedFrom)+
-    ", so this period starts there: the last 12 months and this year show the same figures until January "+(+M.settings.loggedFrom.slice(0,4)+1)+".":"");
 }
 
 /* ---------- periods: the months in the period, grouped by the step picked ---------- */
@@ -556,6 +558,7 @@ function xLabels(data,L,step,H){ return '<g class="axis">'+data.map(function(d,i
 
 /* ---------- movement ---------- */
 function chartMove(){
+  CUR="move";
   var host=$("chMove"), data=periods();
   if(!data.length){ host.innerHTML='<div class="empty">No months in this period.</div>'; return; }
   var W=width(host),H=320,L=36,R=10,T=34,B=26, step=(W-L-R)/data.length, bw=Math.min(54,step*.5);
@@ -593,6 +596,7 @@ function chartMove(){
 
 /* ---------- renewal rate ---------- */
 function chartRate(){
+  CUR="rate";
   var host=$("chRate"), s0=since(), by={}, order=[];
   // One outcome per client per step: the last time their package ran out in it.
   M.dec.forEach(function(d){
@@ -631,6 +635,7 @@ function chartRate(){
 
 /* ---------- purchases ---------- */
 function chartBuy(){
+  CUR="buy";
   var host=$("chBuy"), data=periods();
   if(!data.length){ host.innerHTML='<div class="empty">No months in this period.</div>'; $("buyNote").textContent=""; return; }
   var W=width(host),H=280,L=36,R=10,T=16,B=26, step=(W-L-R)/data.length, bw=Math.min(40,step*.3);
@@ -660,6 +665,7 @@ function chartBuy(){
 
 /* ---------- package sales ---------- */
 function chartSales(){
+  CUR="sales";
   var host=$("chSales"), data=periods();
   if(!data.length){ host.innerHTML='<div class="empty">No months in this period.</div>'; return; }
   var W=width(host),H=280,L=44,R=10,T=20,B=26, step=(W-L-R)/data.length, bw=Math.min(54,step*.5);
@@ -708,6 +714,7 @@ function chartUp(){
 
 /* ---------- after each package ---------- */
 function chartLadder(){
+  CUR="ladder";
   var host=$("chLadder"), s0=since(), by={};
   M.dec.forEach(function(d){
     if(d.o==="pending"||d.E<s0||d.E>M.today||d.sz==null) return;
@@ -817,9 +824,10 @@ function survAt(c,m){
   return {v:k.at(d),n:rows.length};
 }
 function coaches(){
-  var s0=since(), list=decIn(), tot={a:0,up:0,upn:0,kept:0,moved:0,lost:0,nw:0,sales:0,e:0,en:0};
+  CUR="coach";
+  var s0=since(), list=decIn(), tot={a:0,up:0,upn:0,kept:0,moved:0,lost:0,nw:0,sales:0,e:0,en:0,as:0,ac:0};
   $("coachUnit").textContent="clients whose package ran out "+winLabel()+" · AED without VAT";
-  var head="<thead><tr>"+[["Coach","l"],["Active",""],["Up for<br>renewal",""],["Stayed · moved coach · left","l"],["Renewed<br>before expiry",""],["New clients still<br>here at 3 months",""],["At 6<br>months",""],["New<br>clients",""],["Package<br>sales",""]]
+  var head="<thead><tr>"+[["Coach","l"],["Active",""],["Up for<br>renewal",""],["Stayed · moved coach · left","l"],["Renewed<br>before expiry",""],["New clients still<br>here at 3 months",""],["At 6<br>months",""],["Assessments<br>converted",""],["New<br>clients",""],["Package<br>sales",""]]
     .map(function(c){ return '<th class="'+c[1]+'">'+c[0]+"</th>"; }).join("")+"</tr></thead>";
   var body=M.coaches.map(function(r){
     var mine=list.filter(function(d){ return d.c===r.c; }), o=stayedLeft(mine), n=o.kept+o.moved+o.lost;
@@ -827,22 +835,26 @@ function coaches(){
     var up=M.up.coach[r.c]||{n:0,aed:0};
     // New clients and sales by calendar month, from the month the period starts in.
     var nw=0, sales=0; winMonths().forEach(function(m){ if(m.coach[r.c]){ nw+=m.coach[r.c].n; sales+=m.coach[r.c].s; } });
-    if(!r.active&&!n&&!up.n&&!nw&&!pendIn(r.c)) return "";
+    // Assessments the coach completed in the period, and how many became clients (from the tracker).
+    var as={a:0,c:0}; if(M.assess) Object.keys(M.assess).forEach(function(q){ var x=M.assess[q][r.c]; if(q>=s0.slice(0,7)&&x){ as.a+=x.a; as.c+=x.c; } });
+    if(!r.active&&!n&&!up.n&&!nw&&!pendIn(r.c)&&!as.a) return "";
+    tot.as+=as.a; tot.ac+=as.c;
     tot.a+=r.active; tot.up+=up.aed; tot.upn+=up.n; tot.kept+=o.kept; tot.moved+=o.moved; tot.lost+=o.lost; tot.nw+=nw; tot.sales+=sales; tot.e+=early; tot.en+=ren.length;
     var W=150, bars=n?[["kept","var(--up)"],["moved","var(--s-ret)"],["lost","var(--s-lost)"]].filter(function(p){ return o[p[0]]; }).map(function(p){
       return '<span style="width:'+(o[p[0]]/n*100)+'%;background:'+p[1]+'"></span>'; }).join(""):"";
     var s3=survAt(r.c,3), s6=survAt(r.c,6);
+    function cv(c,a){ if(!M.assess||!a) return '<span class="dim">—</span>'; var v=Math.round(c/a*100); return '<span class="'+(v>=70?"up":v<40?"down":"")+'">'+v+'%</span> <span class="dim" style="font-size:11px">'+c+" of "+a+"</span>"; }
     function sv(x){ if(!x) return '<span class="dim">—</span>'; var v=Math.round(x.v*100);
       return '<span class="'+(v>=75?"up":v<45?"down":"")+'" title="'+x.n+' new clients since '+fmtDate(M.settings.loggedFrom)+'">'+v+'%</span> <span class="dim" style="font-size:11px">('+x.n+")</span>"; }
     return '<tr><td class="l">'+esc(r.c)+(r.status==="Former"?' <span class="pill">former</span>':"")+"</td><td>"+r.active+"</td>"+
       "<td>"+(up.n?'<span class="'+(up.aed>=40000?"watch":"")+'">'+aed(up.aed)+'</span> <span class="dim">· '+up.n+"</span>":'<span class="dim">—</span>')+"</td>"+
       '<td class="l">'+(n?'<span class="sml"><span class="sml-bar">'+bars+'</span><span class="sml-n">'+o.kept+" · "+o.moved+" · "+o.lost+"</span>"+(pendIn(r.c)?'<span class="dim">+'+pendIn(r.c)+" deciding</span>":"")+"</span>":(pendIn(r.c)?'<span class="dim">'+pendIn(r.c)+" still deciding</span>":'<span class="dim">none in this period</span>'))+"</td>"+
       "<td>"+(ren.length?pct(early,ren.length)+' <span class="dim">of '+ren.length+"</span>":'<span class="dim">—</span>')+"</td>"+
-      "<td>"+sv(s3)+"</td><td>"+sv(s6)+"</td><td>"+(nw||'<span class="dim">0</span>')+"</td><td>"+(sales?aed(sales):'<span class="dim">—</span>')+"</td></tr>";
+      "<td>"+sv(s3)+"</td><td>"+sv(s6)+"</td><td>"+cv(as.c,as.a)+"</td><td>"+(nw||'<span class="dim">0</span>')+"</td><td>"+(sales?aed(sales):'<span class="dim">—</span>')+"</td></tr>";
   }).join("");
   var k3=km(M.cohort), n3=Math.round(k3.at(91.3)*100), n6=Math.round(k3.at(182.6)*100), tn=tot.kept+tot.moved+tot.lost;
   body+='<tr class="total"><td class="l">'+(scope==="team"?"Team without Hossam":"Team")+'</td><td>'+tot.a+"</td><td>"+aed(tot.up)+' <span class="dim">· '+tot.upn+'</span></td><td class="l"><span class="sml-n">'+tot.kept+" · "+tot.moved+" · "+tot.lost+"</span> "+'<span class="dim">+'+pendIn()+" deciding · </span>"+
-    '<span class="dim">'+pct(tot.kept+tot.moved,tn)+" stayed</span></td><td>"+pct(tot.e,tot.en)+"</td><td>"+n3+"%</td><td>"+n6+"%</td><td>"+tot.nw+"</td><td>"+aed(tot.sales)+"</td></tr>";
+    '<span class="dim">'+pct(tot.kept+tot.moved,tn)+" stayed</span></td><td>"+pct(tot.e,tot.en)+"</td><td>"+n3+"%</td><td>"+n6+"%</td><td>"+(tot.as?pct(tot.ac,tot.as)+' <span class="dim" style="font-size:11px">'+tot.ac+" of "+tot.as+"</span>":"—")+"</td><td>"+tot.nw+"</td><td>"+aed(tot.sales)+"</td></tr>";
   $("coachTbl").innerHTML=head+"<tbody>"+body+"</tbody>";
 }
 
@@ -868,6 +880,7 @@ function lastOutcomes(list){
 }
 function attr(r,dim){ if(dim==="pkg") return r.sz==null?null:String(r.sz); var c=M.cl[r.k]; return c?c[dim]:null; }
 function xt(){
+  CUR="xt";
   $("xtPick").innerHTML=DIMS.map(function(d){ return '<button class="chip pick'+(ui.xt===d[0]?" on":"")+'" data-d="'+d[0]+'">'+(d[0]==="pkg"?"Package":d[1])+"</button>"; }).join("");
   Array.prototype.forEach.call($("xtPick").querySelectorAll("button"),function(b){ b.addEventListener("click",function(){ ui.xt=b.getAttribute("data-d"); saveUi(); xt(); }); });
   var dim=ui.xt, rows=lastOutcomes(decIn()).map(function(r){ var o={c:r.c,kept:r.o==="kept"?1:0}; o[dim]=attr(r,dim); return o; });
@@ -935,10 +948,11 @@ function match(){
 
 /* ---------- value by source ---------- */
 function sources(){
-  var rows=M.cohort, by={};
+  CUR="src";
+  var s0=since(), rows=M.cohort.filter(function(r){ return r.d>=s0; }), by={};
   rows.forEach(function(r){ var k=r.src||"(not recorded)"; var o=by[k]||(by[k]={n:0,aed:0,y:0,d:0}); o.n++; o.aed+=r.aed; if(r.second!=null){ o.d++; o.y+=r.second; } });
   var keys=Object.keys(by).sort(function(a,b){ return (a==="(not recorded)")-(b==="(not recorded)")||by[b].n-by[a].n; });
-  $("srcSince").textContent=fmtDate(M.settings.loggedFrom);
+  $("srcSince").textContent=fmtDate(s0>M.settings.loggedFrom?s0:M.settings.loggedFrom);
   $("srcTbl").innerHTML='<thead><tr><th class="l">How they found us</th><th>New clients</th><th>Value so far,<br>average</th><th>Bought a<br>second package</th></tr></thead><tbody>'+
     keys.map(function(k){ var o=by[k], nr=k==="(not recorded)";
       return '<tr'+(nr?' class="dim"':"")+'><td class="l">'+esc(k)+"</td><td>"+o.n+"</td><td>"+aed(o.aed/o.n)+"</td><td>"+(o.d?pct(o.y,o.d)+' <span class="dim">of '+o.d+"</span>":'<span class="dim">—</span>')+"</td></tr>"; }).join("")+"</tbody>";
@@ -946,7 +960,8 @@ function sources(){
 
 /* ---------- client mix: now against the start of the period ---------- */
 function mix(){
-  var now=M.mix.now, then=M.mix.at[ui.win]||M.mix.at["6"];
+  CUR="mix";
+  var now=M.mix.now, then=M.mix.at[W()]||M.mix.at["6"];
   var nNow=M.kpi.active;
   $("mixTitle").textContent="Who the active clients are: "+then.n+" on "+fmtDate(then.d)+", "+nNow+" now";
   function block(title,dim,order){
@@ -983,14 +998,33 @@ function checks(){
   ].map(function(t){ return "<li>"+t+"</li>"; }).join("");
 }
 
+/* ---------- each panel's own period and step ---------- */
+var CARDS=[["move","chMove",1,function(){ chartMove(); }],["rate","chRate",1,function(){ chartRate(); }],["buy","chBuy",1,function(){ chartBuy(); }],["sales","chSales",1,function(){ chartSales(); }],
+  ["ladder","chLadder",0,function(){ chartLadder(); }],["coach","coachTbl",0,function(){ coaches(); }],["xt","xtTbl",0,function(){ xt(); }],["src","srcTbl",0,function(){ sources(); }],["mix","mix",0,function(){ mix(); }]];
+function controls(){
+  if(!ui.w) ui.w={}; if(!ui.p) ui.p={};
+  CARDS.forEach(function(c){
+    var id=c[0], card=$(c[1]).closest(".card"), head=card.querySelector(".card-h"), ctl=head.querySelector(".ctl");
+    if(!ctl){
+      ctl=document.createElement("span"); ctl.className="ctl";
+      ctl.innerHTML='<select aria-label="Period"><option value="3">Last 3 months</option><option value="6">Last 6 months</option><option value="12">Last 12 months</option><option value="y">This year</option></select>'+
+        (c[2]?'<span class="seg sm"><button data-v="m">Month</button><button data-v="q">Quarter</button><button data-v="y">Year</button></span>':"");
+      head.appendChild(ctl);
+      ctl.querySelector("select").addEventListener("change",function(e){ ui.w[id]=e.target.value; saveUi(); c[3](); });
+      Array.prototype.forEach.call(ctl.querySelectorAll("button"),function(b){ b.addEventListener("click",function(){ ui.p[id]=b.getAttribute("data-v"); saveUi(); controls(); c[3](); }); });
+    }
+    ctl.querySelector("select").value=ui.w[id]||DEF_W[id];
+    Array.prototype.forEach.call(ctl.querySelectorAll("button"),function(b){ b.classList.toggle("on",b.getAttribute("data-v")===(ui.p[id]||"m")); });
+  });
+}
+
 /* ---------- page ---------- */
 function paint(){
   M=view(M0);
   Array.prototype.forEach.call($("segScope").querySelectorAll("button"),function(b){ b.classList.toggle("on",b.getAttribute("data-v")===scope); });
   var gen=M.generated?new Date(M.generated):null;
   $("stamp").innerHTML=(gen?"Read "+gen.toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"}):"")+"<br>"+M.kpi.total+" clients on file · AED without VAT";
-  $("selWin").value=ui.win;
-  Array.prototype.forEach.call($("segPer").querySelectorAll("button"),function(b){ b.classList.toggle("on",b.getAttribute("data-v")===ui.per); });
+  controls();
   tiles(); chartMove(); chartRate(); chartBuy(); chartSales(); chartUp(); chartLadder(); survChips(); chartSurv(); coaches(); xt(); matchForm(); match(); sources(); mix(); checks();
   Array.prototype.forEach.call(document.querySelectorAll(".note .g"),function(e){ e.textContent=M.settings.grace; });
 }
@@ -1050,10 +1084,6 @@ function unlock(){
 }
 unlock().then(function(pass){
   paint();
-  $("selWin").addEventListener("change",function(e){ ui.win=e.target.value; saveUi(); paint(); });
-  Array.prototype.forEach.call($("segPer").querySelectorAll("button"),function(b){
-    b.addEventListener("click",function(){ ui.per=b.getAttribute("data-v"); saveUi(); paint(); });
-  });
   (function(){ var b=$("btnNotes"), on=false; try{ on=localStorage.getItem("iam:notes")==="1"; }catch(e){}
     function set(){ document.body.classList.toggle("notes",on); b.classList.toggle("on",on); }
     b.addEventListener("click",function(){ on=!on; try{ localStorage.setItem("iam:notes",on?"1":"0"); }catch(e){} set(); }); set(); })();

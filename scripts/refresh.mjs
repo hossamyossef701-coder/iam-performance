@@ -26,7 +26,7 @@ const ORDER = (env.FETCH_STRATEGIES || "badger,od,odkey,spshares,zip,rest,browse
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
-console.log("refresh build 2026-11-14c (per-coach figures for the With Hossam / Team only switch)");  // proves which version the job is running
+console.log("refresh build 2026-11-15a (assessments passed to the Clients page)");  // proves which version the job is running
 
 // One typed character of difference, so "Shayla" finds "Shyla".
 function near(a, b) {
@@ -97,27 +97,40 @@ async function readClients() {
     nameLinks = linkTab ? XLSX.utils.sheet_to_json(wb.Sheets[linkTab], { header: 1, raw: true, defval: null }) : [];
     const model = buildClientsModel(sheets, { internal: true });
     clientsInner = model._in; delete model._in;
-    const out = path.join(OUT, "clients.enc.json");
-    // The same figures as last time are not written again (a new lock changes the file and makes
-    // a pointless commit) unless they are getting old.
-    if (fs.existsSync(out)) {
-      try {
-        const prev = await decryptJSON(JSON.parse(fs.readFileSync(out, "utf8")), pass);
-        const { generated: g, ...rest } = prev;
-        if (JSON.stringify(rest) === JSON.stringify(model) && Date.now() - Date.parse(g) < MIN_AGE_H * 3600e3) {
-          console.log("Clients: same figures as the last read, not rewritten."); return;
-        }
-      } catch {}
-    }
-    model.generated = new Date().toISOString();
-    fs.writeFileSync(out, JSON.stringify(await encryptJSON(model, pass)));
-    console.log(`Clients: ${model.kpi.total} clients, ${model.kpi.active} active - clients.enc.json written`  + " (no names, no IDs)");
+    clientsModel = model;
+    // Written now, so the Clients page is updated even if the coach sheets fail later in the run.
+    // Assessments come from the tracker, read further on: until then, the last ones are kept.
+    await writeClients(undefined);
   } catch (e) {
     const msg = e.plain ? e.plain.replace(/\bSHARE_URL/g, "CLIENTS_SHARE_URL").replace(/coach folder/g, "Clients folder")
                         : `The Clients file could not be read: ${String(e.message || e).split("\n")[0].slice(0, 160)}`;
     console.log(`::warning title=Clients page not updated::${msg}`);
     console.log(L.redact(String(e.stack || e.message)));
   }
+}
+
+// Writes clients.enc.json. assess: completed and converted assessments per month and coach, for the
+// Coaches table (undefined = keep what the file already has). The same figures as last time are
+// not written again (a new lock changes the file and makes a pointless commit) unless they are old.
+let clientsModel = null;
+async function writeClients(assess) {
+  if (!clientsModel) return;
+  const pass = (env.CLIENTS_PASSPHRASE || "").trim();
+  const out = path.join(OUT, "clients.enc.json");
+  let prev = null;
+  if (fs.existsSync(out)) { try { prev = await decryptJSON(JSON.parse(fs.readFileSync(out, "utf8")), pass); } catch {} }
+  const model = { ...clientsModel };
+  delete model.generated;
+  model.assess = assess !== undefined ? assess : (prev && prev.assess) || null;
+  if (prev) {
+    const { generated: g, ...rest } = prev;
+    if (JSON.stringify(rest) === JSON.stringify(model) && Date.now() - Date.parse(g) < MIN_AGE_H * 3600e3) {
+      console.log("Clients: same figures as the last read, not rewritten."); return;
+    }
+  }
+  model.generated = new Date().toISOString();
+  fs.writeFileSync(out, JSON.stringify(await encryptJSON(model, pass)));
+  console.log(`Clients: ${model.kpi.total} clients, ${model.kpi.active} active - clients.enc.json written (no names, no IDs)`);
 }
 
 async function main() {
@@ -298,6 +311,9 @@ async function main() {
       assessReport = { error: L.redact(e.message).split("\n")[0] };
     }
   }
+
+  // The Clients page's Coaches table shows each coach's assessments converted: pass them on.
+  if (assess) { try { await writeClients(assess); } catch (e) { console.log("Clients: assessments not added - " + String(e.message || e).split("\n")[0]); } }
 
   // 3b. Overview and Coach review: the coach sheets joined to the Clients file. Locked with the
   //     Performance passphrase. A problem here is reported and never stops the coach figures.

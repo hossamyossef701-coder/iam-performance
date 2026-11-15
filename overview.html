@@ -49,7 +49,7 @@
   </div>
 
   <div class="card section">
-    <div class="card-h"><div><div class="k">Sold and delivered</div><div class="t">Package sales against revenue</div></div><span class="unit">AED, without VAT</span></div>
+    <div class="card-h"><div><div class="k">Sold and delivered</div><div class="t">Package sales against revenue</div></div><span class="unit">AED, without VAT</span><select class="win" data-k="sold" aria-label="Period"><option value="3">Last 3 months</option><option value="6">Last 6 months</option><option value="12">Last 12 months</option><option value="all">Everything logged</option></select></div>
     <div class="card-b">
       <div class="legend"><span><i style="background:var(--accent)"></i>package sales: what clients paid</span><span><i style="background:var(--s-ret)"></i>revenue: sessions delivered × rate</span><span class="r">on top: sold − delivered</span></div>
       <div class="chart" id="chSold"></div>
@@ -58,7 +58,7 @@
   </div>
 
   <div class="card section">
-    <div class="card-h"><div><div class="k">Unused sessions</div><div class="t">Paid for and not yet trained, since <span id="ovFrom"></span></div></div><span class="unit">AED, running total</span></div>
+    <div class="card-h"><div><div class="k">Unused sessions</div><div class="t">Paid for and not yet trained, since <span id="ovFrom"></span></div></div><span class="unit">AED, running total</span><select class="win" data-k="unused" aria-label="Period"><option value="3">Last 3 months</option><option value="6">Last 6 months</option><option value="12">Last 12 months</option><option value="all">Everything logged</option></select></div>
     <div class="card-b">
       <div class="chart" id="chUnused"></div>
       <p class="note">Running total of package sales minus revenue. Rising: selling faster than delivering. Falling: delivering sessions sold earlier. It starts at zero on the first logged month, so it shows the change since then, not the full amount owed (packages bought before then are not in it).</p>
@@ -157,9 +157,13 @@ function thisMonth(){
   $("sent").innerHTML=out.map(function(x){ return '<li><span class="dot" style="background:'+x[0]+'"></span><span>'+esc(x[1])+"</span></li>"; }).join("");
 }
 
+/* ---- each chart's own period ---- */
+var win={sold:"12",unused:"all"}; try{ var sw=JSON.parse(localStorage.getItem("iamov:win")||"{}"); for(var wk in sw) win[wk]=sw[wk]; }catch(e){}
+function inWin(k,list){ if(win[k]==="all") return list; var from=C.prevP(D.ov.now,+win[k]-1); return list.filter(function(m){ return m.p>=from; }); }
+
 /* ---- Sold and delivered ---- */
 function chartSold(){
-  var host=$("chSold"), M=D.ov.months; if(!M.length){ host.innerHTML='<div class="empty">No months yet.</div>'; return; }
+  var host=$("chSold"), M=inWin("sold",D.ov.months); if(!M.length){ host.innerHTML='<div class="empty">No months yet.</div>'; return; }
   var W=C.width(host),H=290,L=44,R=10,T=22,B=26, step=(W-L-R)/M.length, bw=Math.min(30,step*.3);
   var mx=C.niceMax(Math.max.apply(null,M.map(function(m){ return Math.max(m.sales,m.rev); }))*1.12), y=function(v){ return T+(H-T-B)*(1-v/mx); };
   var s='<svg viewBox="0 0 '+W+" "+H+'"><rect class="hl" rx="6" fill="rgba(255,255,255,.035)" style="opacity:0"/>'+C.grid(W,L,R,y,[0,mx/2,mx],aed);
@@ -181,6 +185,7 @@ function chartSold(){
 function chartUnused(){
   var host=$("chUnused"), M=D.ov.months; if(!M.length){ host.innerHTML=""; return; }
   var run=0, runS=0, pts=M.map(function(m){ run+=m.sales-m.rev; runS+=m.soldS-m.delS; return {p:m.p,v:run,s:runS,partial:m.partial}; });
+  pts=inWin("unused",pts);   // the total still runs from the first logged month; the period only picks what is shown
   var W=C.width(host),H=240,L=50,R=14,T=18,B=26, step=(W-L-R)/pts.length;
   var lo=Math.min(0,Math.min.apply(null,pts.map(function(x){ return x.v; }))), hi=Math.max(0,Math.max.apply(null,pts.map(function(x){ return x.v; })));
   var span=C.niceMax(Math.max(Math.abs(lo),Math.abs(hi))*1.2||1000), y0=lo<0?-span:0, y1=hi>0?span:0;
@@ -316,6 +321,10 @@ function names(){
 C.unlock(function(d,pass){
   D=d; OV0=d.ov; render();
   C.scopeSwitch($("segScope"),render);
+  Array.prototype.forEach.call(document.querySelectorAll("select.win"),function(sel){
+    var k=sel.getAttribute("data-k"); sel.value=win[k];
+    sel.addEventListener("change",function(){ win[k]=sel.value; try{ localStorage.setItem("iamov:win",JSON.stringify(win)); }catch(e){} if(k==="sold") chartSold(); else chartUnused(); });
+  });
   C.notes($("btnNotes"));
   $("btnReload").addEventListener("click",function(){ var b=this; b.disabled=true; b.textContent="Reloading…"; C.load(pass).then(function(x){ D=x; OV0=x.ov; render(); }).catch(function(){}).then(function(){ b.disabled=false; b.textContent="Reload"; }); });
   Array.prototype.forEach.call($("segShare").querySelectorAll("button"),function(b){ b.addEventListener("click",function(){ shareN=+b.getAttribute("data-v"); try{ localStorage.setItem("iamov:share",shareN); }catch(e){} share(); }); });

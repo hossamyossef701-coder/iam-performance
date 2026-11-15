@@ -212,3 +212,7 @@ body.notes .note,body.notes .defline.n{display:block;}
 .big3 .v{font-size:26px;font-variant-numeric:tabular-nums;}
 .big3 .l{font-size:11.5px;color:var(--ink-soft);}
 button.on{border-color:var(--accent);color:var(--accent-2);}
+
+select.win{padding:5px 8px;font-size:11.5px;}
+.card-h{align-items:center;}
+.card-h .unit{margin-left:auto;}
