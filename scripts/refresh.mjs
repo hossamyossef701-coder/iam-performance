@@ -12,6 +12,25 @@ import { parseAssessments } from "./assess.mjs";
 import { encryptJSON, decryptJSON } from "./crypto.mjs";
 import { buildClientsModel } from "./clients-model.mjs";
 import { buildOverview } from "./join.mjs";
+import { colourFamily } from "./parse.mjs";
+
+const COLOUR_NAME = { r: "red (last session)", g: "green (first session)", y: "yellow (charged)", o: "orange (cover)", b: "blue (assessment)", p: "purple (rewarded)" };
+const colourLog = {};
+// One character per cell, in the same grid as sheet_to_json(header: 1) gives the values: the
+// colour family of a solid fill, or "" for none. "?rrggbb" for a fill that fits no family.
+function fillGrid(ws) {
+  if (!ws || !ws["!ref"]) return [];
+  const R = XLSX.utils.decode_range(ws["!ref"]), out = [];
+  for (const addr of Object.keys(ws)) {
+    if (addr[0] === "!") continue;
+    const cell = ws[addr], f = cell && cell.s;
+    if (!f || f.patternType !== "solid" || !f.fgColor || !f.fgColor.rgb) continue;
+    const a = XLSX.utils.decode_cell(addr), fam = colourFamily(f.fgColor.rgb);
+    if (!fam) continue;
+    (out[a.r - R.s.r] || (out[a.r - R.s.r] = []))[a.c - R.s.c] = fam === "?" ? "?" + String(f.fgColor.rgb).slice(-6).toUpperCase() : fam;
+  }
+  return out;
+}
 
 const env = process.env;
 const SHARE_URL = (env.SHARE_URL || "").trim();
@@ -26,7 +45,7 @@ const ORDER = (env.FETCH_STRATEGIES || "badger,od,odkey,spshares,zip,rest,browse
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
-console.log("refresh build 2026-11-15e (Coach review KPIs month by month)");  // proves which version the job is running
+console.log("refresh build 2026-11-15f (cell colours: last paid session, charged cancellations)");  // proves which version the job is running
 
 // One typed character of difference, so "Shayla" finds "Shyla".
 function near(a, b) {
@@ -113,7 +132,7 @@ async function readClients() {
 // Coaches table (undefined = keep what the file already has). The same figures as last time are
 // not written again (a new lock changes the file and makes a pointless commit) unless they are old.
 let clientsModel = null;
-async function writeClients(assess) {
+async function writeClients(assess, rt) {
   if (!clientsModel) return;
   const pass = (env.CLIENTS_PASSPHRASE || "").trim();
   const out = path.join(OUT, "clients.enc.json");
@@ -122,6 +141,8 @@ async function writeClients(assess) {
   const model = { ...clientsModel };
   delete model.generated;
   model.assess = assess !== undefined ? assess : (prev && prev.assess) || null;
+  // rt: renewals per coach and month, on time or after the last paid session (from the coach sheets).
+  model.rt = rt !== undefined ? rt : (prev && prev.rt) || null;
   if (prev) {
     const { generated: g, ...rest } = prev;
     if (JSON.stringify(rest) === JSON.stringify(model) && Date.now() - Date.parse(g) < MIN_AGE_H * 3600e3) {
@@ -193,7 +214,7 @@ async function main() {
     const entry = { file: f.name, coach, folder: f.folder || null, months: [], empty: [], errors: [], warnings: [], superseded: [] };
     report.push(entry);
     let wb;
-    try { wb = XLSX.read(f.buf, { type: "buffer", cellDates: true }); }
+    try { wb = XLSX.read(f.buf, { type: "buffer", cellDates: true, cellStyles: true }); }
     catch { entry.errors.push("could not read this file as Excel"); continue; }
     const targets = wb.SheetNames.map((n) => ({ n, p: sheetNameToPeriod(n) })).filter((x) => x.p && x.p >= LIVE_FROM && x.p <= now);
     if (!targets.length) entry.errors.push(`no month sheet from ${LIVE_FROM} onward`);
@@ -205,7 +226,10 @@ async function main() {
         arr = XLSX.utils.sheet_to_json(wb.Sheets[t.n], { header: 1, raw: true, defval: null });
         // For the month still running, also count only the days that have happened, because
         // sessions are booked ahead and the sheet's totals include them.
-        r = parseCoachSheet(arr, t.p === now ? { cutoffDay: today } : null);
+        // The fill colour of every cell, as a family (red = last session of a package, green = first,
+        // yellow = a charged cancellation, orange = cover...): the same grid as the values.
+        const fills = fillGrid(wb.Sheets[t.n]);
+        r = parseCoachSheet(arr, t.p === now ? { cutoffDay: today, fills } : { fills });
       } catch (e) {
         entry.errors.push(`${t.p}: this month's tab could not be read (${String(e && e.message || e).slice(0, 80)})`);
         continue;
@@ -239,9 +263,22 @@ async function main() {
       if (r.projection) { bucket[coach].ps = r.projection.s; bucket[coach].pr = r.projection.r; bucket[coach].pm = r.projection.missing; }
       // cl: each client's row day by day, for the last 13 months only. Names as the coach typed
       // them; this file is encrypted with the Performance passphrase like everything in it.
-      if (r.people && r.people.length && t.p >= CL_FROM) bucket[coach].cl = r.people.map((x) => [x.n, x.p, x.m]);
+      if (r.people && r.people.length && t.p >= CL_FROM) bucket[coach].cl = r.people.map((x) => [x.n, x.p, x.m, x.k]);
+      // How many day cells carried each colour: printed below, so a coach's own shades can be checked.
+      if (r.colours && t.p >= CL_FROM) { const cc = colourLog[coach] || (colourLog[coach] = {}); for (const [k, v] of Object.entries(r.colours)) cc[k] = (cc[k] || 0) + v; }
       entry.months.push(t.p);
     }
+  }
+  // Colours read from the client rows' day cells, last 13 months, per coach. "other" lists the
+  // fills that fit no family, so a shade a coach uses for a session mark can be added.
+  for (const [coach, cc] of Object.entries(colourLog)) {
+    const { other, ...fam } = cc;
+    L.log(`Colours on ${coach}'s sheets: ` + Object.entries(fam).map(([k, v]) => `${COLOUR_NAME[k] || k} ${v}`).join(", "));
+  }
+  {
+    const odd = {}; for (const cc of Object.values(colourLog)) for (const [rgb, n] of Object.entries(cc.other || {})) odd[rgb] = (odd[rgb] || 0) + n;
+    const top = Object.entries(odd).sort((a, b) => b[1] - a[1]).slice(0, 12);
+    if (top.length) L.log("Fills that fit no colour family: " + top.map(([k, v]) => `#${k} x${v}`).join(", "));
   }
   // Warnings explain a figure that looks odd, so they belong in the log as well as the page.
   report.filter((r) => r.warnings.length).forEach((r) => {
@@ -342,6 +379,10 @@ async function main() {
         L.log(`Overview: ${n.auto + n.byHand} coach-sheet names linked (${n.byHand} by the Name links tab), ${n.unclear.length} to confirm, ${n.notInFile.length} not in the file - overview.enc.json written`);
       }
       for (const b of ov.names.bad) L.log("  Name links: " + b);
+      const rc = ov.kpiM.rtCover;
+      L.log(`Renewals on time: ${rc.measured} of ${rc.all} renewals followed on the coach sheets, ${rc.red} ended by a red mark; ${rc.misfit} red mark(s) too far from the package size to use`);
+      // The Clients page's Coaches table shows renewals on time too (no names: coach and month counts).
+      try { await writeClients(undefined, { by: ov.kpiM.rt, cover: rc }); } catch (e) { console.log("Clients: renewals on time not added - " + String(e.message || e).split("\n")[0]); }
     } catch (e) {
       console.log(`::warning title=Overview not updated::${String(e.message || e).split("\n")[0].slice(0, 160)}`);
       console.log(L.redact(String(e.stack || e.message)));

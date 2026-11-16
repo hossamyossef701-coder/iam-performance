@@ -2,7 +2,7 @@
 // FAMILY the parser must handle, written from scratch. If a change to the parser breaks one,
 // the job stops here rather than publishing figures nobody has checked.
 import { buildClientsModel } from "./clients-model.mjs";
-import { parseCoachSheet, sheetNameToPeriod } from "./parse.mjs";
+import { parseCoachSheet, sheetNameToPeriod, colourFamily } from "./parse.mjs";
 import { parseAssessments, monthToPeriod } from "./assess.mjs";
 import { buildOverview } from "./join.mjs";
 
@@ -363,6 +363,37 @@ const PROJ_HEAD = [[0, "Commitment %"], [1, "Client Name"], ...days(2, 30), [34,
   check("packages: sessions before a late renewal count toward it",
     { before: [before.state, before.unpaid], after: [after.used, after.left] }, { before: ["unpaid", 3], after: [4, 20] });
 }
+
+/* 9n. The coach's red mark ends a package: a renewal bought after the red session, with sessions
+       trained in between, is late; one bought before the red session is on time. A red mark one
+       session short of the count still ends the package; with no colours the count decides. */
+{
+  const D = (y, m, d) => Math.round((Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 86400000);
+  const pk = (date, end, size) => ({ date, end, size, unit: "Sessions", px: 5000, coach: "Sue", coaches: ["Sue"], type: "Renewal" });
+  const run = (marks, cols, pks) => buildOverview({ inner: { today: D(2026, 11, 20), grace: 90, loggedFrom: D(2026, 1, 1), vat: 5, decisions: [],
+    clients: [{ id: "C0001", name: "Lisa Roberts", coach: "Sue", status: "Active", P: pks[pks.length - 1].end, joined: D(2026, 10, 1), told: null, agreed: null, pk: pks }] },
+    periods: { "2026-10": { Sue: { cl: [["Lisa Roberts", 300, marks[0], cols[0]]] } }, "2026-11": { Sue: { cl: [["Lisa Roberts", 300, marks[1], cols[1]]] } } },
+    links: [], now: "2026-11", cutoffDay: 20, revenueOf: () => null }).kpiM.rt.Sue || {};
+  // 10 sessions 1-10 Oct, the 10th in red; trains 12 and 13 Oct; renews 14 Oct (package of 10): late.
+  const m1 = "1".repeat(10) + ".11" + ".".repeat(18), c1 = ".".repeat(9) + "r" + ".".repeat(21), empty = ".".repeat(31);
+  check("renewals: training after the red session before renewing is late",
+    run([m1, empty], [c1, empty], [pk(D(2026, 10, 1), D(2026, 12, 1), 10), pk(D(2026, 10, 14), D(2027, 1, 1), 10)])["2026-10"], { n: 1, ok: 0, red: 1 });
+  // Same, renewal bought on 10 Oct (the red day): on time.
+  check("renewals: renewing on the day of the last session is on time",
+    run([m1, empty], [c1, empty], [pk(D(2026, 10, 1), D(2026, 12, 1), 10), pk(D(2026, 10, 10), D(2027, 1, 1), 10)])["2026-10"], { n: 1, ok: 1, red: 1 });
+  // A package of 10 whose red mark is on the 11th session (one count too many on the sheet): the
+  // package ends at the red mark, so the 11th is not unpaid and a renewal on 11 Oct is on time.
+  const m2 = "1".repeat(11) + ".".repeat(20), c2 = ".".repeat(10) + "r" + ".".repeat(20);
+  check("renewals: a red mark one session past the count ends the package",
+    run([m2, empty], [c2, empty], [pk(D(2026, 10, 1), D(2026, 12, 1), 10), pk(D(2026, 10, 11), D(2027, 1, 1), 10)])["2026-10"], { n: 1, ok: 1, red: 1 });
+  // No colours at all: the count decides, so the same sheet makes the 11th session unpaid.
+  check("renewals: with no colours the count decides",
+    run([m2, empty], [null, null], [pk(D(2026, 10, 1), D(2026, 12, 1), 10), pk(D(2026, 10, 12), D(2027, 1, 1), 10)])["2026-10"], { n: 1, ok: 0, red: 0 });
+}
+
+/* 9o. Cell colours by family, whatever the shade. */
+check("colours: families", ["FFE699", "FFFF00", "FFC000", "E06666", "FF0000", "F4CCCC", "92D050", "A9D08E", "E2EFDA", "F4B084", "ED7D31", "6D9EEB", "B4A7D6", "FFFFFF", "D9D9D9"].map(colourFamily),
+  ["y", "y", "y", "r", "r", "r", "g", "g", "", "o", "o", "b", "p", "", ""]);
 
 /* 10. Month tab names. */
 check("sheet names", ["Oct 2026", "Sept 2026", "October 2026", " October 2022", "Assessment Report - 2026"].map(sheetNameToPeriod),

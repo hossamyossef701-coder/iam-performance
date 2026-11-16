@@ -74,20 +74,22 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
   const sq = (s) => String(s || "").toLowerCase().replace(/[^a-z]/g, "");
 
   /* 1. Every name on every coach's sheet, with the days it trained ---- */
-  const sheetNames = new Map();                       // "coach|key" -> {coach, name, key, months:Set, days:Map(serial->w)}
+  const sheetNames = new Map();                       // "coach|key" -> {coach, name, key, months:Set, days:Map(serial->w), reds:Set(serial)}
   for (const p of Object.keys(periods).sort()) {
     for (const coach of Object.keys(periods[p])) {
       const cl = periods[p][coach].cl; if (!cl) continue;
       const last = p === now ? cutoffDay : daysIn(p);
-      for (const [name, , m] of cl) {
+      for (const [name, , m, col] of cl) {
         const key = nameKey(name); if (!key) continue;
         const k = coach + "|" + key;
-        const o = sheetNames.get(k) || { coach, name, key, months: new Set(), days: new Map() };
+        const o = sheetNames.get(k) || { coach, name, key, months: new Set(), days: new Map(), reds: new Set() };
         o.name = name; o.months.add(p);
         for (let i = 0; i < Math.min(last, m.length); i++) {
           const w = wOf(m[i]); if (!w) continue;
           const d = serial(`${p}-${String(i + 1).padStart(2, "0")}`);
           o.days.set(d, (o.days.get(d) || 0) + w);
+          // A session in red: the coach's mark for the last session of the package.
+          if (col && col[i] === "r") o.reds.add(d);
         }
         sheetNames.set(k, o);
       }
@@ -146,12 +148,14 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
 
   /* 4. Each linked client's days, all coaches together ---- */
   const daysOf = new Map();                            // id -> Map(serial -> w)
+  const redsOf = new Map();                            // id -> Set(serial): last sessions marked in red
   const namesOf = new Map();                           // id -> [{coach,name}]
   for (const [k, id] of linkOf) {
     const o = sheetNames.get(k);
     const d = daysOf.get(id) || new Map();
     for (const [day, w] of o.days) d.set(day, (d.get(day) || 0) + w);
     daysOf.set(id, d);
+    const rs = redsOf.get(id) || new Set(); for (const day of o.reds) rs.add(day); redsOf.set(id, rs);
     (namesOf.get(id) || namesOf.set(id, []).get(id)).push({ coach: o.coach, name: o.name, months: o.months });
   }
   const sumDays = (d, from, to) => { let s = 0; if (d) for (const [day, w] of d) if (day >= from && day <= to) s += w; return s; };
@@ -172,7 +176,12 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
      a client who renews early uses up the old package first. */
   const clMonths = [...new Set([...sheetNames.values()].flatMap((o) => [...o.months]))].sort();
   const W0 = clMonths.length ? serial(clMonths[0] + "-01") : today;   // the first day the sheets cover
-  function ledger(c, d, T = today, fromDay = T - 30) {
+  /* A package ends at its last paid session. The coach marks it in red; where a red mark falls
+     within NEAR sessions of the package's size it is taken as the end (the count can be off by a
+     missed or extra mark), otherwise the count decides - so a sheet with no colours works as before.
+     Each package records the day it ended (last) and whether a red mark said so (red). */
+  const NEAR = 3;
+  function ledger(c, d, T = today, fromDay = T - 30, reds = redsOf.get(c.id)) {
     const pk = c.pk.filter((p) => p.unit !== "Months" && p.size && p.date <= T);
     if (!pk.length || c.pk.some((p) => p.unit === "Months" && p.date <= T && p.end >= T)) return null;
     // Start at the first package bought inside the days the sheets cover (or the latest one).
@@ -182,22 +191,36 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
     // (for a first package: from two weeks before it, for a client who trained before paying).
     const from = Math.max(W0, prev ? prev.end + 1 : pk[i].date - 14);
     const ses = [...(d || new Map())].filter(([day]) => day >= from && day <= T).sort((a, b) => a[0] - b[0]);
-    const pkgs = pk.slice(i).map((p) => ({ date: p.date, end: p.end, size: p.size, used: 0 }));
-    let k = 0, over = 0, overRecent = 0, late = 0, lateRecent = 0;
-    for (const [day, w0] of ses) {
+    const pkgs = pk.slice(i).map((p) => ({ date: p.date, end: p.end, size: p.size, coach: p.coach, type: p.type, used: 0, last: null, red: false, closed: false }));
+    const isRed = (day) => !!(reds && reds.has(day));
+    let k = 0, over = 0, overRecent = 0, late = 0, lateRecent = 0, misfit = 0;
+    const close = (q, day, red) => { q.closed = true; q.last = day; q.red = red; };
+    for (let si = 0; si < ses.length; si++) {
+      const [day, w0] = ses[si];
       let w = w0;
       while (w > 0) {
-        while (k < pkgs.length && pkgs[k].used >= pkgs[k].size) k++;
+        while (k < pkgs.length && pkgs[k].closed) k++;
         if (k >= pkgs.length) { over += w; if (day >= fromDay) overRecent += w; break; }
-        const take = Math.min(w, pkgs[k].size - pkgs[k].used);
-        pkgs[k].used += take; w -= take;
-        if (day > pkgs[k].end) { late += take; if (day >= fromDay) lateRecent += take; }
+        const q = pkgs[k];
+        // Up to the size; past it only while waiting for a red mark that is on its way.
+        const room = q.used < q.size ? q.size - q.used : w;
+        const take = Math.min(w, room);
+        q.used += take; w -= take;
+        if (day > q.end) { late += take; if (day >= fromDay) lateRecent += take; }
+        if (isRed(day) && w <= 0) {
+          if (q.size - q.used <= NEAR) close(q, day, true); else misfit++;   // a red mark far from the count is not trusted
+        } else if (q.used >= q.size) {
+          // Size reached: end here, unless the coach's red mark comes within the next NEAR sessions.
+          let ahead = false, extra = 0;
+          for (let sj = si + 1; sj < ses.length && extra < NEAR; sj++) { extra += ses[sj][1]; if (isRed(ses[sj][0])) { ahead = true; break; } }
+          if (!ahead || q.used - q.size >= NEAR) close(q, day, isRed(day));
+        }
       }
     }
-    while (k < pkgs.length && pkgs[k].used >= pkgs[k].size) k++;
+    while (k < pkgs.length && pkgs[k].closed) k++;
     const cur = pkgs[Math.min(k, pkgs.length - 1)], last = pkgs[pkgs.length - 1];
-    const left = pkgs.reduce((t, p) => t + p.size - p.used, 0);
-    return { cur, last, left, over, overRecent, late, lateRecent };
+    const left = pkgs.reduce((t, p) => t + Math.max(0, p.size - p.used) * (p.closed ? 0 : 1), 0);
+    return { cur, last, left, over, overRecent, late, lateRecent, pkgs, ses, misfit };
   }
   const inUse = [];
   for (const c of inner.clients) {
@@ -329,12 +352,38 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
     }
   }
 
+  /* 10. Renewals: on time or after the last paid session ----
+     A renewal is on time when the client trained no session after the last paid session of the
+     package before it and before the day the renewal was bought. Filed in the month the renewal
+     was bought, under the coach of the package that ran out. Only renewals the coach sheets can
+     follow (linked clients, packages inside the sheets' months) are counted; n/N below shows how
+     many that was. */
+  const rt = {}, rtCover = { measured: 0, all: 0, red: 0, misfit: 0 };
+  for (const c of inner.clients) {
+    const own = c.pk.filter((p) => p.date <= today);
+    for (const p of own) if (p.type === "Renewal" && iso(p.date) >= iso(inner.loggedFrom)) rtCover.all++;
+    const d = daysOf.get(c.id); if (!d) continue;
+    const L = ledger(c, d); if (!L) continue;
+    rtCover.misfit += L.misfit;
+    for (let q = 1; q < L.pkgs.length; q++) {
+      const A = L.pkgs[q - 1], Bp = L.pkgs[q];
+      if (Bp.type !== "Renewal" || Bp.date < inner.loggedFrom) continue;
+      // Not used up when the renewal was bought: on time. Used up: any session between its last
+      // session and the purchase day means the client trained unpaid.
+      const lateS = A.last == null || A.last >= Bp.date ? 0 : L.ses.filter(([day]) => day > A.last && day < Bp.date).reduce((t, x) => t + x[1], 0);
+      const coach = A.coach || c.coach || "(no coach)", m = iso(Bp.date).slice(0, 7);
+      const o = (rt[coach] || (rt[coach] = {}))[m] || (rt[coach][m] = { n: 0, ok: 0, red: 0 });
+      o.n++; if (!lateS) o.ok++; if (A.red) { o.red++; rtCover.red++; }
+      rtCover.measured++;
+    }
+  }
+
   return {
     v: 1, today: iso(today), now, grace: inner.grace, loggedFrom: iso(inner.loggedFrom),
     names: { auto, byHand, ignored, unclear: unclear.sort((a, b) => (b.last || "").localeCompare(a.last || "") || a.coach.localeCompare(b.coach)), notInFile: notInFile.sort((a, b) => (b.last || "").localeCompare(a.last || "")), endedOnSheet, bad, hasTab: head >= 0 },
     inUse, up, months, perCoach, team, clientsOfCoach,
     // Month by month, per coach, for the Coach review page's KPIs.
-    kpiM: { ...(inner.monthly || { from: null, by: {} }), up: upM },
+    kpiM: { ...(inner.monthly || { from: null, by: {} }), up: upM, rt, rtCover },
     // Active clients per coach right now, by the coach on the Clients tab (a handoff updates it).
     activeByCoach: inner.clients.filter((c) => c.status === "Active").reduce((o, c) => {
       const k = c.coach || ((c.pk.filter((p) => p.date <= today).pop() || {}).coach) || "(no coach)"; o[k] = (o[k] || 0) + 1; return o; }, {}),

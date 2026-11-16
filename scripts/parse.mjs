@@ -129,6 +129,27 @@ const matchesAny = (text, options) => { const t = squash(text); return !!t && op
 // Coaches book sessions ahead, so the sheet's own monthly totals include days that have not
 // happened yet. For the month still running, the figures are rebuilt by counting only the
 // day columns up to and including today. opts.cutoffDay says which day that is.
+/* The colour family of a cell fill, by hue: coaches use their own shade of each colour, so the
+   exact code is never compared. "" = no colour that means anything (white, grey, a pale row tint),
+   "?" = a strong colour outside every family. The coach sheets' legend: green = first session of
+   a package, red = last session, yellow = charged (late cancellation), orange = cover,
+   blue = assessment, purple = rewarded session. */
+export function colourFamily(rgb) {
+  const h6 = String(rgb || "").slice(-6); if (!/^[0-9a-fA-F]{6}$/.test(h6)) return "";
+  const R = parseInt(h6.slice(0, 2), 16) / 255, G = parseInt(h6.slice(2, 4), 16) / 255, B = parseInt(h6.slice(4, 6), 16) / 255;
+  const mx = Math.max(R, G, B), mn = Math.min(R, G, B), l = (mx + mn) / 2, d = mx - mn;
+  if (d < 0.08) return "";                                  // white, black, greys
+  const sat = d / (1 - Math.abs(2 * l - 1));
+  if (sat < 0.2 || l > 0.94) return "";
+  let h = mx === R ? ((G - B) / d) % 6 : mx === G ? (B - R) / d + 2 : (R - G) / d + 4; h *= 60; if (h < 0) h += 360;
+  if (h >= 345 || h < 12) return l > 0.9 ? "" : "r";
+  if (h < 38) return "o";
+  if (h < 70) return "y";
+  if (h < 170) return l > 0.85 ? "" : "g";                // a pale green row tint is not a first session
+  if (h < 255) return l > 0.88 ? "" : "b";
+  return l > 0.9 ? "" : "p";
+}
+
 export function parseCoachSheet(arr, opts) {
   // 1. The header row is the one carrying the client-name column; its position and spelling
   //    both vary, so search the opening rows across the opening columns.
@@ -275,6 +296,10 @@ export function parseCoachSheet(arr, opts) {
   // worked out from. One character per day of the month: "." nothing, "1" a session,
   // "h" an online half, "0" cancelled, "2"-"9" that many sessions, "x" anything else positive.
   const people = [];
+  // k: the colour of each day's cell, one character per day ("." none or unknown): only when the
+  // reader passed the fills (opts.fills, the same grid as arr).
+  const fills = opts && opts.fills;
+  const colours = fills ? { other: {} } : null;
   const markOf = (v) => (v == null || v < 0 ? "." : v === 0 ? "0" : v === 0.5 ? "h" : Number.isInteger(v) && v <= 9 ? String(v) : "x");
   for (let r = headerRowIdx + 1; r < clientEnd; r++) {
     const row = arr[r]; if (!row) continue;
@@ -288,7 +313,18 @@ export function parseCoachSheet(arr, opts) {
     if (dayCols.length) {
       const m = Array(31).fill(".");
       for (const { c, d } of dayCols) if (d >= 1 && d <= 31) m[d - 1] = markOf(num(row[c]));
-      people.push({ n: String(row[nameCol]).trim().replace(/\s+/g, " "), p: num(row[ppsCol]), m: m.join("") });
+      let k = null;
+      if (fills) {
+        const kk = Array(31).fill(".");
+        for (const { c, d } of dayCols) {
+          if (d < 1 || d > 31) continue;
+          const f = fills[r] && fills[r][c]; if (!f) continue;
+          if (f[0] === "?") { if (m[d - 1] !== ".") colours.other[f.slice(1)] = (colours.other[f.slice(1)] || 0) + 1; continue; }
+          kk[d - 1] = f; colours[f] = (colours[f] || 0) + 1;
+        }
+        k = kk.join("");
+      }
+      people.push({ n: String(row[nameCol]).trim().replace(/\s+/g, " "), p: num(row[ppsCol]), m: m.join(""), k });
     }
     const s = num(row[sessionsCol]); if (s != null) sumS += s;
     const rv = num(row[moneyCol]); if (rv != null) sumR += rv;
@@ -452,5 +488,5 @@ export function parseCoachSheet(arr, opts) {
     }
   }
 
-  return { sessions, revenue, cancelled, rate, clients, derived, dayCols: dayCols.length, dayRow: dayRowIdx, mtd, projection, people, warnings };
+  return { sessions, revenue, cancelled, rate, clients, derived, dayCols: dayCols.length, dayRow: dayRowIdx, mtd, projection, people, colours, warnings };
 }
