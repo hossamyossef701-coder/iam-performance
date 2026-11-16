@@ -226,11 +226,21 @@ function val(c,p){
   return (cache[key]=o);
 }
 // A coach over a block of months: the parts added up; null when no month has the figure.
-function parts(c,ms,k){ var n=0,d=0; ms.forEach(function(p){ var q=val(c,p).P[k]; if(q){ n+=q.n; d+=q.d; } }); return d>0?{n:n,d:d}:null; }
+// Except "still with us": over several months each client is counted once - with the coach the
+// day before the first month, still a client at the end of the last.
+function parts(c,ms,k){
+  if(k==="kept"&&ms.length>1){
+    var K=D.ov&&D.ov.kpiM, sp=K&&K.span&&K.span[ms[0]+"|"+ms[ms.length-1]], f=fileName(c);
+    if(sp){ var v=f&&sp[f]; return v&&v[0]?{n:v[1],d:v[0]}:null; }
+  }
+  var n=0,d=0; ms.forEach(function(p){ var q=val(c,p).P[k]; if(q){ n+=q.n; d+=q.d; } }); return d>0?{n:n,d:d}:null; }
 function agg(c,ms,k){ var q=parts(c,ms,k); return q?q.n/q.d*(PCT[k]?100:1):null; }
 function tipOf(c,b,k){
   if(b.ms.length===1){ var o=val(c,b.ms[0]); return o[k+"D"]||""; }
   var q=parts(c,b.ms,k); if(!q) return "";
+  if(k==="kept") return q.n+" of the "+q.d+" clients with the coach at the start of "+b.lab+" still with us at its end";
+  // Clients at 3+ a week: each month's clients, so shown as a monthly average.
+  if(k==="p3"){ var mo=b.ms.filter(function(p){ return val(c,p).P.p3; }).length||1; return "a monthly average of "+(q.n/mo).toFixed(1)+" of "+(q.d/mo).toFixed(1)+" clients"; }
   return PCT[k]?C.full(Math.round(q.n))+" of "+C.full(Math.round(q.d))+" over "+b.lab:SUM[k]||k==="prog"?"a monthly average over "+b.ms.length+" month"+(b.ms.length>1?"s":""):"";
 }
 // The number as it goes into the sheet: whole numbers, one decimal for sessions a week.
@@ -441,7 +451,7 @@ function renderScore(){
 function defs(){
   return "<b>Definitions.</b> Sessions and revenue: from the coach sheets (revenue without VAT). Projection reached: revenue against the projection set at the start of the month. "+
     "Sessions a week per client, clients at 3+ a week, revenue per client: from each client's row on the coach sheets, clients who trained at least once in the month. "+
-    "Active clients: on the Clients file at the month's end. Existing clients still with us: of the clients with the coach the day before the month began, how many are still clients at its end (inside the grace period counts as still with us). "+
+    "Active clients: on the Clients file at the month's end. Existing clients still with us: of the clients with the coach the day before the month (or the quarter, or the stretch) began, how many are still clients at its end, each client counted once (inside the grace period counts as still with us). "+
     "Renewed before the last paid session: of the renewals bought in the month, how many came before the client trained past the last session of the package before (the session marked red on the coach sheet, or by counting the sessions where it is not marked). Assessments converted: from the assessment tracker. "+
     "New clients: New packages in the Clients file. Cancelled: (cancelled + charged) ÷ (trained, charged included, + cancelled). Training less often: clients at half their usual or less over the month's last 3 weeks. "+
     "Beyond what's paid: clients who trained in the month past every session paid for by its end. Late cancellations charged: sessions typed 1 on a yellow cell ÷ (those + the 0s). "+

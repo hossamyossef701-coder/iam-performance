@@ -478,6 +478,21 @@ export function buildClientsModel(sheets, opts = {}) {
       for (const x of decisions) if (x.E >= s0 && x.E <= e && (x.outcome === "kept" || x.outcome === "moved")) { const o = cell(x.coach); o.rn++; if (x.at <= x.E) o.re++; }
       if (m === 12) { y++; m = 1; } else m++;
     }
+    /* Kept over a stretch of months, each client counted once: of the clients with the coach the
+       day before the first month began, how many are still clients at the end of the last.
+       span["2026-07|2026-09"].Hossam = [with the coach at the start, still with us at the end]. */
+    const ps = [], starts = {}, ends = {};
+    { let yy = +iso(loggedFrom).slice(0, 4), mm = +iso(loggedFrom).slice(5, 7);
+      for (;;) { const s0 = toSerial(yy, mm, 1); if (s0 > today) break;
+        const p = iso(s0).slice(0, 7); ps.push(p);
+        starts[p] = withUs(s0 - 1); ends[p] = withUs(Math.min(toSerial(mm === 12 ? yy + 1 : yy, mm === 12 ? 1 : mm + 1, 1) - 1, today));
+        if (mm === 12) { yy++; mm = 1; } else mm++; } }
+    monthly.span = {};
+    for (let i = 0; i < ps.length; i++) for (let j = i + 1; j < ps.length; j++) {
+      const o = {}, W1 = ends[ps[j]];
+      for (const [id, x] of starts[ps[i]]) { const c = x.coach || "(no coach)"; const v = o[c] || (o[c] = [0, 0]); v[0]++; if (W1.has(id)) v[1]++; }
+      monthly.span[ps[i] + "|" + ps[j]] = o;
+    }
   }
 
   /* ---- Headline numbers ---- */
