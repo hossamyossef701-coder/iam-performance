@@ -391,6 +391,34 @@ const PROJ_HEAD = [[0, "Commitment %"], [1, "Client Name"], ...days(2, 30), [34,
     run([m2, empty], [null, null], [pk(D(2026, 10, 1), D(2026, 12, 1), 10), pk(D(2026, 10, 12), D(2027, 1, 1), 10)])["2026-10"], { n: 1, ok: 0, red: 0 });
 }
 
+/* 9p. A covered client: a name on the covering coach's sheet, sessions in orange, for a client who
+       never had a package with that coach. Linked when it can only be one client in the file;
+       left to be confirmed when two clients fit, or when nothing marks it as a cover. */
+{
+  const D = (y, m, d) => Math.round((Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 86400000);
+  const cl = (id, name, coach) => ({ id, name, coach, status: "Active", P: D(2026, 12, 20), joined: D(2026, 9, 1), told: null, agreed: null,
+    pk: [{ date: D(2026, 10, 1), end: D(2026, 12, 20), size: 24, unit: "Sessions", px: 5000, coach, coaches: [coach], type: "New" }] });
+  const marks = "1".repeat(3) + ".".repeat(28), orange = "o".repeat(3) + ".".repeat(28), plain = ".".repeat(31);
+  const run = (clients, name, cols) => buildOverview({ inner: { today: D(2026, 11, 10), grace: 90, loggedFrom: D(2026, 1, 1), vat: 5, decisions: [], clients },
+    periods: { "2026-11": { Andrew: { cl: [[name, 300, marks, cols]] } } }, links: [], now: "2026-11", cutoffDay: 10, revenueOf: () => null }).names;
+  const one = run([cl("C0001", "Deema Pharoah", "Hossam"), cl("C0002", "Lisa Roberts", "Sue")], "Deema", orange);
+  check("cover: an orange row for the only client of that name is linked", [one.auto, one.unclear.length], [1, 0]);
+  const two = run([cl("C0001", "Deema Pharoah", "Hossam"), cl("C0002", "Deema Salem", "Sue")], "Deema", orange);
+  check("cover: two clients of that name are left to confirm", [two.auto, two.unclear.length], [0, 1]);
+  const nocol = run([cl("C0001", "Deema Pharoah", "Hossam")], "Deema", plain);
+  check("cover: a first name with no cover colour is left to confirm", [nocol.auto, nocol.unclear.length], [0, 1]);
+  const full = run([cl("C0001", "Deema Pharoah", "Hossam")], "Deema Pharoah (12)", plain);
+  check("cover: the full name as the file has it is linked without a colour", [full.auto, full.unclear.length], [1, 0]);
+}
+
+/* 9q. Assessments read from the Clients file's tab: the month arrives as a day number. */
+{
+  const r = parseAssessments([["Assessments", null], ["Client name", "Assessment status", "Month", "Converted", "Sessions availed", "Coach"],
+    ["A", "Done", 46327, "✓", 12, "Sue"], ["B", "Done", 46327, "×", "×", "Sue"], ["C", "Scheduled", 46327, "", "", "Sue"], ["D", "Done", 46300, "TBC", "TBC", "Sue"]]);
+  check("assessments tab: months from day numbers, only Done rows", r.periods, { "2026-11": { Sue: { a: 2, c: 1 } } });
+  check("assessments tab: a TBC row waits", r.pending, 1);
+}
+
 /* 9o. Cell colours by family, whatever the shade. */
 check("colours: families", ["FFE699", "FFFF00", "FFC000", "E06666", "FF0000", "F4CCCC", "92D050", "A9D08E", "E2EFDA", "F4B084", "ED7D31", "6D9EEB", "B4A7D6", "FFFFFF", "D9D9D9"].map(colourFamily),
   ["y", "y", "y", "r", "r", "r", "g", "g", "", "o", "o", "b", "p", "", ""]);

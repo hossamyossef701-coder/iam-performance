@@ -15,6 +15,11 @@ export function monthToPeriod(v) {
   if (v instanceof Date && !isNaN(v)) {
     return `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, "0")}`;
   }
+  // A date read as a spreadsheet's day number (the Clients file's Assessments tab is read raw).
+  if (typeof v === "number" && isFinite(v) && v > 20000 && v < 80000) {
+    const d = new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 86400000);
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+  }
   const t = low(v);
   if (!t) return null;
   let m = t.match(/^(\d{4})-(\d{1,2})$/);
@@ -76,7 +81,7 @@ export function parseAssessments(arr) {
 
   const periods = {};
   const unknownConv = new Map(), unknownStatus = new Map(), badMonths = new Map();
-  let rows = 0, counted = 0, skippedStatus = 0, skippedMonth = 0;
+  let rows = 0, counted = 0, skippedStatus = 0, skippedMonth = 0, pending = 0;
 
   for (let r = head.row + 1; r < arr.length; r++) {
     const row = arr[r]; if (!row) continue;
@@ -99,6 +104,9 @@ export function parseAssessments(arr) {
     if (!period) { skippedMonth++; const k = norm(monthCell); if (k) badMonths.set(k, (badMonths.get(k) || 0) + 1); continue; }
     if (!coach) continue;
 
+    // "TBC": done, but the client has not decided yet. Left out until it is a ✓ or a ×, so an
+    // undecided assessment does not pull the rate down in the meantime.
+    if (/^(tbc|tbd|pending|waiting)$/.test(squash(row[cols.converted]))) { pending++; continue; }
     const conv = isConverted(row[cols.converted]);
     if (conv.unknown) unknownConv.set(conv.unknown, (unknownConv.get(conv.unknown) || 0) + 1);
 
@@ -113,5 +121,6 @@ export function parseAssessments(arr) {
   const top = (m) => [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, n]) => `"${k}" x${n}`).join(", ");
   if (unknownConv.size) warnings.push(`values in Converted that were not recognised and so counted as not converted: ${top(unknownConv)}`);
   if (badMonths.size) warnings.push(`rows skipped because the Month could not be read: ${top(badMonths)}`);
-  return { periods, rows, counted, skippedStatus, skippedMonth, statuses: [...unknownStatus.keys()], warnings };
+  if (pending) warnings.push(`${pending} done assessment(s) still TBC in Converted: left out until decided`);
+  return { periods, rows, counted, pending, skippedStatus, skippedMonth, statuses: [...unknownStatus.keys()], warnings };
 }

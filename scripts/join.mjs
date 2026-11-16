@@ -90,6 +90,8 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
           o.days.set(d, (o.days.get(d) || 0) + w);
           // A session in red: the coach's mark for the last session of the package.
           if (col && col[i] === "r") o.reds.add(d);
+          // A session in orange: a cover - this coach trained another coach's client.
+          if (col && col[i] === "o") o.cover = (o.cover || 0) + 1;
         }
         sheetNames.set(k, o);
       }
@@ -139,9 +141,14 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
     // Linked only when one client clearly wins: the same full name, or the only client of this
     // coach whose name every typed word fits - exactly, or failing that, at all.
     const one = (list) => (list.length === 1 ? list[0] : null);
+    // A client covered for another coach never had a package with this one. Such a name is
+    // still linked when it can only be one client in the whole file: the full name as the file
+    // has it, or - for a row with sessions marked as cover (orange) - the only client whose name
+    // every typed word fits exactly.
     const pickOne = one(scored.filter((s) => s.exact && s.had))
       || one(scored.filter((s) => s.ex === 1 && s.had))
-      || (scored.some((s) => s.ex === 1 && s.had) ? null : one(scored.filter((s) => s.f === 1 && s.had)));
+      || (scored.some((s) => s.ex === 1 && s.had) ? null : one(scored.filter((s) => s.f === 1 && s.had)))
+      || (scored.some((s) => s.had) ? null : (sw.length >= 2 ? one(scored.filter((s) => s.exact)) : null) || (o.cover ? one(scored.filter((s) => s.ex === 1)) : null));
     const lastMonth = [...o.months].sort().pop();
     if (pickOne) { linkOf.set(k, pickOne.id); auto++; continue; }
     if (scored.length) {

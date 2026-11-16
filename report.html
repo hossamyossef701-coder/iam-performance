@@ -124,7 +124,10 @@ tfoot td:first-child{background:var(--panel-2);}
 /* per coach: sessions done against sessions projected */
 .pc-head{display:flex;justify-content:space-between;gap:10px;margin-top:4px;padding:10px 0 4px;border-top:1px solid var(--line-soft);
   font-family:var(--f-mono);font-size:9.5px;letter-spacing:.17em;text-transform:uppercase;color:var(--ink-faint);}
-.pc-row{display:grid;grid-template-columns:112px minmax(140px,1fr) 104px 48px 190px;gap:2px 16px;align-items:center;padding:7px 0;}
+.pc-row{display:grid;grid-template-columns:112px minmax(140px,1fr) 104px 48px 76px 190px;gap:2px 16px;align-items:center;padding:7px 0;}
+/* how far through the month we are, beside each coach's progress, and the gap between the two */
+.pc-row .pm{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-faint);text-align:right;line-height:1.4;white-space:nowrap;}
+
 .pc-row+.pc-row{border-top:1px solid var(--line-soft);}
 .pc-row .nm{font-size:13.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .pc-row .ss{font-family:var(--f-mono);font-size:13px;color:var(--ink);text-align:right;white-space:nowrap;}
@@ -134,7 +137,7 @@ tfoot td:first-child{background:var(--panel-2);}
 .pc-row .rv .near{display:block;}
 .pc-row.unset .nm{color:var(--ink-soft);}
 @media(max-width:640px){
-  .pc-row{grid-template-columns:1fr auto auto;gap:5px 12px;}
+  .pc-row{grid-template-columns:1fr auto auto auto;gap:5px 12px;}
   .pc-row .pj-track{grid-column:1/-1;grid-row:2;}
   .pc-row .rv{grid-column:1/-1;grid-row:3;text-align:left;}
 }
@@ -739,12 +742,19 @@ function coachRows(p,target,tip){
     if(a.pct==null) return 1; if(b.pct==null) return -1;
     return b.pct-a.pct;
   });
-  return '<div class="pc-head"><span>By coach</span><span>'+basis+"</span></div>"+rows.map(function(x){
+  // The month so far: only while it is running and counted to date (a closed month is all of it).
+  var running=toDate(p)&&target<99.5;
+  var head=running?basis+" \u00b7 month so far: "+target.toFixed(0)+"% (day "+daysUsed(p)+" of "+monthDays(p)+")":basis;
+  var pm=function(pct){
+    if(!running||pct==null) return "<span></span>";
+    return '<span class="pm" title="How far through the month we are: day '+daysUsed(p)+" of "+monthDays(p)+'">month '+target.toFixed(0)+"%</span>";
+  };
+  return '<div class="pc-head"><span>By coach</span><span>'+head+"</span></div>"+rows.map(function(x){
     var q=x.q;
     if(!q.set){
       var why=q.has?"The projection columns are on this sheet but empty":"This sheet has no projection columns";
       return '<div class="pc-row unset"><span class="nm">'+x.c+'</span><span class="pj-track"></span>'+
-        '<span class="ss"><span class="dim">'+fmtSess(q.s)+" / \u2014</span></span><span></span>"+
+        '<span class="ss"><span class="dim">'+fmtSess(q.s)+" / \u2014</span></span><span></span><span></span>"+
         '<span class="rv"><span class="notset" title="'+why+'">not set</span></span></div>';
     }
     var st=projState(x.pct,target), bySess=(q.pctS!=null);
@@ -752,7 +762,7 @@ function coachRows(p,target,tip){
     return '<div class="pc-row"><span class="nm">'+x.c+(q.mtdMissing?' <span class="nomtd" title="This sheet has no day-by-day counts, so this row is the whole month, bookings ahead included">\u25cf</span>':"")+"</span>"+
       projBar(x.pct,target,st,false,tip)+
       '<span class="ss">'+(bySess?fmtSess(q.s)+' <span class="dim">/ '+fmtSess(q.ps)+"</span>":fmtInt(q.r)+' <span class="dim">/ '+fmtInt(q.pr)+"</span>")+"</span>"+
-      '<span class="pp '+st+'">'+x.pct.toFixed(0)+"%</span>"+
+      '<span class="pp '+st+'">'+x.pct.toFixed(0)+"%</span>"+pm(x.pct)+
       '<span class="rv">'+(q.pr>0&&bySess?fmtInt(q.r)+" / "+fmtInt(q.pr)+" AED \u00b7 "+(q.pctR!=null?q.pctR.toFixed(0)+"%":""):(bySess?"":"revenue \u2014 no session projection"))+flag+"</span></div>";
   }).join("");
 }

@@ -45,7 +45,7 @@ const ORDER = (env.FETCH_STRATEGIES || "badger,od,odkey,spshares,zip,rest,browse
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
-console.log("refresh build 2026-11-16a (coach names matched loosely; sheet names linked for Coach review)");  // proves which version the job is running
+console.log("refresh build 2026-11-16b (assessments from the Clients file; cover sessions linked)");  // proves which version the job is running
 
 // One typed character of difference, so "Shayla" finds "Shyla".
 function near(a, b) {
@@ -74,6 +74,8 @@ function dubaiPeriod() {
    coach figures. Only the five typed tabs are passed on; the file's views are never read. */
 // What the Overview and Coach review pages need from the Clients file, kept for later in the run.
 let clientsInner = null, nameLinks = [];
+// The "Assessments" tab of the Clients file, when it has one: the tracker now lives there.
+let assessTab = null;
 async function readClients() {
   const url = (env.CLIENTS_SHARE_URL || "").trim(), pass = (env.CLIENTS_PASSPHRASE || "").trim();
   if (!url || !pass) {
@@ -114,6 +116,8 @@ async function readClients() {
     // The optional "Name links" tab: coach-sheet names confirmed by hand (any spelling of the tab name).
     const linkTab = wb.SheetNames.find((n) => /^name\s*links?$/i.test(n.trim()));
     nameLinks = linkTab ? XLSX.utils.sheet_to_json(wb.Sheets[linkTab], { header: 1, raw: true, defval: null }) : [];
+    const aTab = wb.SheetNames.find((n) => /^assessments?(\s*tracker)?$/i.test(n.trim()));
+    assessTab = aTab ? XLSX.utils.sheet_to_json(wb.Sheets[aTab], { header: 1, raw: true, defval: null }) : null;
     const model = buildClientsModel(sheets, { internal: true });
     clientsInner = model._in; delete model._in;
     clientsModel = model;
@@ -297,16 +301,25 @@ async function main() {
   // 3. The assessment tracker, when a link for it is configured. A failure here never
   //    stops the run: the coach figures are the point, assessments are an addition.
   let assess = null, assessReport = null;
-  if (!ASSESS_URL) L.log("No ASSESS_SHARE_URL secret is set, so the assessment tracker was not read.");
-  if (ASSESS_URL) {
+  // The Assessments tab of the Clients file comes first; the separate tracker file is read only
+  // when the Clients file has no such tab (or none of its rows could be used).
+  const fromTab = assessTab && assessTab.length ? parseAssessments(assessTab) : null;
+  const useTab = !!(fromTab && !fromTab.error && fromTab.rows > 0);
+  if (assessTab && !useTab) L.log("The Clients file's Assessments tab " + (fromTab && fromTab.error ? "could not be used: " + fromTab.error : "is empty") + (ASSESS_URL ? " - reading the separate tracker instead." : "."));
+  if (!useTab && !ASSESS_URL) L.log("No Assessments tab in the Clients file and no ASSESS_SHARE_URL secret, so assessments were not read.");
+  if (useTab || ASSESS_URL) {
     try {
-      L.log("Assessment tracker");
-      const AL = makeLogger(ASSESS_URL);
-      const buf = await fetchOneWorkbook(ASSESS_URL, AL);
-      const wb = XLSX.read(buf, { type: "buffer", cellDates: true });
+      let sheetsIn;
+      if (useTab) { L.log("Assessments: the Clients file's Assessments tab"); sheetsIn = [["Assessments", assessTab]]; }
+      else {
+        L.log("Assessment tracker (separate file)");
+        const AL = makeLogger(ASSESS_URL);
+        const buf = await fetchOneWorkbook(ASSESS_URL, AL);
+        const wb = XLSX.read(buf, { type: "buffer", cellDates: true });
+        sheetsIn = wb.SheetNames.map((name) => [name, XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: false, defval: null })]);
+      }
       const merged = {}; const warnings = []; let counted = 0, rows = 0, sheetsRead = 0;
-      for (const name of wb.SheetNames) {
-        const arr = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: false, defval: null });
+      for (const [name, arr] of sheetsIn) {
         const r = parseAssessments(arr);
         if (r.error) { L.log(`  sheet "${name}": ${r.error}`); continue; }
         sheetsRead++; counted += r.counted; rows += r.rows;
@@ -319,7 +332,7 @@ async function main() {
           }
         }
       }
-      if (!sheetsRead) throw new Error("no sheet in the tracker had Coach and Month columns");
+      if (!sheetsRead) throw new Error("no sheet of assessments had Coach and Month columns");
       // Match the tracker's spelling of a coach to the one the performance files use
       // ("Shayla" and "Shyla" are the same person).
       const known = [...new Set(Object.values(periods).flatMap((o) => Object.keys(o)))];
@@ -344,7 +357,7 @@ async function main() {
       L.log(`  ${counted} completed assessment(s) across ${Object.keys(mapped).length} month(s)`);
       warnings.forEach((w) => L.log("  " + w));
     } catch (e) {
-      L.log("  the tracker could not be read: " + L.redact(e.message).split("\n")[0]);
+      L.log("  the assessments could not be read: " + L.redact(e.message).split("\n")[0]);
       assessReport = { error: L.redact(e.message).split("\n")[0] };
     }
   }
