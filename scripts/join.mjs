@@ -67,7 +67,7 @@ function fit(sheetW, fullW) {
    periods: the coach figures, with cl (each client's day-by-day row) on recent months
    links: the "Name links" tab as rows of cells
    now: "YYYY-MM" running in Dubai; cutoffDay: today's day of the month */
-export function buildOverview({ inner, periods, links = [], now, cutoffDay, revenueOf }) {
+export function buildOverview({ inner, periods, links = [], now, cutoffDay, revenueOf, debug = false }) {
   const today = inner.today;
   const clients = new Map(inner.clients.map((c) => [c.id, c]));
   const fullW = new Map(inner.clients.map((c) => [c.id, words(c.name)]));
@@ -112,9 +112,10 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
     for (let r = head + 1; r < links.length; r++) {
       const row = links[r] || [];
       const coach = String(row[ci] || "").trim(), name = String(row[ni] || "").trim(), id = String(row[ii] || "").trim().toUpperCase();
-      if (!coach || !name) continue;
-      if (id && id !== "NONE" && !clients.has(id)) { bad.push(`${coach}: "${name}" points to ${id}, which is not on the Clients tab`); continue; }
-      confirmed.set(sq(coach) + "|" + nameKey(name), id && id !== "NONE" ? id : null);
+      // A row with no Client ID yet is a note to come back to: it decides nothing.
+      if (!coach || !name || !id) continue;
+      if (id !== "NONE" && !clients.has(id)) { bad.push(`${coach}: "${name}" points to ${id}, which is not on the Clients tab`); continue; }
+      confirmed.set(sq(coach) + "|" + nameKey(name), id !== "NONE" ? id : null);
     }
   }
 
@@ -125,7 +126,7 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
   const sameCoach = (a, b) => !!a && !!b && (sq(a) === sq(b) || first(a) === first(b) || (first(a).length >= 4 && near(first(a), first(b))));
   const coachHad = (c, coach) => sameCoach(c.coach, coach) || c.pk.some((p) => p.coaches.some((x) => sameCoach(x, coach)));
   const linkOf = new Map();                            // "coach|key" -> id
-  const unclear = [], notInFile = [];
+  const unclear = [], notInFile = [], dbg = [];
   let auto = 0, byHand = 0, ignored = 0;
   for (const [k, o] of sheetNames) {
     const ck = sq(o.coach) + "|" + o.key;
@@ -150,10 +151,10 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
       || (scored.some((s) => s.ex === 1 && s.had) ? null : one(scored.filter((s) => s.f === 1 && s.had)))
       || (scored.some((s) => s.had) ? null : (sw.length >= 2 ? one(scored.filter((s) => s.exact)) : null) || (o.cover ? one(scored.filter((s) => s.ex === 1)) : null));
     const lastMonth = [...o.months].sort().pop();
-    if (pickOne) { linkOf.set(k, pickOne.id); auto++; continue; }
+    if (pickOne) { linkOf.set(k, pickOne.id); auto++; if (debug) dbg.push({ coach: o.coach, name: o.name, last: lastMonth, id: pickOne.id, how: pickOne.had ? (pickOne.exact ? "exact" : pickOne.ex === 1 ? "words" : "close") : "cover", others: scored.filter((x) => x !== pickOne).slice(0, 2).map((x) => x.id) }); continue; }
     if (scored.length) {
       unclear.push({ coach: o.coach, name: o.name, last: lastMonth,
-        sug: scored.slice(0, 3).map((s) => ({ id: s.id, name: clients.get(s.id).name, why: s.had ? "had a package with " + o.coach : "never had a package with " + o.coach })) });
+        sug: scored.slice(0, 3).map((s) => ({ id: s.id, name: clients.get(s.id).name, had: s.had, f: s.f, ex: s.ex, exact: s.exact, why: s.had ? "had a package with " + o.coach : "never had a package with " + o.coach })) });
     } else notInFile.push({ coach: o.coach, name: o.name, last: lastMonth });
   }
 
@@ -393,6 +394,7 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
     v: 1, today: iso(today), now, grace: inner.grace, loggedFrom: iso(inner.loggedFrom),
     // Each linked sheet name (coach|name words) -> the client's name in the Clients file, so the
     // Coach review page can show one name per client.
+    ...(debug ? { _links: dbg } : {}),
     sheetLink: Object.fromEntries([...linkOf].map(([k, id]) => [k, clients.get(id) ? clients.get(id).name : null])),
     names: { auto, byHand, ignored, unclear: unclear.sort((a, b) => (b.last || "").localeCompare(a.last || "") || a.coach.localeCompare(b.coach)), notInFile: notInFile.sort((a, b) => (b.last || "").localeCompare(a.last || "")), endedOnSheet, bad, hasTab: head >= 0 },
     inUse, up, months, perCoach, team, clientsOfCoach,
