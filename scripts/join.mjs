@@ -117,7 +117,11 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
   }
 
   /* 3. Match each name ---- */
-  const coachHad = (c, coach) => c.coach === coach || c.pk.some((p) => p.coaches.includes(coach));
+  // The coach sheets and the Clients file may spell a coach differently ("Hossam Y" / "Hossam",
+  // "Shayla" / "Shyla"): same letters, or the same first name, counts as the same coach.
+  const first = (n) => sq(String(n || "").trim().split(/\s+/)[0]);
+  const sameCoach = (a, b) => !!a && !!b && (sq(a) === sq(b) || first(a) === first(b) || (first(a).length >= 4 && near(first(a), first(b))));
+  const coachHad = (c, coach) => sameCoach(c.coach, coach) || c.pk.some((p) => p.coaches.some((x) => sameCoach(x, coach)));
   const linkOf = new Map();                            // "coach|key" -> id
   const unclear = [], notInFile = [];
   let auto = 0, byHand = 0, ignored = 0;
@@ -380,6 +384,9 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
 
   return {
     v: 1, today: iso(today), now, grace: inner.grace, loggedFrom: iso(inner.loggedFrom),
+    // Each linked sheet name (coach|name words) -> the client's name in the Clients file, so the
+    // Coach review page can show one name per client.
+    sheetLink: Object.fromEntries([...linkOf].map(([k, id]) => [k, clients.get(id) ? clients.get(id).name : null])),
     names: { auto, byHand, ignored, unclear: unclear.sort((a, b) => (b.last || "").localeCompare(a.last || "") || a.coach.localeCompare(b.coach)), notInFile: notInFile.sort((a, b) => (b.last || "").localeCompare(a.last || "")), endedOnSheet, bad, hasTab: head >= 0 },
     inUse, up, months, perCoach, team, clientsOfCoach,
     // Month by month, per coach, for the Coach review page's KPIs.
