@@ -11,6 +11,7 @@
 <link rel="apple-touch-icon" href="./icon-192.png">
 <link rel="stylesheet" href="./fonts/alata.css">
 <link rel="stylesheet" href="./common.css">
+<style>#lkTbl .sep{border-left:1px solid var(--line);} #lkTbl th{white-space:nowrap;}</style>
 </head>
 <body class="locked">
 
@@ -73,10 +74,12 @@
   </div>
 
   <div class="card section">
-    <div class="card-h"><div><div class="k">Money on the table</div><div class="t">What slips through: fees not charged, sessions not paid, packages running late, clients lost</div></div><span class="unit">AED, without VAT</span><select class="win" data-k="leak" aria-label="Period"><option value="1">Last month</option><option value="3">Last 3 months</option><option value="6">Last 6 months</option><option value="y">This year</option><option value="12">Last 12 months</option><option value="all">Everything logged</option></select></div>
-    <div class="card-b"><div class="big3" id="lkBig"></div></div>
+    <div class="card-h"><div><div class="k">Money on the table</div><div class="t">What slips through, and what to check</div></div><span class="unit">AED, without VAT</span><select class="win" data-k="leak" aria-label="Period"><option value="1">Last month</option><option value="3">Last 3 months</option><option value="6">Last 6 months</option><option value="y">This year</option><option value="12">Last 12 months</option><option value="all">Everything followed</option></select></div>
+    <div class="card-b"><div class="k" id="lkW" style="margin-bottom:8px"></div><div class="big3" id="lkBig"></div>
+      <div class="k" style="margin:16px 0 8px">Right now</div><div class="big3" id="lkNow"></div></div>
     <div class="card-b" style="padding-top:0"><ul class="sent" id="lkSent"></ul></div>
     <div class="scroll"><table id="lkTbl"></table></div>
+    <div class="lst" id="lkLst"></div>
     <div class="card-b"><p class="note" style="margin:0" id="lkNote"></p></div>
   </div>
 
@@ -272,54 +275,75 @@ function packages(){
 
 /* ---- Money on the table ----
    From the refresh (join.mjs, part 11): per coach and month, [count, AED]. The window picks the
-   months; "right now" figures are today's, whatever the window. */
-var LKF=["xf","xc","ax","ul","fl","fd","fo","ro","rl","lc"];
+   months. "Right now" is today's, whatever the window. */
+var LKF=["xf","xc","ax","fl","fd","fo","ro","rl","lc","lb","ls"];
 function leak(){
   var L=D.ov.leak, host=$("lkTbl");
-  if(!L){ $("lkBig").innerHTML=""; $("lkSent").innerHTML=""; host.innerHTML=""; $("lkNote").textContent="Comes with the next refresh."; return; }
+  if(!L||!L.list){ ["lkBig","lkNow","lkSent","lkTbl","lkLst"].forEach(function(id){ $(id).innerHTML=""; }); $("lkW").textContent=""; $("lkNote").textContent="Comes with the next refresh."; return; }
   var now=D.ov.now, w=win.leak;
   var inW=function(p){ if(w==="all") return true; if(w==="1") return p===C.prevP(now,1); if(w==="y") return p.slice(0,4)===now.slice(0,4)&&p<=now; return p>=C.prevP(now,+w-1)&&p<=now; };
-  var cs={}; [L.m,L.now.tn,L.now.due].forEach(function(o){ Object.keys(o).forEach(function(c){ if(C.keep(c)) cs[c]=1; }); });
-  var blank=function(){ var o={}; LKF.forEach(function(f){ o[f]=[0,0]; }); o.tn=[0,0]; o.due=[0,0]; return o; };
+  var wl=w==="all"?"since "+C.label(L.from):w==="1"?C.label(C.prevP(now,1)):w==="y"?"this year":"the last "+w+" months";
+  var wIn=w==="y"||w==="all"?wl:"in "+wl;
+  var list=L.list.filter(function(x){ return C.keep(x.coach); });
+  var cs={}; Object.keys(L.m).concat(Object.keys(L.now.due)).forEach(function(c){ if(C.keep(c)) cs[c]=1; }); list.forEach(function(x){ cs[x.coach]=1; });
+  var blank=function(){ var o={}; LKF.forEach(function(f){ o[f]=[0,0]; }); o.chk=[0,0]; o.due=[0,0]; o.chkN=0; return o; };
   var by={}, T=blank();
   Object.keys(cs).forEach(function(c){
     var o=by[c]=blank(), m=L.m[c]||{};
     Object.keys(m).forEach(function(p){ if(!inW(p)) return; LKF.forEach(function(f){ var v=m[p][f]; if(v){ o[f][0]+=v[0]; o[f][1]+=v[1]; T[f][0]+=v[0]; T[f][1]+=v[1]; } }); });
-    ["tn","due"].forEach(function(g){ var v=L.now[g][c]; if(v){ o[g]=v.slice(); T[g][0]+=v[0]; T[g][1]+=v[1]; } });
+    var v=L.now.due[c]; if(v){ o.due=v.slice(); T.due[0]+=v[0]; T.due[1]+=v[1]; }
   });
-  // Each coach's renewal rate over the last 12 months (team's when the coach has fewer than 5).
+  list.forEach(function(x){ var o=by[x.coach]; o.chk[0]+=x.n; o.chk[1]+=x.aed; o.chkN++; T.chk[0]+=x.n; T.chk[1]+=x.aed; T.chkN++; });
+  // Each coach's renewal rate over the last 12 months (the team's when the coach has fewer than 5 decisions).
   var pc=D.ov.perCoach||{}, tk=0, tn=0; Object.keys(pc).forEach(function(c){ var x=pc[c]; tk+=x.kept+x.moved; tn+=x.kept+x.moved+x.lost; });
   var rateOf=function(c){ var x=pc[c], n=x?x.kept+x.moved+x.lost:0; return n>=5?(x.kept+x.moved)/n:(tn?tk/tn:0.5); };
   var exp=0; Object.keys(by).forEach(function(c){ exp+=by[c].due[1]*rateOf(c); });
-  var lost=T.xf[1]+T.ul[1], pol=T.ax[1], risk=T.tn[1]+T.due[1];
-  var wl=w==="all"?"since "+C.label(L.from):w==="1"?C.label(C.prevP(now,1)):w==="y"?"this year":"the last "+w+" months";
-  $("lkBig").innerHTML=[[aed(lost),"lost for good, "+wl,"var(--down)"],[aed(pol),"up to, if the expiry policy had been applied","var(--watch)"],[aed(risk),"at risk right now","var(--watch)"],[T.lc[0]+' <small style="font-size:14px;color:var(--ink-soft)">· '+aed(T.lc[1])+"</small>","clients lost, "+wl,"var(--ink)"]]
-    .map(function(x){ return '<div><div class="v" style="color:'+x[2]+'">'+x[0]+'</div><div class="l">'+x[1]+"</div></div>"; }).join("");
-  var pct=function(v){ return v[1]?Math.round(v[0]/v[1]*100)+"%":"—"; }, ses=function(n){ return C.full(n)+" session"+(n===1?"":"s"); };
+  var big=function(v,l,c){ return '<div><div class="v" style="color:'+c+'">'+v+'</div><div class="l">'+l+"</div></div>"; };
+  var sm=function(t){ return ' <small style="font-size:13px;color:var(--ink-soft)">'+t+"</small>"; };
+  var R=function(n){ return C.full(Math.round(n)); };
+  $("lkW").textContent="In "+(w==="y"||w==="all"?wl.replace(/^since/,"everything since"):wl);
+  $("lkBig").innerHTML=big(aed(T.xf[1])+sm("· "+T.xf[0]+" packages"),"extension fees not charged","var(--down)")+
+    big(aed(T.ax[1])+sm("· "+R(T.ax[0])+" sessions"),"up to: sessions after expiry, no fee","var(--watch)")+
+    big(T.lc[0]+sm("· "+aed(T.lc[1])),"clients lost · counted "+D.ov.grace+" days after the cover ran out","var(--ink)");
+  $("lkNow").innerHTML=big(aed(T.chk[1])+sm("· "+R(T.chk[0])+" sessions, "+T.chkN+" clients"),"to check: not covered by any logged package","var(--watch)")+
+    big(T.due[0]+sm("· "+aed(T.due[1])),"clients in the grace period · about "+aed(exp)+" expected back","var(--watch)");
+  var pct=function(v){ return v[1]?Math.round(v[0]/v[1]*100)+"%":"—"; };
   var out=[];
-  out.push(["var(--down)","Lost for good: "+aed(lost)+". "+T.xf[0]+" extension fee"+(T.xf[0]===1?"":"s")+" not charged ("+T.xf[0]+" × "+aed(L.fee)+" = "+aed(T.xf[1])+")"+(T.xc[0]?"; "+T.xc[0]+" charged":"")+", and "+ses(T.ul[0])+" trained by clients who then left without paying ("+aed(T.ul[1])+")."]);
-  out.push(["var(--watch)",ses(T.ax[0])+" were trained after their package's expiry date with no fee. Under the policy each of those packages meant the fee or a new package: up to "+aed(pol)+"."]);
-  if(T.fl[0]+T.fo[0]) out.push(["var(--watch)",T.fl[0]+" of "+(T.fl[0]+T.fo[0])+" packages used up "+(w==="y"||w==="all"?wl:"in "+wl)+" finished after their expiry date"+(T.fl[0]?", on average "+Math.round(T.fd[0]/T.fl[0])+" days late. At the policy's pace their renewals would have come sooner: up to "+aed(T.fl[1])+" more in the same time":"")+"."]);
-  if(!T.ro[1]&&!T.rl[1]) out.push(["var(--ink-soft)","Renewed or not: too early to tell for packages that expired "+(w==="y"||w==="all"?wl:"in "+wl)+". It is counted once the grace period ("+D.ov.grace+" days) after the expiry date has passed: pick a longer window."]);
-  else { var a=T.ro[1]?T.ro[0]/T.ro[1]:null, b=T.rl[1]?T.rl[0]/T.rl[1]:null;
-    out.push([a!=null&&b!=null&&a-b>=0.1?"var(--down)":"var(--ink-soft)","Renewed: "+T.ro[0]+" of "+T.ro[1]+" ("+pct(T.ro)+") whose package was used up by its expiry date, against "+T.rl[0]+" of "+T.rl[1]+" ("+pct(T.rl)+") whose package was not."+(a!=null&&b!=null&&a-b>=0.1?" Running past expiry goes with losing the client.":a!=null&&b!=null&&b-a>=0.1?" Here, running past expiry did not cost renewals.":"")]); }
-  out.push(["var(--ink-soft)",T.lc[0]+" client"+(T.lc[0]===1?"":"s")+" lost (cover ran out, no renewal within the grace period): their last packages were worth "+aed(T.lc[1])+"."]);
-  out.push(["var(--watch)","Right now: "+ses(T.tn[0])+" trained beyond what's paid by clients still with us ("+aed(T.tn[1])+", paid back if they renew); "+T.due[0]+" client"+(T.due[0]===1?"":"s")+" in the grace period, last packages worth "+aed(T.due[1])+", about "+aed(exp)+" at each coach's renewal rate."]);
+  out.push(["var(--down)",T.xf[0]+" package"+(T.xf[0]===1?" was":"s were")+" used after the expiry date "+wIn+" with no extension fee typed: "+T.xf[0]+" × "+aed(L.fee)+" = "+aed(T.xf[1])+"."+(T.xc[0]?" "+T.xc[0]+" had the fee charged.":" None had the fee charged.")]);
+  out.push(["var(--watch)","On those packages, "+R(T.ax[0])+" sessions were trained after the expiry date. Under the policy each of those sessions needed the fee or a new package: up to "+aed(T.ax[1])+" at the package's rate."]);
+  if(T.fl[0]+T.fo[0]) out.push(["var(--watch)",T.fl[0]+" of "+(T.fl[0]+T.fo[0])+" packages used up "+wIn+" finished after their expiry date"+(T.fl[0]?", on average "+Math.round(T.fd[0]/T.fl[0])+" days late. Had those clients trained at the pace the package is sold for, their renewals would have come sooner: up to "+aed(T.fl[1])+" more over the same days (an estimate, not money owed)":"")+"."]);
+  if(!T.ro[1]&&!T.rl[1]) out.push(["var(--ink-soft)","Renewal rate by pace: too early to tell for packages that expired "+wIn+". A package counts once the grace period ("+D.ov.grace+" days) after its expiry date has passed: pick a longer window."]);
+  else { var a=T.ro[1]?T.ro[0]/T.ro[1]:null, b=T.rl[1]?T.rl[0]/T.rl[1]:null, gap=a!=null&&b!=null?a-b:0;
+    out.push([gap>=0.1?"var(--down)":"var(--ink-soft)","Renewal rate by pace: clients who used up their package by its expiry date renewed "+pct(T.ro)+" of the time ("+T.ro[0]+" of "+T.ro[1]+"); clients who ran past it renewed "+pct(T.rl)+" ("+T.rl[0]+" of "+T.rl[1]+")."+
+      (gap>=0.1?" Running past expiry is an early sign of a client about to leave: act on the pace, not at the end. (It shows they go together; it does not prove enforcing the expiry would keep them.)":gap<=-0.1?" Here, running past expiry did not cost renewals.":"")]); }
+  out.push(["var(--ink-soft)",T.lc[0]+" client"+(T.lc[0]===1?"":"s")+" lost "+wIn+" (a client counts as lost only "+D.ov.grace+" days after the cover ran out; the ones still inside that time are under Right now, in the grace period): cover ran out with no renewal within the grace period, no purchase since and not training on any sheet. Their last packages: "+aed(T.lc[1])+"."+
+    (T.lb[0]?" Not counted: "+T.lb[0]+" who came back later"+(T.ls[0]?" and "+T.ls[0]+" the file has as ended but a sheet shows training in the last month (check those purchases)":"")+".":T.ls[0]?" Not counted: "+T.ls[0]+" the file has as ended but a sheet shows training in the last month.":"")]);
+  out.push(["var(--watch)","To check now: "+R(T.chk[0])+" sessions by "+T.chkN+" clients are not covered by any package typed into the Clients file ("+aed(T.chk[1])+" at their last package's rate). The file cannot tell an unpaid session from a purchase that was never logged: the list below says who."]);
   $("lkSent").innerHTML=out.map(function(x){ return '<li><span class="dot" style="background:'+x[0]+'"></span><span>'+esc(x[1])+"</span></li>"; }).join("");
-  var cell=function(v,unit){ return v[0]?C.full(v[1])+' <span class="dim">· '+v[0]+(unit||"")+"</span>":'<span class="dim">—</span>'; };
-  var row=function(nm,o,cls){ var late=o.fl[0]?Math.round(o.fd[0]/o.fl[0])+'<span class="dim"> d · '+o.fl[0]+"</span>":'<span class="dim">—</span>';
-    return "<tr"+(cls?' class="'+cls+'"':"")+'><td class="l">'+nm+"</td><td>"+C.full(o.xf[1]+o.ul[1])+"</td><td>"+cell(o.xf)+"</td><td>"+cell(o.ul)+"</td><td>"+cell(o.ax)+"</td><td>"+late+"</td><td>"+(o.ro[1]?pct(o.ro)+' <span class="dim">('+o.ro[1]+")</span>":'<span class="dim">—</span>')+"</td><td>"+(o.rl[1]?pct(o.rl)+' <span class="dim">('+o.rl[1]+")</span>":'<span class="dim">—</span>')+"</td><td>"+cell(o.lc)+"</td><td>"+cell(o.tn)+"</td><td>"+cell(o.due)+"</td></tr>"; };
-  var any=function(o){ return LKF.concat(["tn","due"]).some(function(f){ return o[f][0]||o[f][1]; }); };
-  var list=Object.keys(by).filter(function(c){ return any(by[c]); }).sort(function(a,b){ var x=by[a], y=by[b]; return (y.xf[1]+y.ul[1])-(x.xf[1]+x.ul[1])||y.ax[1]-x.ax[1]||a.localeCompare(b); });
-  host.innerHTML='<thead><tr><th class="l">Coach</th><th>Lost<br>AED</th><th>Fees not<br>charged</th><th>Never<br>paid</th><th>After expiry,<br>no fee</th><th>Days late<br>on average</th><th>Renewed · used<br>up by expiry</th><th>Renewed ·<br>not</th><th>Clients<br>lost</th><th>Now · not<br>paid yet</th><th>Now · in<br>grace period</th></tr></thead><tbody>'+
-    row("Team",T,"total")+list.map(function(c){ return row(esc(c),by[c]); }).join("")+"</tbody>";
-  $("lkNote").textContent="Cells: AED · count (sessions, packages or clients). Only clients whose names are linked (Name check) and packages bought since the coach sheets start ("+C.label(L.from)+") can be followed: "+L.packages+" packages past their expiry date so far. "+
-    "Expiry date = purchase date + the days Settings gives that size; a typed extension does not move it. Extension fee = "+L.feeIncl+" AED with VAT ("+L.fee+" without), from Settings (add a row \"Extension fee\" to change it); every package used after its expiry date with no fee typed counts as a fee not charged, including free extensions. "+
-    "After expiry, no fee = sessions trained after that date at the package's rate: what the policy would have turned into a fee or a new package, so it is an upper limit. "+
-    "Never paid = sessions trained after every paid session by clients who then ended (when a client renews, those sessions come off the new package, so they only count once the client has gone). "+
-    "Days late = days past the expiry date when the package was used up; up to AED = price × (days taken ÷ days allowed − 1), the renewals that would have come in the same time at the policy's pace, if the client kept going. "+
-    "Renewed: packages whose expiry date fell in the window and whose grace period has passed, split by whether they were used up by the expiry date; brackets = how many. Coaches with nothing to show are left out. Clients lost = cover ran out with no renewal within the grace period, or they told us; valued at their last package. "+
-    "Uncharged cancellations (0 on the sheet) are not counted: the client keeps the session.";
+  var dash='<span class="dim">—</span>', cell=function(v,cnt){ return v[0]||v[1]?C.full(Math.round(v[1]))+' <span class="dim">· '+R(cnt!=null?cnt:v[0])+"</span>":dash; };
+  var rate=function(v){ return v[1]?pct(v)+' <span class="dim">· '+v[1]+"</span>":dash; };
+  var row=function(nm,o,cls){ var used=o.fl[0]+o.fo[0];
+    return "<tr"+(cls?' class="'+cls+'"':"")+'><td class="l">'+nm+"</td><td>"+cell(o.xf)+"</td><td>"+cell(o.ax)+"</td><td>"+(used?o.fl[0]+' <span class="dim">of '+used+(o.fl[0]?" · "+Math.round(o.fd[0]/o.fl[0])+" d":"")+"</span>":dash)+"</td><td>"+rate(o.ro)+"</td><td>"+rate(o.rl)+"</td><td>"+cell(o.lc)+
+      '</td><td class="sep">'+(o.chk[0]?C.full(o.chk[1])+' <span class="dim">· '+R(o.chk[0])+" ses, "+o.chkN+" cl</span>":dash)+"</td><td>"+cell(o.due)+"</td></tr>"; };
+  var any=function(o){ return LKF.some(function(f){ return o[f][0]||o[f][1]; })||o.chk[0]||o.due[0]; };
+  var ks=Object.keys(by).filter(function(c){ return any(by[c]); }).sort(function(a,b){ var x=by[a], y=by[b]; return (y.xf[1]+y.ax[1])-(x.xf[1]+x.ax[1])||a.localeCompare(b); });
+  host.innerHTML='<thead><tr><th class="l"></th><th colspan="6" class="l" style="color:var(--ink-soft)">'+esc(wl.charAt(0).toUpperCase()+wl.slice(1))+'</th><th colspan="2" class="l sep" style="color:var(--ink-soft)">Right now</th></tr>'+
+    '<tr><th class="l">Coach</th><th>Fees not charged<br>AED · packages</th><th>After expiry, no fee<br>AED · sessions</th><th>Used up past expiry<br>packages · avg days late</th><th>Renewed · used up<br>by expiry · % · n</th><th>Renewed · ran<br>past expiry · % · n</th><th>Clients lost<br>AED · clients</th>'+
+    '<th class="sep">Not covered by a<br>logged package</th><th>In grace period<br>AED · clients</th></tr></thead><tbody>'+row("Team",T,"total")+ks.map(function(c){ return row(esc(c),by[c]); }).join("")+"</tbody>";
+  // Who is behind "not covered by a logged package", by coach.
+  var byC={}; list.forEach(function(x){ (byC[x.coach]=byC[x.coach]||[]).push(x); });
+  $("lkLst").innerHTML=!list.length?"":'<details><summary><span class="nm">Clients to check: sessions not covered by a logged package</span><span class="n">'+list.length+"</span></summary>"+
+    '<div class="lrow h" style="grid-template-columns:minmax(150px,1.4fr) repeat(4,minmax(80px,1fr))"><span>Client</span><span>Sessions</span><span>Last session</span><span>Last package logged</span><span>Now</span></div>'+
+    Object.keys(byC).sort().map(function(c){ return '<div class="lrow h" style="padding-top:10px"><span>'+esc(c)+" · "+byC[c].length+"</span></div>"+byC[c].map(function(x){
+      return '<div class="lrow" style="grid-template-columns:minmax(150px,1.4fr) repeat(4,minmax(80px,1fr))"><span>'+esc(x.name)+"</span><span>"+R(x.n)+"</span><span>"+(x.last?C.date(x.last):"—")+"</span><span>"+esc(x.pk)+"</span><span"+(x.gone?' style="color:var(--down)"':"")+">"+(x.gone?"stopped":"still training")+" · "+esc(x.status)+"</span></div>"; }).join(""); }).join("")+"</details>";
+  $("lkNote").textContent="Cells: AED · count. Only clients whose names are linked (Name check) and packages bought since the coach sheets start ("+C.label(L.from)+") can be followed. "+
+    "Expiry date = purchase date + the days Settings gives that size; a typed extension does not move it. Extension fee = "+L.feeIncl+" AED with VAT ("+L.fee+" without), from Settings (a row \"Extension fee\" changes it). Every package used after its expiry date with no fee typed in Packages counts as not charged, free extensions included. "+
+    "After expiry, no fee = the sessions trained after that date, at the package's rate per session: the most the policy could have brought in. "+
+    "Used up past expiry = packages whose last session came after the expiry date, of all packages used up in the window (packages bought before the sheets start are left out: their early sessions are not on any sheet). "+
+    "Renewed = the client bought again; counted for packages whose expiry date fell in the window once the grace period after it has passed; n = how many packages. "+
+    "Clients lost = cover ran out with no renewal within the grace period, by the coach of that package, in the month it ran out; clients who bought again later or are training on a sheet in the last month are left out. "+
+    "Not covered by a logged package = sessions on the sheets after every package typed into the Clients file was used up, for everyone followed: an unpaid session or a purchase not logged. Stopped = no session in the last 31 days. "+
+    "Uncharged cancellations (0) are not counted: the client keeps the session.";
 }
 
 /* ---- Value of a client ---- */

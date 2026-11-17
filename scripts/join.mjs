@@ -199,9 +199,11 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
     // Start at the first package bought inside the days the sheets cover (or the latest one).
     let i = pk.findIndex((p) => p.date >= W0); if (i < 0) i = pk.length - 1;
     const prev = pk[i - 1];
-    // Sessions before that package count toward it only after the package before it was due to end
-    // (for a first package: from two weeks before it, for a client who trained before paying).
-    const from = Math.max(W0, prev ? prev.end + 1 : pk[i].date - 14);
+    // Sessions before that package count toward it from two weeks before it was bought at the
+    // earliest (a client who trained before paying), and not while the package before it was
+    // still valid. An older package is not taken to end on its expiry date: packages are often
+    // used past it, so its sessions must not be pushed onto the next one.
+    const from = Math.max(W0, pk[i].date - 14, prev ? prev.end + 1 : 0);
     const ses = [...(d || new Map())].filter(([day]) => day >= from && day <= T).sort((a, b) => a[0] - b[0]);
     const pkgs = pk.slice(i).map((p) => ({ date: p.date, end: p.end, size: p.size, coach: p.coach, type: p.type, used: 0, last: null, red: false, closed: false,
       px: p.px, rule: p.rule ?? null, fee: p.fee ?? null, sh: !!p.sh, ax: 0, axL: [] }));
@@ -414,13 +416,17 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
            the grace period after that date has passed.
        rl  packages not used up by their expiry date: [renewed, decided].
        lc  clients lost: their cover ran out with no renewal in the grace period (or they told us
-           they were stopping): count and their last package's price, month the cover ran out.
+           they were stopping), have not bought since and are not training on a sheet: count and
+           their last package's price, month the cover ran out. lb = came back later; ls = the file
+           says lost but a sheet shows them training in the last 31 days.
      now.tn: sessions trained beyond every paid session by clients still with us (they come off the
      next package if the client renews); now.due: clients in the grace period, last package's price. */
   const VAT = 1 + (inner.vat ?? 5) / 100, FEE = (inner.extFee ?? 200) / VAT;
   const lk = {}, mOf = (day) => iso(day).slice(0, 7);
   const put = (coach, p, f, a, b = 0) => { const o = (lk[coach] || (lk[coach] = {}))[p] || (lk[coach][p] = {}); const v = o[f] || (o[f] = [0, 0]); v[0] += a; v[1] += b; };
   const leakNow = { tn: {}, due: {} };
+  const dbgLeak = {};
+  const ulList = [];
   let lkPk = 0;
   for (const c of inner.clients) {
     const d = daysOf.get(c.id); if (!d) continue;
@@ -434,7 +440,10 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
         put(k, mOf(q.axL[0][0]), charged ? "xc" : "xf", 1, charged ? q.fee / VAT : FEE);
         if (!charged) for (const [day, w] of q.axL) put(k, mOf(day), "ax", w, w * rate);
       }
-      const usedUp = q.closed && q.last != null;
+      // A package bought before the sheets start was partly used where the sheets cannot see, so
+      // when it was used up is not known: it is left out of "used up late" and the renewal split.
+      const seen = q.date >= W0;
+      const usedUp = seen && q.closed && q.last != null;
       if (usedUp && q.last > q.rule) {
         const allowed = q.rule - q.date;
         put(k, mOf(q.last), "fl", 1, q.px && allowed > 0 ? q.px * ((q.last - q.date) / allowed - 1) : 0);
@@ -445,15 +454,43 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
       const renewed = next ? next.type !== "Returning" : c.status === "Ended" ? false : null;
       // Only once the grace period after the expiry date has passed: before that, renewals are in
       // and losses are not, which would make every recent month look like 100%.
-      if (renewed != null && q.rule + (inner.grace ?? 90) <= today) put(k, mOf(q.rule), usedUp && q.last <= q.rule ? "ro" : "rl", renewed ? 1 : 0, 1);
+      if (seen && renewed != null && q.rule + (inner.grace ?? 90) <= today) put(k, mOf(q.rule), usedUp && q.last <= q.rule ? "ro" : "rl", renewed ? 1 : 0, 1);
     });
     if (L.over > 0) {
       const q = L.pkgs[L.pkgs.length - 1], rate = q.px && q.size ? q.px / q.size : 0, k = coachOf(q);
-      if (c.status === "Ended") for (const [day, w] of L.overL) put(k, mOf(day), "ul", w, w * rate);
+      const lastS = L.ses.length ? L.ses[L.ses.length - 1][0] : null;
+      // Sessions beyond every package in the file. Counted as never paid only for a client the file
+      // has as ended who has not trained for a month; a client still training is more likely a
+      // purchase not logged yet, so they go with "not paid yet". Either way the client is listed,
+      // because the file only knows the purchases typed into it.
+      const gone = c.status === "Ended" && lastS != null && lastS < today - 31;
+      if (debug) (dbgLeak.all || (dbgLeak.all = [])).push({ name: c.name, id: c.id, status: c.status, over: L.over,
+        pk: c.pk.map((p) => `${iso(p.date)} ${p.unit === "Months" ? p.size + "mo" : p.size} ${p.coach || ""} exp ${p.rule != null ? iso(p.rule) : "-"}${p.sh ? " shared" : ""}`),
+        ledger: L.pkgs.map((p) => `${iso(p.date)} ${p.size} used ${p.used} last ${p.last != null ? iso(p.last) : "-"}`), from: L.ses.length ? iso(L.ses[0][0]) : null,
+        months: Object.entries(L.ses.reduce((o, [day, w]) => { const m = iso(day).slice(0, 7); o[m] = (o[m] || 0) + w; return o; }, {})).map(([m, n]) => m.slice(2) + ":" + n).join(" "),
+        sheets: (namesOf.get(c.id) || []).map((x) => x.coach + ": " + x.name),
+        both: (() => { const cnt = new Map(); for (const [kk, id2] of linkOf) if (id2 === c.id) for (const [day] of sheetNames.get(kk).days) cnt.set(day, (cnt.get(day) || 0) + 1); return [...cnt].filter(([, n]) => n > 1).length; })() });
+      ulList.push({ coach: k, name: c.name, n: L.over, aed: Math.round(L.over * rate), last: lastS != null ? iso(lastS) : null, pk: q.size + " on " + iso(q.date), used: q.last != null ? iso(q.last) : null, gone, status: c.status });
+      if (gone) { for (const [day, w] of L.overL) put(k, mOf(day), "ul", w, w * rate);
+        if (debug) (dbgLeak.ul || (dbgLeak.ul = [])).push({ id: c.id, name: c.name, coach: k, over: L.over, days: L.overL.map(([day, w]) => iso(day) + (w > 1 ? "x" + w : "")),
+          pk: L.pkgs.map((q) => `${iso(q.date)} ${q.size}${q.coach ? " " + q.coach : ""} used ${q.used}${q.last ? " last " + iso(q.last) : ""}`),
+          allPk: c.pk.map((q) => `${iso(q.date)} ${q.unit === "Months" ? q.size + "mo" : q.size} ${q.coach || ""}${q.sh ? " (shared)" : ""}`),
+          sheets: (namesOf.get(c.id) || []).map((x) => x.coach + ": " + x.name), first: iso(L.ses[0] ? L.ses[0][0] : 0), told: c.told != null ? iso(c.told) : null }); }
       else { const o = leakNow.tn[k] || (leakNow.tn[k] = [0, 0]); o[0] += L.over; o[1] += L.over * rate; }
     }
   }
-  for (const x of inner.decisions) if (x.outcome === "lost" && x.E <= today) put(x.coach || "(no coach)", mOf(x.E), "lc", 1, x.px || 0);
+  // A client lost: the cover ran out with no renewal in the grace period. Not when they bought
+  // again later (they came back: "lb"), and not when the coach sheets show them training in the
+  // last 31 days (the file says ended, the sheet says otherwise: a purchase not logged, or
+  // sessions on an old package past its expiry).
+  for (const x of inner.decisions) {
+    if (x.outcome !== "lost" || x.E > today) continue;
+    const c = clients.get(x.id), k = x.coach || "(no coach)";
+    if (c && c.pk.some((p) => p.date > x.E && !p.sh)) { put(k, mOf(x.E), "lb", 1, x.px || 0); continue; }
+    const d = daysOf.get(x.id);
+    if (d && [...d.keys()].some((day) => day > today - 31 && day <= today)) { put(k, mOf(x.E), "ls", 1, x.px || 0); continue; }
+    put(k, mOf(x.E), "lc", 1, x.px || 0);
+  }
   for (const c of inner.clients) if (c.status === "Renewal due") {
     const own = c.pk.filter((p) => p.date <= today), l = own.filter((p) => !p.sh).pop() || own.pop();
     const k = c.coach || (l && l.coach) || "(no coach)", o = leakNow.due[k] || (leakNow.due[k] = [0, 0]);
@@ -461,13 +498,15 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
   }
   for (const k in lk) for (const p in lk[k]) for (const f in lk[k][p]) lk[k][p][f][1] = Math.round(lk[k][p][f][1]);
   for (const g of ["tn", "due"]) for (const k in leakNow[g]) leakNow[g][k][1] = Math.round(leakNow[g][k][1]);
-  const leak = { fee: Math.round(FEE), feeIncl: inner.extFee ?? 200, from: clMonths[0] || null, m: lk, now: leakNow, packages: lkPk };
+  const leak = { fee: Math.round(FEE), feeIncl: inner.extFee ?? 200, from: clMonths[0] || null, m: lk, now: leakNow, packages: lkPk,
+    // Each client behind "never paid" and "not paid yet", for checking against the purchases.
+    list: ulList.sort((a, b) => b.n - a.n) };
 
   return {
     v: 1, today: iso(today), now, grace: inner.grace, loggedFrom: iso(inner.loggedFrom),
     // Each linked sheet name (coach|name words) -> the client's name in the Clients file, so the
     // Coach review page can show one name per client.
-    ...(debug ? { _links: dbg } : {}),
+    ...(debug ? { _links: dbg, _leak: dbgLeak } : {}),
     sheetLink: Object.fromEntries([...linkOf].map(([k, id]) => [k, clients.get(id) ? clients.get(id).name : null])),
     names: { auto, byHand, ignored, unclear: unclear.sort((a, b) => (b.last || "").localeCompare(a.last || "") || a.coach.localeCompare(b.coach)), notInFile: notInFile.sort((a, b) => (b.last || "").localeCompare(a.last || "")), endedOnSheet, bad, hasTab: head >= 0 },
     inUse, up, months, perCoach, team, clientsOfCoach, leak,
