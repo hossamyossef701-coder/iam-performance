@@ -374,7 +374,7 @@ function renderTeam(){
   $("tiles").innerHTML=tile("Revenue, "+tr.lab,tot("rev")!=null?C.aed(tot("rev")):"—","",1)+
     tile("Sessions",tot("ses")!=null?C.full(tot("ses")):"—","")+tile("Active clients",teamB({ms:[endM]},"act")!=null?teamB({ms:[endM]},"act"):"—","at "+C.label(endM,true)+"'s end")+
     tile("New clients",tot("nw")!=null?tot("nw"):"—","")+
-    tile("Cancelled, not charged",C.full(ncS),ncA?"up to "+C.aed(ncA)+" at each coach's rate":"");
+    tile("Cancelled, not charged",C.full(ncS),"sessions the clients keep for later");
   renderScore();
   $("kK").textContent="1+1 numbers · every coach";
   $("kT").textContent=r.lab+": each coach against their own "+(span==="y"?"same months last year":UNIT[span]+" before")+(span==="m"?"":" · counts as a monthly average");
@@ -520,7 +520,7 @@ function who(c){
   var xr=((D.live.periods[month]||{})[c]||{}).cl||[], lastD=C.lastDay(D.live,month), nc=[];
   xr.forEach(function(row){ var m=row[2]||"", k=row[3], z=0, y=0; for(var i=0;i<Math.min(lastD,m.length);i++){ if(m[i]==="0") z++; else if(k&&k[i]==="y"&&wOf(m[i])) y+=wOf(m[i]); } if(z) nc.push({n:row[0],z:z,y:y}); });
   nc.sort(function(a,b){ return b.z-a.z; });
-  h+='<span class="h">Cancelled, not charged · '+nc.reduce(function(t,x){ return t+x.z; },0)+(o.ncAED?" · up to "+C.aed(o.ncAED):"")+"</span>";
+  h+='<span class="h">Cancelled, not charged · '+nc.reduce(function(t,x){ return t+x.z; },0)+"</span>";
   h+=nc.length?nc.map(function(x){ return "<span>"+nm(c,x.n)+'</span><span class="r">'+x.z+" not charged"+(x.y?", "+x.y+" charged":"")+"</span>"; }).join(""):'<span class="dim">None</span><span></span>';
   h+='<span class="h">Beyond what\'s paid, right now · '+unpaid.length+"</span>";
   h+=unpaid.length?unpaid.map(function(r){ return "<span>"+esc(r.name||r.sheetName)+'</span><span class="r">'+r.unpaid+" session"+(r.unpaid===1?"":"s")+" unpaid</span>"; }).join(""):'<span class="dim">None</span><span></span>';

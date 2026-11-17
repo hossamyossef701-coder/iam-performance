@@ -391,6 +391,23 @@ const PROJ_HEAD = [[0, "Commitment %"], [1, "Client Name"], ...days(2, 30), [34,
     run([m2, empty], [null, null], [pk(D(2026, 10, 1), D(2026, 12, 1), 10), pk(D(2026, 10, 12), D(2027, 1, 1), 10)])["2026-10"], { n: 1, ok: 0, red: 0 });
 }
 
+/* 9r. Money on the table: a package of 10 (valid 7 days) trained 1-10 Oct is used 2 sessions past
+       its expiry with no fee (one fee not charged, 2 sessions after expiry, used up 2 days late);
+       2 more sessions after it, then the client ends: never paid. With a fee typed: charged. */
+{
+  const D = (y, m, d) => Math.round((Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 86400000);
+  const run = (fee) => buildOverview({ inner: { today: D(2026, 11, 20), grace: 30, loggedFrom: D(2026, 1, 1), vat: 5, extFee: 200,
+    decisions: [{ id: "C0001", coach: "Sue", E: D(2026, 10, 8), outcome: "lost", px: 5000 }],
+    clients: [{ id: "C0001", name: "Lisa Roberts", coach: "Sue", status: "Ended", P: D(2026, 10, 8), joined: D(2026, 10, 1), told: null, agreed: null,
+      pk: [{ date: D(2026, 10, 1), end: D(2026, 10, 8), rule: D(2026, 10, 8), fee, size: 10, unit: "Sessions", px: 5000, coach: "Sue", coaches: ["Sue"], type: "New" }] }] },
+    periods: { "2026-10": { Sue: { cl: [["Lisa Roberts", 500, "1".repeat(10) + ".11" + ".".repeat(18), null]] } } },
+    links: [], now: "2026-11", cutoffDay: 20, revenueOf: () => null }).leak.m.Sue["2026-10"];
+  check("money on the table: fee not charged, sessions after expiry, late, never paid, lost", run(null),
+    { xf: [1, 190], ax: [2, 1000], fl: [1, 1429], fd: [2, 0], rl: [0, 1], ul: [2, 1000], lc: [1, 5000] });
+  check("money on the table: a typed fee counts as charged", run(200),
+    { xc: [1, 190], fl: [1, 1429], fd: [2, 0], rl: [0, 1], ul: [2, 1000], lc: [1, 5000] });
+}
+
 /* 9p. A covered client: a name on the covering coach's sheet, sessions in orange, for a client who
        never had a package with that coach. Linked when it can only be one client in the file;
        left to be confirmed when two clients fit, or when nothing marks it as a cover. */

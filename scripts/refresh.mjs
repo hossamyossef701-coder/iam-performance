@@ -45,7 +45,7 @@ const ORDER = (env.FETCH_STRATEGIES || "badger,od,odkey,spshares,zip,rest,browse
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
-console.log("refresh build 2026-11-16d (still with us over a stretch counts each client once)");  // proves which version the job is running
+console.log("refresh build 2026-11-17a (money on the table; VAT multiplier read right)");  // proves which version the job is running
 
 // One typed character of difference, so "Shayla" finds "Shyla".
 function near(a, b) {
@@ -392,6 +392,9 @@ async function main() {
         L.log(`Overview: ${n.auto + n.byHand} coach-sheet names linked (${n.byHand} by the Name links tab), ${n.unclear.length} to confirm, ${n.notInFile.length} not in the file - overview.enc.json written`);
       }
       for (const b of ov.names.bad) L.log("  Name links: " + b);
+      { const lk = ov.leak, t = {}; for (const c in lk.m) for (const p in lk.m[c]) for (const f in lk.m[c][p]) { t[f] = t[f] || [0, 0]; t[f][0] += lk.m[c][p][f][0]; t[f][1] += lk.m[c][p][f][1]; }
+        const g = (f) => t[f] || [0, 0];
+        L.log(`Money on the table (everything followed, ${lk.packages} packages past expiry): ${g("xf")[0]} extension fees not charged, ${g("xc")[0]} charged; ${g("ax")[0]} sessions after expiry with no fee; ${g("ul")[0]} sessions never paid; ${g("fl")[0]} packages used up late, ${g("fo")[0]} on time`); }
       const rc = ov.kpiM.rtCover;
       L.log(`Renewals on time: ${rc.measured} of ${rc.all} renewals followed on the coach sheets, ${rc.red} ended by a red mark; ${rc.misfit} red mark(s) too far from the package size to use`);
       // The Clients page's Coaches table shows renewals on time too (no names: coach and month counts).

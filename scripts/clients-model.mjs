@@ -80,9 +80,14 @@ export function buildClientsModel(sheets, opts = {}) {
   const carryDays = num(label(/^carry-over period/i)) ?? 120;
   const loggedFrom = dayNum(label(/^every purchase logged since/i)) ?? toSerial(2026, 1, 1);
   const reminder = num(label(/^expiring soon window/i)) ?? 10;
+  // The fee for extending a package past its expiry date (AED incl. VAT, like package prices).
+  // A Settings row labelled "Extension fee" overrides it.
+  const extFee = num(label(/^extension fee/i)) ?? 200;
   // Every amount on the page is without VAT, like the coach sheets' rates. Package prices are
   // typed with VAT, so they are divided by (1 + VAT). A "VAT %" row on Settings overrides 5.
-  const vat = num(label(/^vat/i)) ?? 5;
+  // The Settings row may hold a percent (5), a percent cell (0.05) or a multiplier (1.05).
+  const vatRaw = num(label(/^vat/i));
+  const vat = vatRaw == null ? 5 : vatRaw < 1 ? vatRaw * 100 : vatRaw < 2 ? (vatRaw - 1) * 100 : vatRaw;
   const exVat = (v) => (v == null ? null : v / (1 + vat / 100));
   const rules = [];
   let ruleHead = S.findIndex((r) => r && /^sessions$/i.test(txt(r[0])));
@@ -258,7 +263,7 @@ export function buildClientsModel(sheets, opts = {}) {
       if (!toldStop && E >= today) { if (!next) break; E = next.end; owner = next; continue; }
       if (E >= loggedFrom || toldStop) {
         const resolved = toldStop ? c.told : E + grace;
-        if (resolved <= today) decisions.push({ id: c.id, coach: owner.coach, E: toldStop ? Math.min(E, c.told) : E, outcome: "lost", at: resolved, joined: c.joined, told: toldStop, size: owner.size, unit: owner.unit });
+        if (resolved <= today) decisions.push({ id: c.id, coach: owner.coach, E: toldStop ? Math.min(E, c.told) : E, outcome: "lost", at: resolved, joined: c.joined, told: toldStop, size: owner.size, unit: owner.unit, px: owner.px });
         else decisions.push({ id: c.id, coach: owner.coach, E, outcome: "pending", at: null, joined: c.joined, size: owner.size, unit: owner.unit });
       }
       if (!next) break;
@@ -540,10 +545,14 @@ export function buildClientsModel(sheets, opts = {}) {
   // joined to for the Overview and Coach review pages (which are locked with the Performance
   // passphrase, not this one).
   if (opts.internal) out._in = {
-    today, grace, loggedFrom, vat,
+    today, grace, loggedFrom, vat, extFee,
     clients: [...clients.values()].map((c) => ({
       id: c.id, name: c.name, coach: c.coach, status: c.now.status, P: c.now.P, joined: c.joined, told: c.told, agreed: c.agreed,
-      pk: c.pk.concat(c.sh).sort((a, b) => a.date - b.date).map((p) => ({ date: p.date, end: p.end, size: p.size, unit: p.unit, px: p.px, coach: p.coach, coaches: [p.coach, p.coach2, p.coach3].filter(Boolean), type: p.type })),
+      pk: c.pk.concat(c.sh).sort((a, b) => a.date - b.date).map((p) => ({ date: p.date, end: p.end, size: p.size, unit: p.unit, px: p.px, coach: p.coach, coaches: [p.coach, p.coach2, p.coach3].filter(Boolean), type: p.type,
+        // For the money left on the table: the expiry date the policy gives (before any
+        // extension), the extension and its fee as logged, and whether the package is another
+        // client's shared with this one (counted once, under its owner).
+        rule: p.days != null ? p.date + p.days : null, ext: p.ext, fee: p.fee, sh: p.id !== c.id })),
     })),
     decisions, monthly,
   };
