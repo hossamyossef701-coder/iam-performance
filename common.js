@@ -18,7 +18,7 @@ C.day = function (iso) { return iso ? +iso.slice(8, 10) + " " + MONTHS[+iso.slic
 C.date = function (iso) { return iso ? +iso.slice(8, 10) + " " + MONTHS[+iso.slice(5, 7) - 1] + " " + iso.slice(0, 4) : "—"; };
 C.median = function (a) { a = a.filter(function (x) { return x != null && isFinite(x); }).sort(function (x, y) { return x - y; }); if (!a.length) return null; var m = Math.floor(a.length / 2); return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; };
 C.daysIn = function (p) { return new Date(Date.UTC(+p.slice(0, 4), +p.slice(5, 7), 0)).getUTCDate(); };
-C.prevP = function (p, n) { var y = +p.slice(0, 4), m = +p.slice(5, 7) - n; while (m < 1) { m += 12; y--; } return y + "-" + (m < 10 ? "0" : "") + m; };
+C.prevP = function (p, n) { var y = +p.slice(0, 4), m = +p.slice(5, 7) - n; while (m < 1) { m += 12; y--; } while (m > 12) { m -= 12; y++; } return y + "-" + (m < 10 ? "0" : "") + m; };
 C.addDays = function (iso, n) { return new Date(Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) + n * 864e5).toISOString().slice(0, 10); };
 C.wOf = function (ch) { return ch === "1" || ch === "x" ? 1 : ch === "h" ? 0.5 : (ch >= "2" && ch <= "9") ? +ch : 0; };
 C.nameKey = function (n) { return String(n).toLowerCase().replace(/\([^)]*\)/g, " ").replace(/[^a-z0-9؀-ۿ]+/g, " ").trim(); };

@@ -804,7 +804,7 @@ function clientsIn(p,c){
 }
 function pIso(p,d){ return p+"-"+(d<10?"0":"")+d; }
 function addDaysIso(iso,n){ var t=Date.UTC(+iso.slice(0,4),+iso.slice(5,7)-1,+iso.slice(8,10))+n*864e5; return new Date(t).toISOString().slice(0,10); }
-function prevP(p,n){ var y=+p.slice(0,4), m=+p.slice(5,7)-n; while(m<1){ m+=12; y--; } return y+"-"+(m<10?"0":"")+m; }
+function prevP(p,n){ var y=+p.slice(0,4), m=+p.slice(5,7)-n; while(m<1){ m+=12; y--; } while(m>12){ m-=12; y++; } return y+"-"+(m<10?"0":"")+m; }
 
 /* tooltip */
 var dtip=null;
