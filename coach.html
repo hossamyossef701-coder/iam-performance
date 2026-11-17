@@ -146,7 +146,7 @@ var C=window.IAM, $=C.$, esc=C.esc, D=null, sel="", month="", kSel="ses", showNa
 /* ---- The KPIs ----
    Two lists, switched with "Full list / Balanced": the full 15 (the KPI sheet's rows), and the
    balanced 10 - five areas, two KPIs each, so no one area carries a coach. */
-var DEFK={"ses": {"name": "Sessions delivered", "better": "Higher"}, "rev": {"name": "Revenue (AED, without VAT)", "better": "Higher"}, "proj": {"name": "Projection reached (%)", "better": "Higher"}, "act": {"name": "Active clients", "better": "Higher"}, "spw": {"name": "Sessions a week per client", "better": "Higher"}, "p3": {"name": "Clients at 3+ a week (%)", "better": "Higher"}, "rpc": {"name": "Revenue per client (AED)", "better": "Higher"}, "kept": {"name": "Existing clients still with us (%)", "better": "Higher"}, "early": {"name": "Renewed before the last paid session (%)", "better": "Higher"}, "conv": {"name": "Assessments converted (%)", "better": "Higher"}, "nw": {"name": "New clients", "better": "Higher"}, "canc": {"name": "Cancelled sessions (%)", "better": "Lower"}, "less": {"name": "Clients training less often", "better": "Lower"}, "up": {"name": "Clients training beyond what's paid", "better": "Lower"}, "chg": {"name": "Late cancellations charged (%)", "better": "Higher"}, "prog": {"name": "Training programme phase (head coach score)", "better": "Higher"}};
+var DEFK={"ses": {"name": "Sessions delivered", "better": "Higher"}, "rev": {"name": "Revenue (AED, without VAT)", "better": "Higher"}, "proj": {"name": "Projection reached (%)", "better": "Higher"}, "act": {"name": "Active clients", "better": "Higher"}, "spw": {"name": "Sessions a week per client", "better": "Higher"}, "p3": {"name": "Clients at 3+ a week (%)", "better": "Higher"}, "rpc": {"name": "Revenue per client (AED)", "better": "Higher"}, "kept": {"name": "Existing clients still with us (%)", "better": "Higher"}, "early": {"name": "Renewed before the last paid session (%)", "better": "Higher"}, "conv": {"name": "Assessments converted (%)", "better": "Higher"}, "nw": {"name": "New clients", "better": "Higher"}, "canc": {"name": "Cancelled sessions (%)", "better": "Lower"}, "less": {"name": "Clients training less often", "better": "Lower"}, "up": {"name": "Clients training beyond what's paid", "better": "Lower"}, "chg": {"name": "Cancellations charged (%)", "better": "Higher"}, "prog": {"name": "Training programme phase (head coach score)", "better": "Higher"}};
 var FULL=["ses","rev","proj","act","spw","p3","rpc","kept","early","conv","nw","canc","less","up","chg"];
 var BAL=["rev","proj","p3","less","kept","early","conv","nw","chg","prog"];
 var AREA={rev:"Business",proj:"Business",p3:"Client commitment",less:"Client commitment",kept:"Keeping clients",early:"Keeping clients",conv:"Growing the book",nw:"Growing the book",chg:"Standards",prog:"Standards"};
@@ -193,14 +193,14 @@ function val(c,p){
     var s=part&&x.ms!=null?x.ms:x.s, r=part&&x.mr!=null?x.mr:x.r, cx=part&&x.mx!=null?x.mx:x.x;
     put("ses",s,1); put("rev",r,1);
     if(x.pr&&r!=null){ var share=part&&x.md?x.md/C.daysIn(p):1; put("proj",r,x.pr*share,"AED "+C.full(r)+" of "+C.full(Math.round(x.pr*share))+(part?" (to day "+x.md+")":"")); }
-    // Charged late cancellations: a session typed 1 on a yellow cell. Only from sheets whose
+    // Charged cancellations: a session typed 1 on a yellow cell. Only from sheets whose
     // colours were read; without them, cancelled = the 0s alone and charged is left blank.
     var rows=x.cl||[], last=C.lastDay(live,p), y=0, z=0, coloured=false, ssum=0, rsum=0;
     rows.forEach(function(row){ var m=row[2]||"", k=row[3]; if(k) coloured=true;
       for(var i=0;i<Math.min(last,m.length);i++){ var w=wOf(m[i]); if(m[i]==="0") z++; if(w){ ssum+=w; rsum+=w*(row[1]||0); if(k&&k[i]==="y") y+=w; } } });
     if(cx==null) cx=z;
     if(coloured){
-      put("chg",y,y+cx,C.full(y)+" charged of "+C.full(y+cx)+" late cancellations");
+      put("chg",y,y+cx,C.full(y)+" charged of "+C.full(y+cx)+" cancellations");
       put("canc",cx+y,(s||0)+cx,C.full(cx)+" cancelled and not charged, "+C.full(y)+" charged, of "+C.full((s||0)+cx)+" booked");
       o.nc=cx; o.ncAED=ssum?cx*rsum/ssum:null;
     } else if(s!=null) put("canc",cx,s+cx,C.full(cx)+" cancelled of "+C.full(s+cx)+" booked");
@@ -465,7 +465,7 @@ function defs(){
     "Active clients: on the Clients file at the month's end. Existing clients still with us: of the clients with the coach the day before the month (or the quarter, or the stretch) began, how many are still clients at its end, each client counted once (inside the grace period counts as still with us). "+
     "Renewed before the last paid session: of the renewals bought in the month, how many came before the client trained past the last session of the package before (the session marked red on the coach sheet, or by counting the sessions where it is not marked). Assessments converted: from the assessment tracker. "+
     "New clients: New packages in the Clients file. Cancelled: (cancelled + charged) ÷ (trained, charged included, + cancelled). Training less often: clients at half their usual or less over the month's last 3 weeks. "+
-    "Beyond what's paid: clients who trained in the month past every session paid for by its end. Late cancellations charged: sessions typed 1 on a yellow cell ÷ (those + the 0s). "+
+    "Beyond what's paid: clients who trained in the month past every session paid for by its end. Cancellations charged: sessions typed 1 on a yellow cell ÷ (those + the 0s). A 0 is any cancellation not charged, with notice or not: the sheet cannot tell them apart, so this is the share of all cancellations that were charged. "+
     "Training programme phase: the head coach's score (1-6) for the coach's programme design; blank until that sheet is linked. Team median: all coaches lined up on the KPI, the one in the middle.";
 }
 
