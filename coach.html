@@ -46,6 +46,8 @@
 .room .sepr{grid-column:1/-1;border-top:1px solid var(--line-soft);margin:6px 0;}
 .room .tot{font-size:22px;color:var(--accent-2);}
 .tiles.t4{grid-template-columns:repeat(4,1fr);}
+.sumbar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;margin:18px 0 10px;}
+.sumbar .k{font-size:9.5px;letter-spacing:.17em;text-transform:uppercase;color:var(--ink-faint);}
 @media(max-width:800px){.tiles.t4{grid-template-columns:repeat(2,1fr);}}
 .tile .v.sm{font-size:17px;line-height:1.3;}
 .sbar{display:inline-block;height:8px;border-radius:2px;background:var(--accent);vertical-align:middle;margin-right:8px;}
@@ -85,6 +87,7 @@
     <button id="btnNotes">Notes</button>
   </div>
 
+  <div class="sumbar"><span class="k" id="sumK">Summary</span><span class="seg sm" id="segTiles"></span></div>
   <div class="tiles" id="tiles"></div>
 
   <div class="card section" id="scoreCard">
@@ -250,22 +253,27 @@ function show(k,v){ v=rnd(k,v); if(v==null) return '<span class="dim">—</span>
 function move(k,a,b){ a=rnd(k,a); b=rnd(k,b); if(a==null||b==null) return null; var d=a>b?1:a<b?-1:0; return better(k)==="Lower"?-d:d; }
 
 /* ---- Blocks of months: a month, a calendar quarter, or 6 / 12 months ending at the chosen month ---- */
-var SPANS=[["m","Month"],["q","Quarter"],["6","6 months"],["12","12 months"]];
+/* Every part of the page picks from the same five, each with its own picker: the summary tiles,
+   the 1+1 numbers and the score. All end at the month chosen at the top: the month itself, the
+   quarter it is in, the 6 or 12 months up to it, or the year so far up to it. */
+var SPANS=[["m","Month"],["q","Quarter"],["6","6 months"],["12","12 months"],["y","This year"]];
 function qStart(p){ var m=+p.slice(5,7); return C.prevP(p,(m-1)%3); }
 function block(endP,sp){
   var ms=[], i, lab;
   if(sp==="m"){ ms=[endP]; lab=C.label(endP,true); }
+  else if(sp==="y"){ var y0=endP.slice(0,4)+"-01"; for(var q2=y0;q2<=endP;q2=C.prevP(q2,-1)) ms.push(q2); lab=(ms.length===12?"":C.label(y0,true)+"–"+C.label(endP,true)+" ")+endP.slice(0,4); }
   else if(sp==="q"){ var st=qStart(endP); for(i=0;i<3;i++){ var q=C.prevP(st,-i); if(q<=endP) ms.push(q); } lab="Q"+(Math.floor((+st.slice(5,7)-1)/3)+1)+" "+st.slice(2,4); }
   else { var n=+sp; for(i=n-1;i>=0;i--) ms.push(C.prevP(endP,i)); lab=C.label(ms[0],true)+"–"+C.label(endP,true)+" "+endP.slice(2,4); }
   // Not complete: a quarter cut short, the month running, or months before the coach sheets begin.
   var first=Object.keys(D.live.periods).sort()[0], full=(sp==="q"?ms.length===3:true)&&ms[0]>=first;
   return {ms:ms,lab:lab,part:!full||ms.indexOf(now())>=0,end:endP};
 }
-function prevEnd(b,sp){ return sp==="m"?C.prevP(b.end,1):sp==="q"?C.prevP(qStart(b.end),1):C.prevP(b.end,+sp); }
+// The block before: the month, quarter or stretch before - and for This year, the same months a year earlier.
+function prevEnd(b,sp){ return sp==="m"?C.prevP(b.end,1):sp==="q"?C.prevP(qStart(b.end),1):sp==="y"?C.prevP(b.end,12):C.prevP(b.end,+sp); }
 // n blocks, oldest first, ending with the block holding the chosen month.
 function blocks(n,sp){ sp=sp||span; var out=[block(month,sp)]; while(out.length<n) out.unshift(block(prevEnd(out[0],sp),sp)); return out; }
 // The block reviewed: the chosen month's block when complete, otherwise the one before it.
-function reviewed(){ var b=block(month,span); return b.part?block(prevEnd(b,span),span):b; }
+function reviewed(sp){ sp=sp||span; var b=block(month,sp); return b.part&&sp!=="y"?block(prevEnd(b,sp),sp):b; }
 function vB(c,b,k){ return c?agg(c,b.ms,k):teamB(b,k); }
 function medianB(b,k){ return C.median(coaches().map(function(c){ return agg(c,b.ms,k); })); }
 function teamB(b,k){
@@ -273,14 +281,16 @@ function teamB(b,k){
   return medianB(b,k);
 }
 // Where a KPI stands at the reviewed block: its last move and how many blocks in a row it has gone that way.
-function state(c,k){
-  var r=reviewed(), s=[r]; while(s.length<13) s.unshift(block(prevEnd(s[0],span),span));
+function state(c,k,sp){
+  sp=sp||span; var r=reviewed(sp), s=[r]; while(s.length<(sp==="y"?3:13)) s.unshift(block(prevEnd(s[0],sp),sp));
   var mv=[]; for(var j=1;j<s.length;j++) mv.push(move(k,vB(c,s[j],k),vB(c,s[j-1],k)));
   var last=mv[mv.length-1]; if(last==null) return {last:null,run:0};
   var run=0; for(var i=mv.length-1;i>=0&&mv[i]===last;i--) run++;
   return {last:last,run:run};
 }
-var UNIT={m:"month",q:"quarter","6":"6 months","12":"12 months"};
+var UNIT={m:"month",q:"quarter","6":"6 months","12":"12 months",y:"year"};
+var NCOL={m:6,q:4,"6":3,"12":2,y:2}, NCHART={m:12,q:6,"6":4,"12":3,y:3};
+var tspan="m";
 function trendTxt(st){ if(st.last==null) return '<span class="dim">—</span>'; return st.last===1?'<span class="up">▲ '+st.run+" up</span>":st.last===-1?'<span class="down">▼ '+st.run+" down</span>":'<span class="dim">● same</span>'; }
 
 /* ---- the page ---- */
@@ -296,7 +306,8 @@ function ordinal(n){ var s=["th","st","nd","rd"], v=n%100; return n+(s[(v-20)%10
 function tile(k,v,sub,lead,small){ return '<div class="tile'+(lead?" lead":"")+'"><div class="k">'+k+'</div><div class="v'+(small?" sm":"")+'">'+v+'</div><div class="sub">'+sub+"</div></div>"; }
 function segs(){
   $("segList").innerHTML=[["full","Full list (15)"],["bal","Balanced (10)"]].map(function(x){ return '<button data-v="'+x[0]+'"'+(x[0]===list?' class="on"':"")+">"+x[1]+"</button>"; }).join("");
-  $("segSpan").innerHTML=SPANS.map(function(x){ return '<button data-v="'+x[0]+'"'+(x[0]===span?' class="on"':"")+">"+x[1]+"</button>"; }).join("");
+  var seg=function(cur){ return SPANS.map(function(x){ return '<button data-v="'+x[0]+'"'+(x[0]===cur?' class="on"':"")+">"+x[1]+"</button>"; }).join(""); };
+  $("segSpan").innerHTML=seg(span); $("segTiles").innerHTML=seg(tspan); $("segWin").innerHTML=seg(win);
 }
 function nameCell(k){
   var d=DEFK[k];
@@ -311,23 +322,26 @@ function render(){
   var team=sel==="";
   $("one").style.display=team?"none":""; $("btnNames").style.display=team?"":"none"; $("scoreCard").style.display=team?"":"none";
   $("h1").textContent=team?"The team":sel;
-  $("legBefore").textContent="better than the "+(span==="m"?"month":span==="q"?"quarter":"stretch")+" before";
+  $("legBefore").textContent="better than the "+(span==="m"?"month":span==="q"?"quarter":span==="y"?"same months last year":"stretch")+" before";
   if(team) renderTeam(); else renderOne();
   chart();
 }
 
 function renderOne(){
-  var c=sel, ks=KEYS(), n=span==="m"?6:span==="q"?4:span==="6"?3:2, bs=blocks(n), r=reviewed();
-  if(bs[bs.length-1].part&&span!=="m") bs=blocks(n+1);
-  var sts={}, up=0, dn=0, same=0, worst=null;
-  ks.forEach(function(k){ var st=sts[k]=state(c,k); if(st.last===1) up++; else if(st.last===-1){ dn++; if(worst==null||st.run>sts[worst].run) worst=k; } else if(st.last===0) same++; });
-  var rows=renderScore(), at=-1; rows.forEach(function(x,i){ if(x.c===c) at=i; });
-  var rev=parts(c,r.ms,"rev"), W2=winMonths(win);
-  $("tiles").innerHTML=tile("Better in "+r.lab,up+"<small>of "+ks.length+"</small>","than the "+UNIT[span]+" before",1)+
+  var c=sel, ks=KEYS(), n=NCOL[span], bs=blocks(n), r=reviewed();
+  if(bs[bs.length-1].part&&span!=="m"&&span!=="y") bs=blocks(n+1);
+  // The summary tiles: their own window (the picker above them), whatever the table below shows.
+  var tr=reviewed(tspan), tsts={}, up=0, dn=0, same=0, worst=null;
+  ks.forEach(function(k){ var st=tsts[k]=state(c,k,tspan); if(st.last===1) up++; else if(st.last===-1){ dn++; if(worst==null||st.run>tsts[worst].run) worst=k; } else if(st.last===0) same++; });
+  var sts={}; ks.forEach(function(k){ sts[k]=state(c,k); });
+  var rows=scoreRows(tspan), at=-1; rows.forEach(function(x,i){ if(x.c===c) at=i; });
+  var rev=parts(c,tr.ms,"rev"), unitT=UNIT[tspan];
+  $("sumK").textContent="Summary · "+tr.lab+(tr.part?" so far":"");
+  $("tiles").innerHTML=tile("Better in "+tr.lab,up+"<small>of "+ks.length+"</small>","than the "+(tspan==="y"?"same months last year":unitT+" before"),1)+
     tile("Worse",dn+"<small>of "+ks.length+"</small>",same?same+" the same":"")+
-    tile("Look at first",worst!=null?esc(DEFK[worst].name):"Nothing slipped",worst!=null?"down "+sts[worst].run+" "+UNIT[span]+(sts[worst].run>1&&span!=="6"&&span!=="12"?"s":"")+" in a row":"",0,1)+
-    tile("Revenue, "+r.lab,rev?C.aed(rev.n):"—",agg(c,r.ms,"proj")!=null?Math.round(agg(c,r.ms,"proj"))+"% of projection":"")+
-    tile("Score, "+winName(W2),at<0?"—":Math.round(rows[at].s)+"<small>"+ordinal(at+1)+" of "+rows.length+"</small>",at<0?"":(rows[at].up>rows[at].dn?"beat their previous stretch":"did not beat their previous stretch"));
+    tile("Look at first",worst!=null?esc(DEFK[worst].name):"Nothing slipped",worst!=null?"down "+tsts[worst].run+" "+unitT+(tsts[worst].run>1&&(tspan==="m"||tspan==="q"||tspan==="y")?"s":"")+" in a row":"",0,1)+
+    tile("Revenue, "+tr.lab,rev?C.aed(rev.n):"—",agg(c,tr.ms,"proj")!=null?Math.round(agg(c,tr.ms,"proj"))+"% of projection":"")+
+    tile("Score, "+tr.lab,at<0?"—":Math.round(rows[at].s)+"<small>"+ordinal(at+1)+" of "+rows.length+"</small>",at<0?"":(rows[at].up>rows[at].dn?"beat their "+(tspan==="y"?"same months last year":unitT+" before"):"did not beat their "+(tspan==="y"?"same months last year":unitT+" before")));
   $("kK").textContent="1+1 numbers · "+c;
   $("kT").textContent=(list==="bal"?"Balanced list":"The KPI sheet's rows")+", "+bs[0].lab+" to "+bs[bs.length-1].lab+(span==="m"?"":" · counts as a monthly average");
   $("kU").textContent="team median = the coach in the middle when all are lined up";
@@ -352,16 +366,18 @@ function renderOne(){
 }
 
 function renderTeam(){
-  var cs=coaches(), r=reviewed(), pb=block(prevEnd(r,span),span), ks=KEYS();
-  var ncS=0, ncA=0; cs.forEach(function(c){ r.ms.forEach(function(p){ var o=val(c,p); if(o.nc!=null){ ncS+=o.nc; ncA+=o.ncAED||0; } }); });
-  var tot=function(k){ var t=0, any=false; cs.forEach(function(c){ var q=parts(c,r.ms,k); if(q){ t+=q.n; any=true; } }); return any?t:null; };
-  $("tiles").innerHTML=tile("Revenue, "+r.lab,tot("rev")!=null?C.aed(tot("rev")):"—","",1)+
-    tile("Sessions",tot("ses")!=null?C.full(tot("ses")):"—","")+tile("Active clients",teamB({ms:[r.ms[r.ms.length-1]]},"act")!=null?teamB({ms:[r.ms[r.ms.length-1]]},"act"):"—","at "+C.label(r.ms[r.ms.length-1],true)+"'s end")+
+  var cs=coaches(), r=reviewed(), pb=block(prevEnd(r,span),span), ks=KEYS(), tr=reviewed(tspan);
+  var ncS=0, ncA=0; cs.forEach(function(c){ tr.ms.forEach(function(p){ var o=val(c,p); if(o.nc!=null){ ncS+=o.nc; ncA+=o.ncAED||0; } }); });
+  var tot=function(k){ var t=0, any=false; cs.forEach(function(c){ var q=parts(c,tr.ms,k); if(q){ t+=q.n; any=true; } }); return any?t:null; };
+  var endM=tr.ms[tr.ms.length-1];
+  $("sumK").textContent="Summary · "+tr.lab+(tr.part?" so far":"");
+  $("tiles").innerHTML=tile("Revenue, "+tr.lab,tot("rev")!=null?C.aed(tot("rev")):"—","",1)+
+    tile("Sessions",tot("ses")!=null?C.full(tot("ses")):"—","")+tile("Active clients",teamB({ms:[endM]},"act")!=null?teamB({ms:[endM]},"act"):"—","at "+C.label(endM,true)+"'s end")+
     tile("New clients",tot("nw")!=null?tot("nw"):"—","")+
     tile("Cancelled, not charged",C.full(ncS),ncA?"up to "+C.aed(ncA)+" at each coach's rate":"");
   renderScore();
   $("kK").textContent="1+1 numbers · every coach";
-  $("kT").textContent=r.lab+": each coach against their own "+UNIT[span]+" before"+(span==="m"?"":" · counts as a monthly average");
+  $("kT").textContent=r.lab+": each coach against their own "+(span==="y"?"same months last year":UNIT[span]+" before")+(span==="m"?"":" · counts as a monthly average");
   $("kU").textContent=showNames?"names shown":"coaches as letters · Show names to reveal";
   $("btnCopy").textContent="Copy "+r.lab+" (team)";
   var head='<thead><tr><th class="l">KPI</th><th class="sep">Team</th>'+cs.map(function(c){ return "<th>"+label(c)+"</th>"; }).join("")+"</tr></thead>";
@@ -375,7 +391,7 @@ function renderTeam(){
   }).join("");
   $("kTbl").innerHTML=head+"<tbody>"+body+"</tbody>";
   bindRows();
-  $("kNote").innerHTML="Each coach's cell is coloured against that coach's own "+UNIT[span]+" before ("+pb.lab+"). Team = the team's total for counts, and the team median for rates. Choose a coach above for their 1+1 view.<br>"+defs();
+  $("kNote").innerHTML="Each coach's cell is coloured against that coach's own "+(span==="y"?"same months last year":UNIT[span]+" before")+" ("+pb.lab+"). Team = the team's total for counts, and the team median for rates. Choose a coach above for their 1+1 view.<br>"+defs();
 }
 
 /* ---- Score ----
@@ -383,21 +399,9 @@ function renderTeam(){
    other: the best gets 100 points, the lowest 0, the rest by how many coaches they beat (a tie
    counts half). Full list: the score is the average of the KPIs' points. Balanced list: the points
    are averaged within each area first, then the areas, so every area weighs the same. */
-var WINS=[["q","Last quarter"],["3","3 months"],["6","6 months"],["12","12 months"],["y","This year"]], win="q", pickBy={};
+var win="q", pickBy={};
 function pick(){ var k=list; if(!pickBy[k]||pickBy[k].length!==KEYS().length) pickBy[k]=KEYS().map(function(){ return true; }); return pickBy[k]; }
 function label(c){ if(showNames) return esc(c); var i=coaches().indexOf(c); return "Coach "+String.fromCharCode(65+(i<0?25:i)); }
-function winMonths(w){
-  var last=C.prevP(now(),1), out=[], prev=[], n, end=last;
-  if(w==="q"){ var mo=+now().slice(5,7), qs=Math.floor((mo-1)/3)*3+1; end=C.prevP(now(),mo-qs+1); n=3; }
-  else if(w==="y"){ n=+last.slice(5,7); }
-  else n=+w;
-  for(var j=n-1;j>=0;j--) out.push(C.prevP(end,j));
-  var pend=w==="y"?C.prevP(end,12):C.prevP(end,n);
-  for(j=n-1;j>=0;j--) prev.push(C.prevP(pend,j));
-  return {now:out,prev:prev,w:w};
-}
-function qName(p){ return "Q"+(Math.floor((+p.slice(5,7)-1)/3)+1)+" "+p.slice(0,4); }
-function winName(W2){ return W2.w==="q"?qName(W2.now[0]):WINS.filter(function(x){ return x[0]===W2.w; })[0][1].toLowerCase(); }
 function scores(ms){
   var cs=coaches(), ks=KEYS(), pk=pick(), res={};
   cs.forEach(function(c){ res[c]={pts:[],v:{}}; });
@@ -420,19 +424,26 @@ function scores(ms){
   });
   return res;
 }
-function renderScore(){
-  var W2=winMonths(win), A=scores(W2.now), B=scores(W2.prev), cs=coaches(), ks=KEYS(), pk=pick();
-  var rangeTxt=function(ms){ return win==="q"?qName(ms[0]):C.label(ms[0],true)+" – "+C.label(ms[ms.length-1]); };
-  $("segWin").innerHTML=WINS.map(function(w){ return '<button data-w="'+w[0]+'"'+(w[0]===win?' class="on"':"")+">"+w[1]+"</button>"; }).join("");
-  $("sT").textContent="Who leads on the "+(list==="bal"?"balanced list":"full list")+", "+rangeTxt(W2.now)+" · against "+rangeTxt(W2.prev);
-  var rows=cs.map(function(c){
+// The score over a window: the reviewed block (the last complete one) against the one before it.
+function scoreRows(sp){
+  var rb=reviewed(sp), pb=block(prevEnd(rb,sp),sp), A=scores(rb.ms), B=scores(pb.ms), cs=coaches(), ks=KEYS(), pk=pick();
+  return cs.map(function(c){
     var a=A[c], b=B[c], up=0, dn=0;
     ks.forEach(function(k,i){ if(!pk[i]) return; var m=move(k,a.v[k],b.v[k]); if(m===1) up++; else if(m===-1) dn++; });
-    return {c:c,s:a.score,ps:b.score,up:up,dn:dn,n:a.pts.length,pts:a.pts,areas:a.areas};
+    return {c:c,s:a.score,ps:b.score,up:up,dn:dn,n:a.pts.length,pts:a.pts,areas:a.areas,v:a.v};
   }).filter(function(r){ return r.s!=null; }).sort(function(x,y){ return y.s-x.s; });
+}
+function renderScore(){
+  var rb=reviewed(win), pb=block(prevEnd(rb,win),win), cs=coaches(), ks=KEYS(), pk=pick();
+  $("sT").textContent="Who leads on the "+(list==="bal"?"balanced list":"full list")+", "+rb.lab+(rb.part?" so far":"")+" · against "+pb.lab;
+  var rows=scoreRows(win), A={}; rows.forEach(function(r){ A[r.c]={v:r.v}; });
+  return renderScoreRows(rows,A,ks,pk);
+}
+function renderScoreRows(rows,A,ks,pk){
+  // (rows come sorted from scoreRows)
   var nPick=pk.filter(Boolean).length;
   $("sTbl").innerHTML=!rows.length?'<tbody><tr><td class="l dim">No figures for this stretch yet.</td></tr></tbody>':
-    '<thead><tr><th class="l">#</th><th class="l">Coach</th><th class="l">Score</th><th>Previous<br>stretch</th><th>KPIs better<br>than before</th><th>Worse</th><th class="l">Beat their own<br>previous stretch</th><th>KPIs<br>scored</th></tr></thead><tbody>'+
+    '<thead><tr><th class="l">#</th><th class="l">Coach</th><th class="l">Score</th><th>Score<br>before</th><th>KPIs better<br>than before</th><th>Worse</th><th class="l">Beat their own<br>results before</th><th>KPIs<br>scored</th></tr></thead><tbody>'+
     rows.map(function(r,i){
       var tip=r.pts.map(function(x){ return (list==="bal"?AREA[x.k]+" · ":"")+DEFK[x.k].name+": "+show(x.k,A[r.c].v[x.k]).replace(/<[^>]+>/g,"")+" · "+Math.round(x.p)+" points"; }).join("\n");
       var beat=r.up+r.dn===0?'<span class="no">—</span>':r.up>r.dn?'<span class="ok">✓ '+r.up+" better, "+r.dn+" worse</span>":'<span class="no">✗ '+r.up+" better, "+r.dn+" worse</span>";
@@ -444,7 +455,7 @@ function renderScore(){
   $("sNote").innerHTML="Score: for each KPI ticked below, the coaches with a figure are placed against each other over the stretch: the best gets 100 points, the lowest 0, a tie counts half. "+
     (list==="bal"?"Balanced list: the points are averaged within each area, then the five areas are averaged, so every area weighs the same. ":"Full list: the average of the KPIs' points. ")+
     "Hover a score for each KPI's points. Rates are worked out over the whole stretch, counts as a monthly average. Full months only. "+
-    "Beat their own previous stretch = more KPIs better than worse against the same coach's stretch before (for This year, the same months last year).";
+    "Beat their own previous stretch = more KPIs better than worse against the same coach's month, quarter or stretch before (for This year, the same months last year). A window that is not complete yet is scored on the last complete one.";
   return rows;
 }
 
@@ -466,9 +477,9 @@ function bindRows(){
 
 /* The chosen KPI block by block, with the team median as a line. */
 function chart(){
-  var k=kSel, d=DEFK[k], c=sel||null, host=$("chKpi"), n=span==="m"?12:span==="q"?6:span==="6"?4:3;
+  var k=kSel, d=DEFK[k], c=sel||null, host=$("chKpi"), n=NCHART[span];
   var s=blocks(n).map(function(b){ return {b:b,v:vB(c,b,k)}; }), mid=c?s.map(function(x){ return medianB(x.b,k); }):null, r=reviewed();
-  $("cK").textContent=(c?c:"The team")+" · "+(span==="m"?"twelve months":n+" "+(span==="q"?"quarters":"stretches of "+span+" months"));
+  $("cK").textContent=(c?c:"The team")+" · "+(span==="m"?"twelve months":span==="y"?"this year against the years before":n+" "+(span==="q"?"quarters":"stretches of "+span+" months"));
   $("cT").textContent=d.name+(c?"":SUM[k]?", team total":", team median")+(span!=="m"&&(SUM[k]||k==="prog")?", a monthly average":"");
   $("cU").textContent=(d.better==="Lower"?"lower is better":"higher is better")+(c?" · line = team median":"")+(s.some(function(x){ return x.b.part; })?" · * not complete":"");
   var vals=s.map(function(x){ return x.v; }).concat(mid||[]).filter(function(v){ return v!=null&&isFinite(v); });
@@ -550,12 +561,12 @@ function copyCol(){
   else { var ta=document.createElement("textarea"); ta.value=lines; document.body.appendChild(ta); ta.select(); var ok=false; try{ ok=document.execCommand("copy"); }catch(e){} document.body.removeChild(ta); done(ok); }
 }
 
-function save(){ try{ localStorage.setItem("iamcoach:ui",JSON.stringify({sel:sel,win:win,list:list,span:span,k:kSel,pick:pickBy})); }catch(e){} }
+function save(){ try{ localStorage.setItem("iamcoach:ui",JSON.stringify({sel:sel,win:win,list:list,span:span,tspan:tspan,k:kSel,pick:pickBy})); }catch(e){} }
 
 C.unlock(function(d){
   D=d;
   if(!D.ov||!D.ov.kpiM) document.querySelector(".wrap").insertAdjacentHTML("afterbegin",'<div class="card section"><div class="empty">The client figures (active clients, still with us, renewals, new clients, beyond what\'s paid) arrive with the next refresh. Press Refresh now on the Performance page.</div></div>');
-  try{ var u=JSON.parse(localStorage.getItem("iamcoach:ui")||"{}"); sel=u.sel||""; win=u.win||"q"; list=u.list==="bal"?"bal":"full"; span=u.span||"m"; kSel=u.k||"ses"; pickBy=u.pick||{}; }catch(e){}
+  try{ var u=JSON.parse(localStorage.getItem("iamcoach:ui")||"{}"); sel=u.sel||""; win=/^(m|q|6|12|y)$/.test(u.win)?u.win:"q"; tspan=/^(m|q|6|12|y)$/.test(u.tspan)?u.tspan:"m"; list=u.list==="bal"?"bal":"full"; span=u.span||"m"; kSel=u.k||"ses"; pickBy=u.pick||{}; }catch(e){}
   fillCoaches(); fillMonths();
   C.scopeSwitch($("segScope"),function(){ fillCoaches(); render(); });
   $("selCoach").addEventListener("change",function(e){ sel=e.target.value; save(); render(); });
@@ -564,7 +575,8 @@ C.unlock(function(d){
   $("btnCopy").addEventListener("click",copyCol);
   $("segList").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ list=v; save(); render(); } });
   $("segSpan").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ span=v; save(); render(); } });
-  $("segWin").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-w"); if(v){ win=v; save(); render(); } });
+  $("segWin").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ win=v; save(); render(); } });
+  $("segTiles").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ tspan=v; save(); render(); } });
   C.notes($("btnNotes"));
   render();
   var rt; window.addEventListener("resize",function(){ clearTimeout(rt); rt=setTimeout(chart,150); });
