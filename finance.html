@@ -131,7 +131,10 @@ tfoot td:first-child{background:var(--panel-2);}
 /* per coach: sessions done against sessions projected */
 .pc-head{display:flex;justify-content:space-between;gap:10px;margin-top:4px;padding:10px 0 4px;border-top:1px solid var(--line-soft);
   font-family:var(--f-mono);font-size:9.5px;letter-spacing:.17em;text-transform:uppercase;color:var(--ink-faint);}
-.pc-row{display:grid;grid-template-columns:112px minmax(140px,1fr) 104px 48px 76px 190px;gap:2px 16px;align-items:center;padding:7px 0;}
+.pc-row{display:grid;grid-template-columns:112px minmax(140px,1fr) 96px 104px 48px 76px 190px;gap:2px 16px;align-items:center;padding:7px 0;}
+/* Sessions behind or ahead of pace: the first figure after the bar, for a screenshot per coach. */
+.pc-row .gp{font-family:var(--f-mono);font-size:13px;font-weight:600;text-align:right;white-space:nowrap;}
+.pc-row .gp.down{color:var(--down);} .pc-row .gp.up{color:var(--up);} .pc-row .gp.flat{color:var(--ink-soft);font-weight:400;}
 /* how far through the month we are, beside each coach's progress, and the gap between the two */
 .pc-row .pm{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-faint);text-align:right;line-height:1.4;white-space:nowrap;}
 
@@ -144,7 +147,7 @@ tfoot td:first-child{background:var(--panel-2);}
 .pc-row .rv .near{display:block;}
 .pc-row.unset .nm{color:var(--ink-soft);}
 @media(max-width:640px){
-  .pc-row{grid-template-columns:1fr auto auto auto;gap:5px 12px;}
+  .pc-row{grid-template-columns:1fr auto auto auto auto;gap:5px 12px;}
   .pc-row .pj-track{grid-column:1/-1;grid-row:2;}
   .pc-row .rv{grid-column:1/-1;grid-row:3;text-align:left;}
 }
@@ -380,7 +383,7 @@ var PASS_KEY="iamlive:pass"+(PAGE==="full"?"":":"+PAGE), CFG_KEY="iamlive:cfg", 
 var ROLE=PAGE==="full"?"director":null;
 var AUD_FILE=PAGE==="fin"?"finance.enc.json":PAGE==="ceo"?"ceo.enc.json":null;
 function drawNav(){
-  var NAV=[["report.html","Performance","full"],["finance.html","Finance","fin"],["overview.html","Overview","ceo"],["business.html","Business"],["clients.html","Clients"],["coach.html","Coach review"]];
+  var NAV=[["report.html","Performance","full"],["finance.html","Finance","fin"],["overview.html","Overview","ceo"],["director.html","Director"],["business.html","Business"],["clients.html","Clients"],["coach.html","Coach review"]];
   var full=ROLE==="director";
   document.getElementById("nav").innerHTML=NAV.filter(function(n){ return full||n[2]===PAGE; }).map(function(n){
     return '<a'+(n[2]===PAGE?' class="on"':"")+' href="./'+n[0]+'">'+n[1]+"</a>"; }).join("");
@@ -809,18 +812,24 @@ function coachRows(p,target,tip){
     return isV(p)?'<span class="pm" title="Share of the window\'s projection due by today">due '+target.toFixed(0)+"%</span>"
       :'<span class="pm" title="How far through the month we are: day '+daysUsed(p)+" of "+monthDays(p)+'">month '+target.toFixed(0)+"%</span>";
   };
-  return '<div class="pc-head"><span>By coach</span><span>'+head+"</span></div>"+rows.map(function(x){
+  return '<div class="pc-head"><span>By coach</span><span>'+head+" \u00b7 behind / ahead = against what was due by "+(running?"today":"the end")+"</span></div>"+rows.map(function(x){
     var q=x.q;
     if(!q.set){
       var why=q.has?"The projection columns are on this sheet but empty":"This sheet has no projection columns";
-      return '<div class="pc-row unset"><span class="nm">'+x.c+'</span><span class="pj-track"></span>'+
+      return '<div class="pc-row unset"><span class="nm">'+x.c+'</span><span class="pj-track"></span><span></span>'+
         '<span class="ss"><span class="dim">'+fmtSess(q.s)+" / \u2014</span></span><span></span><span></span>"+
         '<span class="rv"><span class="notset" title="'+why+'">not set</span></span></div>';
     }
     var st=projState(x.pct,target), bySess=(q.pctS!=null);
+    // Behind or ahead: what was due by now (the projection x the share of the month or window
+    // gone; all of it once closed) against what is done. Sessions, or AED where only revenue is projected.
+    var due=(bySess?q.ps:q.pr)*target/100, gap=(bySess?q.s:q.r)-due, unitG=bySess?"":" AED";
+    var gpTxt=fmtInt(Math.abs(gap));
+    var gp=Math.abs(gap)<(bySess?0.5:50)?'<span class="gp flat" title="On pace">on pace</span>'
+      :'<span class="gp '+(gap<0?"down":"up")+'" title="'+(gap<0?"Behind":"Ahead of")+" what was due by now: "+(bySess?fmtInt(due)+" sessions":fmtInt(due)+" AED")+'">'+gpTxt+unitG+(gap<0?" behind":" ahead")+"</span>";
     var flag=q.pm>0?'<span class="near" title="Clients with sessions this month but nothing projected for them, so the projection reads low">partly set \u00b7 '+q.pm+" missing</span>":"";
     return '<div class="pc-row"><span class="nm">'+x.c+(q.mtdMissing?' <span class="nomtd" title="This sheet has no day-by-day counts, so this row is the whole month, bookings ahead included">\u25cf</span>':"")+"</span>"+
-      projBar(x.pct,target,st,false,tip)+
+      projBar(x.pct,target,st,false,tip)+gp+
       '<span class="ss">'+(bySess?fmtSess(q.s)+' <span class="dim">/ '+fmtSess(q.ps)+"</span>":fmtInt(q.r)+' <span class="dim">/ '+fmtInt(q.pr)+"</span>")+"</span>"+
       '<span class="pp '+st+'">'+x.pct.toFixed(0)+"%</span>"+pm(x.pct)+
       '<span class="rv">'+(q.pr>0&&bySess?fmtInt(q.r)+" / "+fmtInt(q.pr)+" AED \u00b7 "+(q.pctR!=null?q.pctR.toFixed(0)+"%":""):(bySess?"":"revenue \u2014 no session projection"))+flag+"</span></div>";
