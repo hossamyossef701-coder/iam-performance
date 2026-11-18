@@ -46,7 +46,7 @@ const ORDER = (env.FETCH_STRATEGIES || "badger,od,odkey,spshares,zip,rest,browse
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
-console.log("refresh build 2026-11-18b (Head coach list)");  // proves which version the job is running
+console.log("refresh build 2026-11-18c (Head coach list without the Fitness Director)");  // proves which version the job is running
 
 // One typed character of difference, so "Shayla" finds "Shyla".
 function near(a, b) {
@@ -393,7 +393,12 @@ async function main() {
       const hcPass = (env.HEADCOACH_PASSPHRASE || "").trim(), hcPath = path.join(OUT, "roster.enc.json");
       if (!hcPass) L.log("No HEADCOACH_PASSPHRASE secret, so roster.enc.json was not written.");
       else if (hcPass === PASS) console.log("::warning title=Same passphrase::roster.enc.json would use the Performance passphrase - give it its own.");
-      else if (!same || !fs.existsSync(hcPath)) { fs.writeFileSync(hcPath, JSON.stringify(await encryptJSON({ generated: new Date().toISOString(), roster: ov.roster }, hcPass))); L.log("roster.enc.json written"); }
+      else {
+        const hcRoster = { ...ov.roster }; delete hcRoster.Hossam;   // the Fitness Director's own clients stay off it
+        let hcSame = false;
+        try { hcSame = JSON.stringify((await decryptJSON(JSON.parse(fs.readFileSync(hcPath, "utf8")), hcPass)).roster) === JSON.stringify(hcRoster); } catch {}
+        if (!hcSame) { fs.writeFileSync(hcPath, JSON.stringify(await encryptJSON({ generated: new Date().toISOString(), roster: hcRoster }, hcPass))); L.log("roster.enc.json written"); }
+      }
       if (same) L.log("Overview: same figures as the last read, not rewritten.");
       else {
         ov.generated = new Date().toISOString();

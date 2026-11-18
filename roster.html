@@ -74,7 +74,8 @@ C.unlock(function(d){
   R=d;
   $("nav").innerHTML=NAV.filter(function(n){ return role==="dir"||n[0]==="roster.html"; }).map(function(n){ return "<a"+(n[0]==="roster.html"?' class="on"':"")+' href="./'+n[0]+'">'+n[1]+"</a>"; }).join("");
   $("stamp").textContent=d.generated?"Read "+new Date(d.generated).toLocaleString():"";
-  var cs=Object.keys(R.roster).filter(function(c){ return c!=="(no coach)"&&R.roster[c].some(function(x){ return x[1]!=="e"; }); }).sort();
+  // The Fitness Director's own clients are not on the head coach's list.
+  var cs=Object.keys(R.roster).filter(function(c){ return c!=="(no coach)"&&c!==C.DIRECTOR&&R.roster[c].some(function(x){ return x[1]!=="e"; }); }).sort();
   if(R.roster["(no coach)"]) cs.push("(no coach)");
   try{ var u=JSON.parse(localStorage.getItem("iamroster:ui")||"{}"); coach=u.coach||""; show=u.show==="all"?"all":"open"; }catch(e){}
   if(cs.indexOf(coach)<0) coach=cs[0]||"";

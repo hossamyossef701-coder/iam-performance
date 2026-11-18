@@ -80,6 +80,9 @@ body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
 #gTbl th{cursor:pointer;} #gTbl th.on{color:var(--accent-2);}
 #gTbl td.l{text-align:left;} #gTbl td.gw{color:var(--up);font-size:12px;white-space:nowrap;}
 #bTbl td.l{text-align:left;} #bTbl td.d{min-width:64px;border:2px solid var(--panel);} #bTbl td.top{font-weight:700;}
+#dTbl{font-size:11.5px;} #dTbl th,#dTbl td{padding:6px 3px;min-width:24px;text-align:center;} #dTbl td.l,#dTbl th.l{text-align:left;padding-left:12px;min-width:96px;}
+#dTbl th.we,#dTbl td.we{border-left:1px solid var(--line);} #dTbl td.z{color:var(--ink-faint);} #dTbl td.ahead{opacity:.45;} #dTbl th small{display:block;color:var(--ink-faint);font-size:9.5px;}
+#dTbl td.tot{border-left:1px solid var(--line);font-weight:600;min-width:44px;}
 .blg{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--ink-soft);margin-top:8px;}
 .blg i{display:inline-block;width:120px;height:9px;border-radius:5px;background:linear-gradient(90deg,hsl(0,58%,26%),hsl(62,58%,29%),hsl(125,58%,32%));}
 </style>
@@ -145,6 +148,11 @@ body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
       <div class="scroll"><table class="kt" id="bTbl"></table></div>
       <div class="card-b" style="padding-top:6px"><div class="blg">quietest day<i></i>busiest day · each row against its own week</div><p class="note" id="bNote"></p></div>
     </div>
+    <div class="card section">
+      <div class="card-h"><div><div class="k">Sessions day by day</div><div class="t" id="dT"></div></div><span class="unit" id="dU"></span></div>
+      <div class="scroll"><table class="kt dly" id="dTbl"></table></div>
+      <div class="card-b" style="padding-top:6px"><div class="blg">fewest that month<i></i>most · 0 = no sessions · faded = booked ahead</div></div>
+    </div>
   </div>
 
   <div class="card section" id="kCard">
@@ -170,7 +178,7 @@ body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
     <div class="cols2">
       <div class="card">
         <div class="card-h"><div><div class="k">Behind the numbers</div><div class="t">The clients to talk about</div></div><span class="unit" id="whoU"></span></div>
-        <div class="card-b"><div class="who" id="who"></div><p class="note">Training less often = half their usual or less over the last 3 weeks. Beyond what's paid = sessions after every paid session, no renewal logged.</p></div>
+        <div class="card-b"><div class="who" id="who"></div><p class="note">Training less often = half their usual or less this month, against their own average over the 3 months before. Beyond what's paid = sessions after every paid session, no renewal logged.</p></div>
       </div>
       <div class="card">
         <div class="card-h"><div><div class="k">Room to grow</div><div class="t">What current clients could add, with no new client</div></div><span class="unit">a month</span></div>
@@ -261,7 +269,7 @@ function months(){
    A longer stretch: a rate over a quarter is the quarter's numerators over its denominators.
    A count is the total over the stretch (sessions, revenue, new clients); a level is where it
    stands at the end (active clients, clients beyond what's paid); clients training less often
-   are counted once each over the stretch. */
+   compare the stretch with the 3 months before it. */
 var cache={};
 function wOf(ch){ return ch==="h"?0.5:ch==="x"?1:/[1-9]/.test(ch)?+ch:0; }
 function val(c,p){
@@ -316,7 +324,9 @@ var TOTAL={ses:1,rev:1,nw:1}, LEVEL={act:1,up:1};
 function parts(c,ms,k){
   if(ms.length>1&&TOTAL[k]){ var t=0, any=false; ms.forEach(function(p){ var q=val(c,p).P[k]; if(q){ t+=q.n; any=true; } }); return any?{n:t,d:1}:null; }
   if(ms.length>1&&LEVEL[k]){ for(var i=ms.length-1;i>=0;i--){ var q1=val(c,ms[i]).P[k]; if(q1) return {n:q1.n,d:1}; } return null; }
-  if(ms.length>1&&k==="less"){ var seen={}, anyL=false; ms.forEach(function(p){ var o=val(c,p); if(o.P.less){ anyL=true; (o.lessL||[]).forEach(function(x){ seen[C.nameKey(x.name)]=1; }); } }); return anyL?{n:Object.keys(seen).length,d:1}:null; }
+  // Over several months: the stretch against the 3 months before it (a quarter against the
+  // quarter before), so a quarterly KPI follows each client's 3-month average.
+  if(ms.length>1&&k==="less"){ var lo=C.lessOften(D.live,ms,c); return lo?{n:lo.length,d:1}:null; }
   if(k==="kept"&&ms.length>1){
     var K=D.ov&&D.ov.kpiM, sp=K&&K.span&&K.span[ms[0]+"|"+ms[ms.length-1]], f=fileName(c);
     if(sp){ var v=f&&sp[f]; return v&&v[0]?{n:v[1],d:v[0]}:null; }
@@ -332,7 +342,7 @@ function tipOf(c,b,k){
   if(PCT[k]) return C.full(Math.round(q.n))+" of "+C.full(Math.round(q.d))+" over "+b.lab;
   if(TOTAL[k]) return "the total over "+b.lab;
   if(LEVEL[k]) return "at the end of "+b.lab;
-  if(k==="less") return "clients who trained less often at some point in "+b.lab+", each counted once";
+  if(k==="less") return "clients at half their usual or less over "+b.lab+", against their average over the 3 months before";
   return k==="prog"?"a monthly average over "+b.ms.length+" months":"";
 }
 // The number as it goes into the sheet: whole numbers, one decimal for sessions a week.
@@ -522,6 +532,32 @@ function renderDir(){
   renderAttention(cs,np);
   renderGlance(cs);
   renderBusy();
+  renderDaily();
+}
+/* Sessions day by day for the month chosen at the top: each coach's sessions on each date, from
+   the coach sheets. In the month running, the days after today show what is already booked
+   (faded). Shading: red on the coach's lightest day, green on their fullest; a 0 is left plain. */
+function renderDaily(){
+  var p=month, per=D.live.periods[p]||{}, days=C.daysIn(p), today=p===now()?C.lastDay(D.live,p):days, y=+p.slice(0,4), mo=+p.slice(5,7);
+  var cs=teamOf([p]).filter(function(c){ return per[c]&&per[c].cl; });
+  $("dT").textContent=C.label(p)+(p===now()?" · to day "+today+", then booked ahead":"");
+  $("dU").textContent="sessions per day";
+  if(!cs.length){ $("dTbl").innerHTML='<tbody><tr><td class="l dim">No day-by-day figures for this month.</td></tr></tbody>'; return; }
+  var WDL=["S","M","T","W","T","F","S"], wd=function(d){ return new Date(Date.UTC(y,mo-1,d)).getUTCDay(); };
+  var grid={}, team=new Array(days).fill(0);
+  cs.forEach(function(c){ var g=new Array(days).fill(0); per[c].cl.forEach(function(r){ var m=r[2]||""; for(var i=0;i<Math.min(days,m.length);i++) g[i]+=wOf(m[i]); }); grid[c]=g; g.forEach(function(v,i){ team[i]+=v; }); });
+  var cell=function(v,i,g){ var nz=g.filter(function(x){ return x>0; }), mx=Math.max.apply(null,nz.concat([0])), mn=Math.min.apply(null,nz.length?nz:[0]);
+    var cls=(wd(i+1)===1?"we":"")+(i+1>today?" ahead":"");
+    if(!v) return '<td class="z '+cls+'">0</td>';
+    var t=mx===mn?1:(v-mn)/(mx-mn);
+    return '<td class="'+cls+'" style="background:hsl('+Math.round(t*125)+',58%,'+(26+t*6).toFixed(0)+'%);color:#fff">'+(v%1?v.toFixed(1):v)+"</td>"; };
+  var row=function(nm,g,bold){ var done=g.slice(0,today), tot=done.reduce(function(a,b){ return a+b; },0), worked=done.filter(function(x){ return x>0; }).length, ahead=g.slice(today).reduce(function(a,b){ return a+b; },0);
+    return "<tr><td class=\"l\">"+(bold?"<b>"+nm+"</b>":nm)+"</td>"+g.map(function(v,i){ return cell(v,i,g); }).join("")+
+      '<td class="tot">'+C.full(Math.round(tot*2)/2)+(ahead?' <span class="dim">+'+C.full(ahead)+"</span>":"")+'</td><td class="tot">'+(worked?(tot/worked).toFixed(1):"—")+"</td></tr>"; };
+  var head='<thead><tr><th class="l">Coach</th>';
+  for(var d=1;d<=days;d++) head+='<th class="'+(wd(d)===1?"we":"")+'">'+d+"<small>"+WDL[wd(d)]+"</small></th>";
+  head+='<th class="tot">Total</th><th class="tot">A day<small>days worked</small></th></tr></thead>';
+  $("dTbl").innerHTML=head+"<tbody>"+row("Team",team,true)+cs.sort(function(a,b){ return grid[b].reduce(function(t,v){ return t+v; },0)-grid[a].reduce(function(t,v){ return t+v; },0); }).map(function(c){ return row(esc(c),grid[c]); }).join("")+"</tbody>";
 }
 /* Busiest days: for each weekday, the sessions on the coach sheets on all those days in the
    window, divided by how many of those days there were - an average day, so a window with five
@@ -576,7 +612,7 @@ function renderAttention(cs,np){
   if(Object.keys(unpaid).length) items.push(["var(--down)","Training beyond what's paid","no renewal logged yet",chips(unpaid)]);
   // 3. Client commitment and standards this month.
   var less={}, waived={}; cs.forEach(function(c){ var o=val(c,np); if(o.lessL&&o.lessL.length) less[c]=o.lessL.length; var q=o.P.chg; if(q&&q.d-q.n>=3&&q.n===0) waived[c]=q.d-q.n; });
-  if(Object.keys(less).length) items.push(["var(--watch)","Training less often","half their usual or less over the last 3 weeks",chips(less)]);
+  if(Object.keys(less).length) items.push(["var(--watch)","Training less often","half their usual or less this month, against their 3 months before",chips(less)]);
   if(Object.keys(waived).length) items.push(["var(--watch)","Cancellations, none charged","cancelled sessions this month, not one charged",chips(waived)]);
   var fee={}; Object.keys((ov.leak&&ov.leak.m)||{}).forEach(function(k){ var c=f2c[k]||k, v=ov.leak.m[k][np]; if(C.keep(c)&&v&&v.xf) fee[c]=v.xf[0]; });
   if(Object.keys(fee).length) items.push(["var(--watch)","Extension fee not charged","packages used after expiry this month",chips(fee)]);
@@ -617,7 +653,7 @@ function renderGlance(cs){
   }).join("");
   $("gTbl").innerHTML=head+"<tbody>"+teamRow+body+"</tbody>";
   Array.prototype.forEach.call($("gTbl").querySelectorAll("th[data-k]"),function(th){ th.addEventListener("click",function(){ kSel=th.getAttribute("data-k"); save(); render(); }); });
-  $("gNote").textContent="Balanced list. Score: best on a KPI 100, lowest 0, averaged by area. Counts are totals; rates over the whole stretch."+(r.part?" The month running: sessions and revenue are coloured against the month before up to the same day; other counts are not coloured until it ends.":"");
+  $("gNote").textContent="Balanced list. Score: best on a KPI 100, lowest 0, averaged by area. Counts are totals; rates over the whole stretch; rates on a few cases ranked with "+FAIR_N+" extra cases at the team rate."+(r.part?" The month running: sessions and revenue are coloured against the month before up to the same day; other counts are not coloured until it ends.":"");
 }
 // Sessions or revenue of one coach in month p up to the day the month running has reached.
 function sameDay(c,p,k){ var rows=((D.live.periods[p]||{})[c]||{}).cl, day=D.live.cutoffDay; if(!rows||!day) return null; var t=0;
@@ -635,10 +671,12 @@ function talking(c,sp,rIn){
   KEYS().forEach(function(k){
     var v=agg(c,r.ms,k); if(v==null) return;
     var was=agg(c,pb.ms,k), mv=move(k,v,was), st=state(c,k,sp), lower=better(k)==="Lower";
-    var vals=team.map(function(x){ return agg(x,r.ms,k); }).filter(function(x){ return x!=null; }), n=vals.length;
-    var rank=1+vals.filter(function(x){ return lower?rnd(k,x)<rnd(k,v):rnd(k,x)>rnd(k,v); }).length, q=Math.max(1,Math.round(n/4));
+    // Standing on the team uses the fair value for rates built on a few cases.
+    var fv=fairOf(r.ms,k), rv=FAIR[k]?fv(c):rnd(k,v);
+    var vals=team.map(function(x){ return FAIR[k]?fv(x):rnd(k,agg(x,r.ms,k)); }).filter(function(x){ return x!=null; }), n=vals.length;
+    var rank=1+vals.filter(function(x){ return lower?x<rv:x>rv; }).length, q=Math.max(1,Math.round(n/4));
     // Shared by many (everyone at 0 clients training less often) is not a standout either way.
-    var ties=vals.filter(function(x){ return rnd(k,x)===rnd(k,v); }).length, crowd=ties>q;
+    var ties=vals.filter(function(x){ return x===rv; }).length, crowd=ties>q;
     var name=DEFK[k].name, g=0, b=0, gw=[], bw=[];
     if(n>=3&&!crowd) standing.push({k:k,p:(n-rank)/(n-1||1),txt:name+": "+txtOf(k,v),why:ordinal(rank)+" of "+n+" on the team"});
     if(n>=3&&rank<=q&&!crowd){ g+=3-(rank-1)*0.5; gw.push(rank===1?"best on the team":ordinal(rank)+" of "+n+" on the team"); }
@@ -669,13 +707,26 @@ function renderTalking(c){
 var win="q", pickBy={};
 function pick(){ var k=list; if(!pickBy[k]||pickBy[k].length!==KEYS().length) pickBy[k]=KEYS().map(function(){ return true; }); return pickBy[k]; }
 function label(c){ if(showNames) return esc(c); var i=coaches().indexOf(c); return "Coach "+String.fromCharCode(65+(i<0?25:i)); }
+/* Fair ranking for rates built on a few cases. Before ranking, each coach's rate gets FAIR_N
+   "pretend" cases at the team's own rate over the same months: (theirs + FAIR_N x team) /
+   (their cases + FAIR_N). One lucky assessment (1 of 1) then ranks below 4 of 5, and 0 of 1 is
+   not ranked at zero; a coach with many cases keeps close to their own rate. Only the ranking
+   uses it: every table shows the real figure. */
+var FAIR={conv:1,early:1,kept:1,chg:1,p3:1}, FAIR_N=5;
+function fairOf(ms,k){
+  if(!FAIR[k]) return function(c){ return agg(c,ms,k); };
+  var n=0, d=0; teamOf(ms).forEach(function(c){ var q=parts(c,ms,k); if(q){ n+=q.n; d+=q.d; } });
+  var T=d?n/d:null;
+  return function(c){ var q=parts(c,ms,k); if(!q||!q.d) return null; var v=T==null?q.n/q.d*100:(q.n+FAIR_N*T)/(q.d+FAIR_N)*100; return Math.round(v*10)/10; };
+}
 function scores(ms){
   var cs=coaches(), ks=KEYS(), pk=pick(), res={};
-  cs.forEach(function(c){ res[c]={pts:[],v:{}}; });
+  cs.forEach(function(c){ res[c]={pts:[],v:{},f:{}}; });
   ks.forEach(function(k,i){
     if(!pk[i]) return;
-    var vals=cs.map(function(c){ return {c:c,v:rnd(k,agg(c,ms,k))}; }).filter(function(x){ return x.v!=null; });
-    vals.forEach(function(x){ res[x.c].v[k]=x.v; });
+    var fv=fairOf(ms,k);
+    var vals=cs.map(function(c){ var raw=rnd(k,agg(c,ms,k)); return {c:c,raw:raw,v:raw==null?null:(FAIR[k]?fv(c):raw)}; }).filter(function(x){ return x.v!=null; });
+    vals.forEach(function(x){ res[x.c].v[k]=x.raw; if(FAIR[k]) res[x.c].f[k]=x.v; });
     if(vals.length<2) return;
     vals.forEach(function(x){
       var beat=0, tie=0; vals.forEach(function(y){ if(y===x) return; var d=x.v>y.v?1:x.v<y.v?-1:0; if(better(k)==="Lower") d=-d; if(d>0) beat++; else if(d===0) tie++; });
@@ -712,7 +763,7 @@ function renderScoreRows(rows,A,ks,pk){
   $("sTbl").innerHTML=!rows.length?'<tbody><tr><td class="l dim">No figures for this stretch yet.</td></tr></tbody>':
     '<thead><tr><th class="l">#</th><th class="l">Coach</th><th class="l">Score</th><th>Score<br>before</th><th>KPIs better<br>than before</th><th>Worse</th><th class="l">Beat their own<br>results before</th><th>KPIs<br>scored</th></tr></thead><tbody>'+
     rows.map(function(r,i){
-      var tip=r.pts.map(function(x){ return (list==="bal"?AREA[x.k]+" · ":"")+DEFK[x.k].name+": "+show(x.k,A[r.c].v[x.k]).replace(/<[^>]+>/g,"")+" · "+Math.round(x.p)+" points"; }).join("\n");
+      var tip=r.pts.map(function(x){ return (list==="bal"?AREA[x.k]+" · ":"")+DEFK[x.k].name+": "+show(x.k,A[r.c].v[x.k]).replace(/<[^>]+>/g,"")+(A[r.c].f[x.k]!=null?" (ranked as "+Math.round(A[r.c].f[x.k])+"%)":"")+" · "+Math.round(x.p)+" points"; }).join("\n");
       var beat=r.up+r.dn===0?'<span class="no">—</span>':r.up>r.dn?'<span class="ok">✓ '+r.up+" better, "+r.dn+" worse</span>":'<span class="no">✗ '+r.up+" better, "+r.dn+" worse</span>";
       return '<tr><td class="l dim">'+(i+1)+'</td><td class="l">'+label(r.c)+'</td><td class="l" title="'+esc(tip)+'"><span class="sbar" style="width:'+Math.round(r.s*1.2)+'px"></span>'+Math.round(r.s)+"</td>"+
         '<td class="dim">'+(r.ps!=null?Math.round(r.ps):"—")+'</td><td class="up">'+r.up+'</td><td class="down">'+r.dn+'</td><td class="l">'+beat+'</td><td class="dim">'+r.n+" of "+nPick+(list==="bal"&&r.areas?" · "+r.areas+" areas":"")+"</td></tr>";
@@ -721,7 +772,7 @@ function renderScoreRows(rows,A,ks,pk){
   Array.prototype.forEach.call($("sPick").querySelectorAll("input"),function(b){ b.addEventListener("change",function(){ pick()[+b.getAttribute("data-i")]=b.checked; save(); render(); }); });
   $("sNote").innerHTML="Score: for each KPI ticked below, the coaches with a figure are placed against each other over the stretch: the best gets 100 points, the lowest 0, a tie counts half. "+
     (list==="bal"?"Balanced list: the points are averaged within each area, then the five areas are averaged, so every area weighs the same. ":"Full list: the average of the KPIs' points. ")+
-    "Hover a score for each KPI's points. Rates are worked out over the whole stretch, counts are totals. Full months only. "+
+    "Hover a score for each KPI's points. Rates are worked out over the whole stretch, counts are totals. Full months only. Rates built on a few cases (assessments converted, renewed before the last paid session, still with us, cancellations charged, clients at 3+ a week) are ranked with "+FAIR_N+" extra cases at the team's rate, so 1 of 1 does not beat 4 of 5; the tables show the real figure. "+
     "Beat their own previous stretch = more KPIs better than worse against the same coach's month, quarter or stretch before (for This year, the same months last year). A window that is not complete yet is scored on the last complete one.";
   return rows;
 }
@@ -731,7 +782,7 @@ function defs(){
     "Sessions a week per client, clients at 3+ a week, revenue per client: from each client's row on the coach sheets, clients who trained at least once in the month. "+
     "Active clients: on the Clients file at the month's end. Existing clients still with us: of the clients with the coach the day before the month (or the quarter, or the stretch) began, how many are still clients at its end, each client counted once (inside the grace period counts as still with us). "+
     "Renewed before the last paid session: of the renewals bought in the month, how many came before the client trained past the last session of the package before (the session marked red on the coach sheet, or by counting the sessions where it is not marked). Assessments converted: from the assessment tracker. "+
-    "New clients: New packages in the Clients file. Cancelled: (cancelled + charged) ÷ (trained, charged included, + cancelled). Training less often: clients at half their usual or less over the month's last 3 weeks. "+
+    "New clients: New packages in the Clients file. Cancelled: (cancelled + charged) ÷ (trained, charged included, + cancelled). Training less often: clients at half their usual sessions a week or less over the month (or the quarter), against their own average over the 3 months before it. "+
     "Beyond what's paid: clients who trained in the month past every session paid for by its end. Cancellations charged: sessions typed 1 on a yellow cell ÷ (those + the 0s). A 0 is any cancellation not charged, with notice or not: the sheet cannot tell them apart, so this is the share of all cancellations that were charged. "+
     "Training programme phase: the head coach's score (1-6) for the coach's programme design; blank until that sheet is linked. Team median: all coaches lined up on the KPI, the one in the middle.";
 }

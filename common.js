@@ -146,26 +146,32 @@ C.clientsIn = function (live, p, c) {
   return rows.map(function (r) { var s = 0, m = String(r[2] || ""); for (var i = 0; i < Math.min(upto, m.length); i++) s += C.wOf(m[i]); return { name: r[0], key: C.nameKey(r[0]), price: r[1], s: s, m: m }; });
 };
 // Clients training at half their own usual or less: the 3 weeks to the last day against the 8 before.
+// Clients training less often over a stretch (one month, or several): a client on the coach's
+// sheet whose sessions a week over the stretch are half or less of their own average over the
+// 3 full months before it began. Only clients who trained at least 1.5 a week in those 3 months
+// count. The month running counts up to today. p: one month ("2026-10") or a list of months.
 C.lessOften = function (live, p, c) {
-  var upto = C.lastDay(live, p), anchor = p + "-" + (upto < 10 ? "0" : "") + upto, from = C.addDays(anchor, -76), cut = C.addDays(anchor, -20);
-  var cur = C.clientsIn(live, p, c); if (!cur) return null;
-  var on = {}; cur.forEach(function (x) { on[x.key] = x.name; });
-  var days = {};
-  [C.prevP(p, 3), C.prevP(p, 2), C.prevP(p, 1), p].forEach(function (q) {
-    var v = live.periods[q] && live.periods[q][c]; if (!v || !v.cl) return;
-    var last = q === p ? upto : C.daysIn(q);
-    v.cl.forEach(function (r) {
-      var k = C.nameKey(r[0]); if (!(k in on)) return;
-      var m = String(r[2] || ""), d = days[k] || (days[k] = {});
-      for (var i = 0; i < Math.min(last, m.length); i++) { var w = C.wOf(m[i]); if (w) { var iso = q + "-" + (i < 9 ? "0" : "") + (i + 1); if (iso >= from && iso <= anchor) d[iso] = (d[iso] || 0) + w; } }
+  var ms = Array.isArray(p) ? p : [p], first = ms[0], lastP = ms[ms.length - 1];
+  var on = {}, any = false;
+  ms.forEach(function (q) { var cur = C.clientsIn(live, q, c); if (cur) { any = true; cur.forEach(function (x) { on[x.key] = x.name; }); } });
+  if (!any) return null;
+  function per(qs) {
+    var t = {}, days = 0;
+    qs.forEach(function (q) {
+      var last = q === lastP ? C.lastDay(live, q) : C.daysIn(q); days += last;
+      var v = live.periods[q] && live.periods[q][c]; if (!v || !v.cl) return;
+      v.cl.forEach(function (r) {
+        var k = C.nameKey(r[0]); if (!(k in on)) return;
+        var m = String(r[2] || "");
+        for (var i = 0; i < Math.min(last, m.length); i++) { var w = C.wOf(m[i]); if (w) t[k] = (t[k] || 0) + w; }
+      });
     });
-  });
-  var out = [];
+    return { t: t, weeks: days / 7 };
+  }
+  var before = per([C.prevP(first, 3), C.prevP(first, 2), C.prevP(first, 1)]), during = per(ms), out = [];
   Object.keys(on).forEach(function (k) {
-    var d = days[k] || {}, ds = Object.keys(d).sort(); if (!ds.length) return;
-    var recent = 0, base = 0; ds.forEach(function (iso) { if (iso >= cut) recent += d[iso]; else base += d[iso]; });
-    var usual = base / 8, now = recent / 3;
-    if (ds[0] > C.addDays(anchor, -62) || usual < 1.5) return;
+    var usual = (before.t[k] || 0) / before.weeks, now = (during.t[k] || 0) / during.weeks;
+    if (usual < 1.5) return;
     if (now <= usual * 0.5) out.push({ name: on[k], usual: usual, now: now });
   });
   return out;
