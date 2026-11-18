@@ -47,24 +47,28 @@ C.load = function (pass) {
     .then(function (r) { return { live: r[0], ov: r[1] }; });
 };
 // The gate: the same passphrase as the Performance page, remembered under the same key.
-C.unlock = function (onOpen) {
+// opt.load: a page's own way to read its data (default: the Performance files); opt.key: where
+// that page remembers its passphrase, so a page with its own passphrase never replaces the
+// Performance one on a device.
+C.unlock = function (onOpen, opt) {
+  opt = opt || {}; var load = opt.load || C.load, KEY = opt.key || PASS_KEY;
   var gate = C.$("gate"), form = C.$("gateForm"), input = C.$("gatePass"), rem = C.$("gateRemember"), btn = C.$("gateBtn");
   function status(t, c) { var e = C.$("gateStatus"); e.className = "status " + (c || ""); e.textContent = t; }
   function attempt(pass, keep, fromStore) {
     status("Decrypting…"); btn.disabled = true;
-    C.load(pass).then(function (d) {
-      if (keep) { try { localStorage.setItem(PASS_KEY, pass); } catch (e) {} }
+    load(pass).then(function (d) {
+      if (keep) { try { localStorage.setItem(KEY, pass); } catch (e) {} }
       gate.style.display = "none"; document.body.classList.remove("locked"); C.$("app").style.display = "";
       onOpen(d, pass);
     }).catch(function (e) {
       btn.disabled = false;
-      if (fromStore) { try { localStorage.removeItem(PASS_KEY); } catch (e2) {} }
+      if (fromStore) { try { localStorage.removeItem(KEY); } catch (e2) {} }
       var wrong = e && (e.name === "OperationError" || /decrypt/i.test(e.message || ""));
       status(wrong ? "That passphrase doesn’t open the data." : "Could not load the data: " + (e && e.message), "err");
     });
   }
   form.addEventListener("submit", function (ev) { ev.preventDefault(); var v = (input.value || "").trim(); if (!v) { status("Enter the passphrase.", "err"); return; } attempt(v, !!rem.checked, false); });
-  var saved = null; try { saved = localStorage.getItem(PASS_KEY); } catch (e) {}
+  var saved = null; try { saved = localStorage.getItem(KEY) || (KEY !== PASS_KEY ? localStorage.getItem(PASS_KEY) : null); } catch (e) {}
   if (saved) attempt(saved, true, true); else input.focus();
 };
 // With or without the Fitness Director's own figures: one switch shared by every page.

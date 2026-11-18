@@ -502,6 +502,16 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
     // Each client behind "never paid" and "not paid yet", for checking against the purchases.
     list: ulList.sort((a, b) => b.n - a.n) };
 
+  /* 12. The head coach's list: each coach's clients by name, with where they stand (a = active,
+     r = renewal due, n = no package yet, e = ended), from the Clients file's Coach column. Names
+     only: no IDs, numbers or money. */
+  const roster = {};
+  for (const c of inner.clients) {
+    const k = c.coach || "(no coach)", st = c.status === "Active" ? "a" : c.status === "Renewal due" ? "r" : c.status === "Ended" ? "e" : "n";
+    (roster[k] || (roster[k] = [])).push([c.name, st]);
+  }
+  for (const k in roster) roster[k].sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+
   return {
     v: 1, today: iso(today), now, grace: inner.grace, loggedFrom: iso(inner.loggedFrom),
     // Each linked sheet name (coach|name words) -> the client's name in the Clients file, so the
@@ -509,7 +519,7 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
     ...(debug ? { _links: dbg, _leak: dbgLeak } : {}),
     sheetLink: Object.fromEntries([...linkOf].map(([k, id]) => [k, clients.get(id) ? clients.get(id).name : null])),
     names: { auto, byHand, ignored, unclear: unclear.sort((a, b) => (b.last || "").localeCompare(a.last || "") || a.coach.localeCompare(b.coach)), notInFile: notInFile.sort((a, b) => (b.last || "").localeCompare(a.last || "")), endedOnSheet, bad, hasTab: head >= 0 },
-    inUse, up, months, perCoach, team, clientsOfCoach, leak,
+    inUse, up, months, perCoach, team, clientsOfCoach, leak, roster,
     // Month by month, per coach, for the Coach review page's KPIs.
     kpiM: { ...(inner.monthly || { from: null, by: {} }), up: upM, rt, rtCover },
     // Active clients per coach right now, by the coach on the Clients tab (a handoff updates it).

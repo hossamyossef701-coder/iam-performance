@@ -60,6 +60,7 @@ jobs:
           CLIENTS_PASSPHRASE: ${{ secrets.CLIENTS_PASSPHRASE }}
           FINANCE_PASSPHRASE: ${{ secrets.FINANCE_PASSPHRASE }}
           CEO_PASSPHRASE: ${{ secrets.CEO_PASSPHRASE }}
+          HEADCOACH_PASSPHRASE: ${{ secrets.HEADCOACH_PASSPHRASE }}
         run: node scripts/refresh.mjs
 
       - name: Save changes
@@ -72,6 +73,7 @@ jobs:
           [ -f overview.enc.json ] && git add overview.enc.json || true
           [ -f finance.enc.json ] && git add finance.enc.json || true
           [ -f ceo.enc.json ] && git add ceo.enc.json || true
+          [ -f roster.enc.json ] && git add roster.enc.json || true
           if git diff --cached --quiet; then
             echo "Nothing new to save."
           else

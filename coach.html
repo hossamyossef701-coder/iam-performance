@@ -105,7 +105,7 @@ body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
     <div class="stamp" id="stamp"></div>
   </div>
   <div class="bar">
-    <span class="seg"><a href="./report.html">Performance</a><a href="./finance.html">Finance</a><a href="./overview.html">Overview</a><a href="./director.html">Director</a><a href="./business.html">Business</a><a href="./clients.html">Clients</a><a class="on" href="./coach.html">Coach review</a></span>
+    <span class="seg"><a href="./overview.html">Overview</a><a href="./director.html">Fitness</a><a href="./finance.html">Finance</a><a href="./report.html">Team Performance</a><a href="./clients.html">Clients</a><a href="./business.html">Business</a><a class="on" href="./coach.html">Coach review</a><a href="./roster.html">Head coach</a></span>
     <span class="grow"></span>
     <span class="seg" id="segScope"></span>
     <select id="selCoach" aria-label="Coach"></select>
@@ -197,10 +197,9 @@ var C=window.IAM, $=C.$, esc=C.esc, D=null, sel="", month="", kSel="ses", showNa
 // review, for the 1+1 with one coach, and Director, the team at a glance. The file name picks.
 var PAGE=/director\.html$/i.test(location.pathname)?"dir":"coach";
 var UI_KEY=PAGE==="dir"?"iamdir:ui":"iamcoach:ui";
-document.body.classList.add(PAGE==="dir"?"pg-dir":"pg-coach");
 if(PAGE==="dir"){
-  document.body.classList.add("v-dir"); document.title="Director — I AM Performance";
-  Array.prototype.forEach.call(document.querySelectorAll("h1"),function(h){ h.textContent="Director"; });
+  document.body.classList.add("v-dir"); document.title="Fitness — I AM Performance";
+  Array.prototype.forEach.call(document.querySelectorAll("h1"),function(h){ h.textContent="Fitness"; });
   Array.prototype.forEach.call(document.querySelectorAll(".bar .seg a"),function(a){ a.classList.toggle("on",/director\.html$/.test(a.getAttribute("href"))); });
 }
 
@@ -226,15 +225,20 @@ function sq(t){ return String(t||"").toLowerCase().replace(/[^a-z]/g,""); }
 // joined, or no sheet yet) still has new clients and active clients that belong in the team's.
 function teamOf(ms){
   var set={}, files={};
-  ms.forEach(function(p){ Object.keys(D.live.periods[p]||{}).forEach(function(c){ set[c]=1; }); });
+  // A coach is on the team in a month when their sheet reports sessions for it.
+  ms.forEach(function(p){ var per=D.live.periods[p]||{}; Object.keys(per).forEach(function(c){ var v=per[c]; if((v.s||0)>0||(v.ms||0)>0) set[c]=1; }); });
   Object.keys(set).forEach(function(c){ var f=fileName(c); if(f) files[f]=1; });
   var by=(D.ov&&D.ov.kpiM&&D.ov.kpiM.by)||{};
   Object.keys(by).forEach(function(f){ if(files[f]) return; if(ms.some(function(p){ var m=by[f][p]; return m&&(m.act||m.nw||m.ks); })) set[f]=1; });
   return Object.keys(set).filter(C.keep).sort();
 }
+// Today's coaches: sessions on their sheet in the last 3 months, and their file still in the main
+// folder - a coach whose file has gone to the Inactive folder has left.
 function coaches(){
-  var p=now(), set={};
-  [0,1,2].forEach(function(i){ Object.keys(D.live.periods[C.prevP(p,i)]||{}).forEach(function(c){ set[c]=1; }); });
+  var p=now(), set={}, left={};
+  (D.live.files||[]).forEach(function(f){ if(f.folder&&!f.ignoredDuplicate&&f.coach) left[f.coach]=1; });
+  (D.live.files||[]).forEach(function(f){ if(!f.folder&&f.coach) delete left[f.coach]; });
+  [0,1,2].forEach(function(i){ var per=D.live.periods[C.prevP(p,i)]||{}; Object.keys(per).forEach(function(c){ var v=per[c]; if(((v.s||0)>0||(v.ms||0)>0)&&!left[c]) set[c]=1; }); });
   return Object.keys(set).filter(C.keep).sort();
 }
 // The Clients file and the coach sheets may spell a coach differently ("Shayla" / "Shyla").
@@ -406,7 +410,7 @@ function render(){
   $("stamp").innerHTML="Read "+new Date(D.ov?D.ov.generated:D.live.generated).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"})+"<br>AED without VAT";
   var team=sel==="";
   $("one").style.display=team?"none":""; $("btnNames").style.display=team?"":"none"; $("scoreCard").style.display=team?"":"none";
-  $("h1").textContent=PAGE==="dir"?"Director":team?"The team":sel;
+  $("h1").textContent=PAGE==="dir"?"Fitness":team?"The team":sel;
   $("legBefore").textContent="better than the "+(span==="m"?"month":span==="q"?"quarter":span==="y"?"same months last year":"stretch")+" before";
   if(PAGE==="dir") renderDir(); else if(team) renderTeam(); else renderOne();
   chart();
@@ -585,10 +589,12 @@ function renderAttention(cs,np){
   $("aNote").textContent="Today's figures. Coach review has the clients behind each number.";
 }
 function renderGlance(cs){
-  var ks=BAL.filter(function(k){ return k!=="prog"||cs.some(function(c){ return agg(c,reviewed().ms,k)!=null; }); });
+  // The block of the month chosen at the top, the month running included ("Nov so far").
+  var r=block(month,span), pb=block(prevEnd(r,span),span);
+  var ks=BAL.filter(function(k){ return k!=="prog"||cs.some(function(c){ return agg(c,r.ms,k)!=null; }); });
   if(ks.indexOf(kSel)<0) kSel=ks[0];
-  var r=reviewed(), pb=block(prevEnd(r,span),span), rows=scoreRows(span), byC={}; rows.forEach(function(x,i){ byC[x.c]={s:x.s,i:i+1,up:x.up,dn:x.dn,n:x.n}; });
-  $("gT").textContent=r.lab+": each coach against their own "+(span==="y"?"same months last year":UNIT[span]+" before")+" ("+pb.lab+")"+(span==="m"?"":" · totals over the stretch");
+  var rows=scoreRows(span,r), byC={}; rows.forEach(function(x,i){ byC[x.c]={s:x.s,i:i+1,up:x.up,dn:x.dn,n:x.n}; });
+  $("gT").textContent=r.lab+(r.part?" so far":"")+": each coach against their own "+(span==="y"?"same months last year":UNIT[span]+" before")+" ("+pb.lab+")"+(span==="m"?"":" · totals over the stretch");
   $("gLeg").textContent="better than "+pb.lab;
   var order=cs.slice().sort(function(a,b){ var x=byC[a], y=byC[b]; return (x?x.i:99)-(y?y.i:99)||a.localeCompare(b); });
   var head='<thead><tr><th class="l">Coach</th><th class="l">Score</th><th class="l">Going well</th>'+ks.map(function(k){ return '<th data-k="'+k+'"'+(k===kSel?' class="on"':"")+' title="'+esc(DEFK[k].name)+" · "+(DEFK[k].better==="Lower"?"lower":"higher")+' is better">'+(SHORT[k]||esc(DEFK[k].name))+"</th>"; }).join("")+"</tr></thead>";
@@ -597,17 +603,25 @@ function renderGlance(cs){
   var pooled=function(k){ if(!PCT[k]) return teamB(r,k); var n=0, d=0; teamOf(r.ms).forEach(function(c){ var q=parts(c,r.ms,k); if(q){ n+=q.n; d+=q.d; } }); return d?n/d*100:null; };
   var teamRow='<tr><td class="l"><b>Team</b></td><td class="l dim"></td><td></td>'+ks.map(function(k){ return "<td>"+show(k,pooled(k))+"</td>"; }).join("")+"</tr>";
   var body=order.map(function(c){
-    var sc=byC[c], gw=talking(c,span).good[0];
+    var sc=byC[c], gw=talking(c,span,r).good[0];
     return '<tr><td class="l">'+esc(c)+'</td><td class="l">'+(sc?'<span class="sbar" style="width:'+Math.round(sc.s*0.6)+'px"></span>'+Math.round(sc.s)+' <span class="dim">#'+sc.i+(sc.n<5?" · "+sc.n+" KPI"+(sc.n===1?"":"s"):"")+"</span>":'<span class="dim">—</span>')+"</td>"+
       '<td class="l gw"'+(gw?' title="'+esc(gw.why)+'"':"")+">"+(gw?esc(gw.txt):'<span class="dim">—</span>')+"</td>"+
-      ks.map(function(k){ var v=agg(c,r.ms,k), cls="m", mv=move(k,v,agg(c,pb.ms,k)); if(mv===1) cls+=" g"; else if(mv===-1) cls+=" r"; else if(mv===0) cls+=" s"; var t=tipOf(c,r,k);
+      ks.map(function(k){ var v=agg(c,r.ms,k), cls="m", mv=null;
+        // A month still running: sessions and revenue against the month before up to the same day;
+        // other counts wait until it ends. Rates are compared as they stand.
+        // (Projection reached grows through the month, so it waits too.)
+        if(!r.part||(PCT[k]&&k!=="proj")) mv=move(k,v,agg(c,pb.ms,k));
+        else if(span==="m"&&(k==="rev"||k==="ses")) mv=move(k,sameDay(c,r.ms[0],k),sameDay(c,pb.ms[0],k));
+        if(mv===1) cls+=" g"; else if(mv===-1) cls+=" r"; else if(mv===0) cls+=" s"; var t=tipOf(c,r,k);
         return '<td class="'+cls+'"'+(t?' title="'+esc(t)+'"':"")+">"+show(k,v)+"</td>"; }).join("")+"</tr>";
   }).join("");
   $("gTbl").innerHTML=head+"<tbody>"+teamRow+body+"</tbody>";
   Array.prototype.forEach.call($("gTbl").querySelectorAll("th[data-k]"),function(th){ th.addEventListener("click",function(){ kSel=th.getAttribute("data-k"); save(); render(); }); });
-  $("gNote").textContent="Balanced list. Score: best on a KPI 100, lowest 0, averaged by area. Counts are totals; rates over the whole stretch.";
-    "A score built on fewer than 5 KPIs says how many: a coach with few figures can rank high on little. A window that is not complete yet is shown at the last complete one. Team = the total for counts, the median for rates. Hover a cell for what it is made of.<br>"+defs();
+  $("gNote").textContent="Balanced list. Score: best on a KPI 100, lowest 0, averaged by area. Counts are totals; rates over the whole stretch."+(r.part?" The month running: sessions and revenue are coloured against the month before up to the same day; other counts are not coloured until it ends.":"");
 }
+// Sessions or revenue of one coach in month p up to the day the month running has reached.
+function sameDay(c,p,k){ var rows=((D.live.periods[p]||{})[c]||{}).cl, day=D.live.cutoffDay; if(!rows||!day) return null; var t=0;
+  rows.forEach(function(row){ var m=row[2]||""; for(var i=0;i<Math.min(day,m.length);i++){ var w=wOf(m[i]); t+=k==="rev"?w*(row[1]||0):w; } }); return t; }
 var SHORT={rev:"Revenue",proj:"Projection<br>reached",p3:"Clients<br>3+ a week",less:"Training<br>less often",kept:"Still<br>with us",early:"Renewed<br>before last",conv:"Assessments<br>converted",nw:"New<br>clients",chg:"Cancellations<br>charged",prog:"Programme<br>phase"};
 
 /* ---- 1+1 talking points ----
@@ -616,8 +630,8 @@ var SHORT={rev:"Revenue",proj:"Projection<br>reached",p3:"Clients<br>3+ a week",
    (the reverse). The 1+1 opens and closes on something going well. There is always a first
    point: when nothing stands out, the KPI where the coach stands highest on the team. */
 function txtOf(k,v){ v=rnd(k,v); if(v==null) return "—"; return DEC[k]?v.toFixed(1):PCT[k]?v+"%":AED[k]?"AED "+C.full(v):C.full(v); }
-function talking(c,sp){
-  var r=reviewed(sp), pb=block(prevEnd(r,sp),sp), team=teamOf(r.ms), good=[], bad=[], standing=[];
+function talking(c,sp,rIn){
+  var r=rIn||reviewed(sp), pb=block(prevEnd(r,sp),sp), team=teamOf(r.ms), good=[], bad=[], standing=[];
   KEYS().forEach(function(k){
     var v=agg(c,r.ms,k); if(v==null) return;
     var was=agg(c,pb.ms,k), mv=move(k,v,was), st=state(c,k,sp), lower=better(k)==="Lower";
@@ -678,8 +692,8 @@ function scores(ms){
   return res;
 }
 // The score over a window: the reviewed block (the last complete one) against the one before it.
-function scoreRows(sp){
-  var rb=reviewed(sp), pb=block(prevEnd(rb,sp),sp), A=scores(rb.ms), B=scores(pb.ms), cs=coaches(), ks=KEYS(), pk=pick();
+function scoreRows(sp,rbIn){
+  var rb=rbIn||reviewed(sp), pb=block(prevEnd(rb,sp),sp), A=scores(rb.ms), B=scores(pb.ms), cs=coaches(), ks=KEYS(), pk=pick();
   return cs.map(function(c){
     var a=A[c], b=B[c], up=0, dn=0;
     ks.forEach(function(k,i){ if(!pk[i]) return; var m=move(k,a.v[k],b.v[k]); if(m===1) up++; else if(m===-1) dn++; });

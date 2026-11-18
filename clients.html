@@ -23,6 +23,8 @@
   --accent:#ef691d; --accent-2:#ff8340;
   /* chart series - checked for colour-blind separation on this background */
   --s-new:#d95926; --s-ret:#3987e5; --s-lost:#b8578a;
+  /* Stayed, moved coach, left: the same three colours wherever they appear. */
+  --c-stay:var(--up); --c-move:var(--watch); --c-left:var(--down);
   --f:'Alata',system-ui,sans-serif;
   --r:12px;
 }
@@ -205,25 +207,9 @@ details.more .body{padding:0 16px 14px;font-size:13px;color:var(--ink-soft);line
 .gate .other{font-size:11.5px;color:var(--ink-faint);margin-top:18px;}
 .gate .other a{color:var(--ink-soft);}
 body.locked{overflow:hidden;}
-
-/* Each main page has its own colour, so it is clear at a glance which dashboard is open; the
-   menu shows every page's colour as a dot. */
-body.pg-perf{--accent:#ef691d;--accent-2:#ff8340;--glow:rgba(239,105,29,.09);}
-body.pg-fin{--accent:#1fb8c6;--accent-2:#4fd6e2;--glow:rgba(31,184,198,.12);}
-body.pg-ceo{--accent:#d9a628;--accent-2:#f2c24a;--glow:rgba(217,166,40,.12);}
-body.pg-dir{--accent:#8f6cf3;--accent-2:#ad92ff;--glow:rgba(143,108,243,.14);}
-body.pg-biz{--accent:#3f7fe8;--accent-2:#6aa0ff;--glow:rgba(63,127,232,.13);}
-body.pg-cli{--accent:#c255c9;--accent-2:#de7be4;--glow:rgba(194,85,201,.12);}
-body.pg-coach{--accent:#e8577e;--accent-2:#ff7d9f;--glow:rgba(232,87,126,.12);}
-body[class*="pg-"]{background-image:radial-gradient(ellipse 90% 46% at 50% -8%,var(--glow),transparent 62%);}
-body[class*="pg-"] ::selection{background:var(--glow);}
-.seg a[href$="report.html"]{--dot:#ef691d;} .seg a[href$="finance.html"]{--dot:#1fb8c6;} .seg a[href$="overview.html"]{--dot:#d9a628;}
-.seg a[href$="director.html"]{--dot:#8f6cf3;} .seg a[href$="business.html"]{--dot:#3f7fe8;} .seg a[href$="clients.html"]{--dot:#c255c9;} .seg a[href$="coach.html"]{--dot:#e8577e;}
-.seg a[href]::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;background:var(--dot,transparent);vertical-align:1px;}
-.seg a.on::before{background:rgba(0,0,0,.55);}
 </style>
 </head>
-<body class="locked pg-cli">
+<body class="locked">
 
 <div class="gate" id="gate">
   <div class="gate-box">
@@ -249,7 +235,7 @@ body[class*="pg-"] ::selection{background:var(--glow);}
   </div>
 
   <div class="bar">
-    <span class="seg"><a href="./report.html">Performance</a><a href="./finance.html">Finance</a><a href="./overview.html">Overview</a><a href="./director.html">Director</a><a href="./business.html">Business</a><a class="on" href="./clients.html">Clients</a><a href="./coach.html">Coach review</a></span>
+    <span class="seg"><a href="./overview.html">Overview</a><a href="./director.html">Fitness</a><a href="./finance.html">Finance</a><a href="./report.html">Team Performance</a><a class="on" href="./clients.html">Clients</a><a href="./business.html">Business</a><a href="./coach.html">Coach review</a><a href="./roster.html">Head coach</a></span>
     <span class="grow"></span>
     <span class="seg" id="segScope"><button data-v="all">With Hossam</button><button data-v="team">Team only</button></span>
     <button id="btnNotes">Notes</button>
@@ -262,7 +248,7 @@ body[class*="pg-"] ::selection{background:var(--glow);}
   <div class="card section">
     <div class="card-h"><div><div class="k">Movement</div><div class="t">Clients gained and lost</div></div><span class="unit">clients</span></div>
     <div class="card-b">
-      <div class="legend"><span><i style="background:var(--s-new)"></i>new</span><span><i style="background:var(--s-ret)"></i>came back</span><span><i style="background:var(--s-lost)"></i>package ended · left</span><span><i style="background:#8a6f86"></i>package ended · renewed later</span><span><i style="background:var(--panel-3);outline:1px solid var(--ink-faint)"></i>package ended · still deciding</span><span class="r">top line: active at start → end</span></div>
+      <div class="legend"><span><i style="background:var(--s-new)"></i>new</span><span><i style="background:var(--s-ret)"></i>came back</span><span><i style="background:var(--c-left)"></i>package ended · left</span><span><i style="background:#8a6f86"></i>package ended · renewed later</span><span><i style="background:var(--panel-3);outline:1px solid var(--ink-faint)"></i>package ended · still deciding</span><span class="r">top line: active at start → end</span></div>
       <div class="chart" id="chMove"></div>
       <p class="note">Active at the start + new + came back − package ended = active at the end. “Package ended” means the client stopped being active: the package ran out with nothing new yet. They then either buy again within <span class="g"></span> days (renewed later, and counted again as “came back” in the month they buy), or they left. Until <span class="g"></span> days have passed, they are still deciding.</p>
     </div>
@@ -271,7 +257,7 @@ body[class*="pg-"] ::selection{background:var(--glow);}
   <div class="card section">
     <div class="card-h"><div><div class="k">Renewal rate</div><div class="t">Of the clients whose package ran out, how many bought again</div></div><span class="unit">clients · within the grace period, with any coach</span></div>
     <div class="card-b">
-      <div class="legend"><span><i style="background:var(--up)"></i>renewed</span><span><i style="background:var(--s-lost)"></i>left</span><span><i style="background:var(--panel-3);outline:1px solid var(--ink-faint)"></i>still deciding</span><span class="r">% = renewed of those decided · grey % = so far, too early to call</span></div>
+      <div class="legend"><span><i style="background:var(--c-stay)"></i>renewed</span><span><i style="background:var(--c-left)"></i>left</span><span><i style="background:var(--panel-3);outline:1px solid var(--ink-faint)"></i>still deciding</span><span class="r">% = renewed of those decided · grey % = so far, too early to call</span></div>
       <div class="chart" id="chRate"></div>
       <p class="note">This is the figure to watch for real decline. It does not depend on package size: a client on a 24-session package counts once, the same as a client on a 6-session one.</p>
     </div>
@@ -297,7 +283,7 @@ body[class*="pg-"] ::selection{background:var(--glow);}
   <div class="card section">
     <div class="card-h"><div><div class="k">After each package</div><div class="t">What clients did when a package finished</div></div><span class="unit" id="ladUnit"></span></div>
     <div class="card-b">
-      <div class="legend"><span><i style="background:var(--up)"></i>bought bigger</span><span><i style="background:var(--accent)"></i>same size</span><span><i style="background:var(--s-ret)"></i>smaller</span><span><i style="background:var(--s-lost)"></i>left</span></div>
+      <div class="legend"><span><i style="background:var(--up)"></i>bought bigger</span><span><i style="background:var(--accent)"></i>same size</span><span><i style="background:var(--s-ret)"></i>smaller</span><span><i style="background:var(--c-left)"></i>left</span></div>
       <div class="chart" id="chLadder"></div>
       <p class="note">Each bar is the packages of that size that finished in the period, with the decision known. “Left” means no new package within the grace period.</p>
     </div>
@@ -315,7 +301,7 @@ body[class*="pg-"] ::selection{background:var(--glow);}
   <div class="card section">
     <div class="card-h"><div><div class="k">Coaches</div><div class="t">Who keeps their clients</div></div><span class="unit" id="coachUnit"></span></div>
     <div class="scroll"><table id="coachTbl"></table></div>
-    <div class="card-b" style="padding-top:4px"><div class="legend" style="margin:0"><span><i style="background:var(--up)"></i>stayed with the coach</span><span><i style="background:var(--s-ret)"></i>renewed with another coach</span><span><i style="background:var(--s-lost)"></i>left: no new package within the grace period</span></div></div>
+    <div class="card-b" style="padding-top:4px"><div class="legend" style="margin:0"><span><i style="background:var(--c-stay)"></i>stayed with the coach</span><span><i style="background:var(--c-move)"></i>renewed with another coach</span><span><i style="background:var(--c-left)"></i>left: no new package within the grace period</span></div></div>
   </div>
 
   <div class="card section">
@@ -589,7 +575,7 @@ function chartMove(){
     s+=bar(x0,mid-hN,bw,Math.max(0,hN-(hB>.4?1:0)),"var(--s-new)");
     s+=bar(x0,mid-hN-hB-(hN>.4?1:0),bw,hB,"var(--s-ret)");
     // Below the line, from the line down: renewed later, left, still deciding.
-    var yy=mid+1, segs=[[d.outBack,"#8a6f86"],[d.outLeft,"var(--s-lost)"],[d.outWait,"var(--panel-3)"]].filter(function(p){ return p[0]>0; });
+    var yy=mid+1, segs=[[d.outBack,"#8a6f86"],[d.outLeft,"var(--c-left)"],[d.outWait,"var(--panel-3)"]].filter(function(p){ return p[0]>0; });
     segs.forEach(function(p,j){
       var h=half*p[0]/mx, last=j===segs.length-1;
       s+=last?bar(x0,yy,bw,h,p[1],true):'<rect x="'+x0+'" y="'+yy+'" width="'+bw+'" height="'+Math.max(0,h-2)+'" fill="'+p[1]+'"/>';
@@ -604,7 +590,7 @@ function chartMove(){
     areas.push({x:L+step*i,y:T-8,w:step,h:H-T-B+8,ax:c,ay:mid-hN-hB,
       html:"<b>"+esc(bucketLong(d.key))+(d.partial?" (so far)":"")+"</b>"+trow("Active at the start",d.start)+trow("New",d.nw,"var(--s-new)")+
         trow("Came back",d.back,"var(--s-ret)")+trow("Package ended",d.out)+trow("&nbsp;&nbsp;renewed later",d.outBack,"#8a6f86")+
-        trow("&nbsp;&nbsp;left",d.outLeft,"var(--s-lost)")+trow("&nbsp;&nbsp;still deciding",d.outWait,"var(--panel-3)")+
+        trow("&nbsp;&nbsp;left",d.outLeft,"var(--c-left)")+trow("&nbsp;&nbsp;still deciding",d.outWait,"var(--panel-3)")+
         '<div class="sep">'+trow("Active at the end",d.end)+trow("Gained for every one who left",d.outLeft?((d.nw+d.back)/d.outLeft).toFixed(1):"—")+"</div>"});
   });
   host.innerHTML=s+"</svg>"; hits(host,areas);
@@ -634,7 +620,7 @@ function chartRate(){
   var areas=[];
   data.forEach(function(d,i){
     var x0=L+step*i+(step-bw)/2, c=x0+bw/2, b=0;
-    [[d.ren,"var(--up)"],[d.left,"var(--s-lost)"],[d.wait,"var(--panel-3)"]].forEach(function(p){
+    [[d.ren,"var(--c-stay)"],[d.left,"var(--c-left)"],[d.wait,"var(--panel-3)"]].forEach(function(p){
       if(!p[0]) return; var h=(H-T-B)*p[0]/d.n;
       s+='<rect x="'+x0+'" y="'+(y(b)-h)+'" width="'+bw+'" height="'+Math.max(0,h-2)+'" rx="3" fill="'+p[1]+'"'+(p[1]==="var(--panel-3)"?' stroke="var(--ink-faint)" stroke-dasharray="3 3"':"")+"/>";
       b+=p[0]/d.n;
@@ -643,7 +629,7 @@ function chartRate(){
     // While some are still deciding, nobody can have left yet, so the rate can only be read as "so far".
     s+=txt(c,T-7,dec?Math.round(d.ren/dec*100)+"%"+(d.wait&&step>=80?" so far":""):"—",{c:d.wait?"var(--ink-faint)":"var(--ink)",s:11.5});
     areas.push({x:L+step*i,y:T-14,w:step,h:H-T-B+14,ax:c,ay:T,html:"<b>"+esc(bucketLong(d.key))+"</b>"+trow("Package ran out",d.n+" clients")+
-      trow("Renewed, same coach",d.kept,"var(--up)")+trow("Renewed, other coach",d.moved,"var(--up)")+trow("Left",d.left,"var(--s-lost)")+trow("Still deciding",d.wait,"var(--panel-3)")+
+      trow("Renewed, same coach",d.kept,"var(--c-stay)")+trow("Renewed, other coach",d.moved,"var(--c-move)")+trow("Left",d.left,"var(--c-left)")+trow("Still deciding",d.wait,"var(--panel-3)")+
       '<div class="sep">'+trow("Renewal rate",dec?pct(d.ren,dec)+" of "+dec+" decided":"—")+"</div>"});
   });
   host.innerHTML=s+"</svg>"; hits(host,areas);
@@ -742,7 +728,7 @@ function chartLadder(){
   $("ladUnit").textContent=winLabel()+" · % of finished packages";
   if(!sizes.length){ host.innerHTML='<div class="empty">Too few finished packages in this period.</div>'; return; }
   var W=width(host),rh=42,T=4,H=T+sizes.length*rh,L=100,R=100,bw=W-L-R, areas=[];
-  var K=[["up","var(--up)","bought bigger"],["same","var(--accent)","same size"],["down","var(--s-ret)","smaller"],["left","var(--s-lost)","left"]];
+  var K=[["up","var(--up)","bought bigger"],["same","var(--accent)","same size"],["down","var(--s-ret)","smaller"],["left","var(--c-left)","left"]];
   var s='<svg viewBox="0 0 '+W+" "+H+'" role="img" aria-label="What clients did when a package finished">';
   s+='<rect class="hl" rx="6" fill="rgba(255,255,255,.035)" style="opacity:0"/>';
   sizes.forEach(function(z,i){
@@ -867,7 +853,7 @@ function coaches(){
     tot.ks+=kp.start; tot.kk+=kp.still; tot.kw+=kp.wait||0;
     tot.as+=as.a; tot.ac+=as.c;
     tot.a+=r.active; tot.up+=up.aed; tot.upn+=up.n; tot.kept+=o.kept; tot.moved+=o.moved; tot.lost+=o.lost; tot.nw+=nw; tot.sales+=sales; tot.e+=early; tot.en+=ren.length;
-    var W=150, bars=n?[["kept","var(--up)"],["moved","var(--s-ret)"],["lost","var(--s-lost)"]].filter(function(p){ return o[p[0]]; }).map(function(p){
+    var W=150, bars=n?[["kept","var(--c-stay)"],["moved","var(--c-move)"],["lost","var(--c-left)"]].filter(function(p){ return o[p[0]]; }).map(function(p){
       return '<span style="width:'+(o[p[0]]/n*100)+'%;background:'+p[1]+'"></span>'; }).join(""):"";
     var s3=survAt(r.c,3), s6=survAt(r.c,6);
     function cv(c,a){ if(!M.assess) return '<span class="dim" style="font-size:11px">not read yet</span>'; if(!a) return '<span class="dim">—</span>'; var v=Math.round(c/a*100); return '<span class="'+(v>=70?"up":v<40?"down":"")+'">'+v+'%</span> <span class="dim" style="font-size:11px">'+c+" of "+a+"</span>"; }

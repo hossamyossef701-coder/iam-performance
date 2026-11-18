@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Head coach — I AM Performance</title>
+<meta name="theme-color" content="#050505">
+<meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="./report.webmanifest">
+<link rel="icon" href="./icon-192.png" sizes="192x192">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="stylesheet" href="./fonts/alata.css">
+<link rel="stylesheet" href="./common.css">
+<style>
+.names{columns:3 220px;column-gap:28px;margin:0;padding:0;list-style:none;}
+.names li{break-inside:avoid;padding:7px 0;border-bottom:1px solid var(--line-soft);font-size:14px;}
+.count{font-size:13px;color:var(--ink-soft);}
+</style>
+</head>
+<body class="locked">
+
+<div class="gate" id="gate">
+  <div class="gate-box">
+    <div class="eyebrow">I AM Performance</div>
+    <h1>Head coach</h1>
+    <form id="gateForm" autocomplete="off">
+      <input type="password" id="gatePass" placeholder="Passphrase" autocomplete="current-password" spellcheck="false">
+      <label class="rem"><input type="checkbox" id="gateRemember" checked> Remember on this device</label>
+      <button type="submit" id="gateBtn">Unlock</button>
+    </form>
+    <p class="status" id="gateStatus"></p>
+  </div>
+</div>
+
+<div class="wrap" id="app" style="display:none">
+  <div class="head">
+    <div><div class="eyebrow">I AM Performance</div><h1>Head coach</h1></div>
+    <div class="stamp" id="stamp"></div>
+  </div>
+  <div class="bar">
+    <span class="seg" id="nav"></span>
+    <span class="grow"></span>
+    <select id="selCoach" aria-label="Coach"></select>
+    <span class="seg" id="segShow"><button data-v="open">Not ended</button><button data-v="all">All</button></span>
+  </div>
+  <div class="card section">
+    <div class="card-h"><div><div class="k">Client list</div><div class="t" id="lT"></div></div><span class="count" id="lN"></span></div>
+    <div class="card-b"><ul class="names" id="names"></ul></div>
+  </div>
+</div>
+
+<script src="./common.js"></script>
+<script>
+/* Head coach: each coach's clients by name, from the Clients file's Coach column. Not ended =
+   active, renewal due, or bought but not started. It opens with its own passphrase
+   (HEADCOACH_PASSPHRASE, file roster.enc.json), or with the Performance passphrase, which also
+   shows the full menu. */
+(function(){
+var C=window.IAM, $=C.$, esc=C.esc, R=null, role="hc", coach="", show="open";
+var NAV=[["overview.html","Overview"],["director.html","Fitness"],["finance.html","Finance"],["report.html","Team Performance"],["clients.html","Clients"],["business.html","Business"],["coach.html","Coach review"],["roster.html","Head coach"]];
+function load(pass){
+  return C.loadEnc("roster.enc.json").then(function(e){ return C.decrypt(e,pass); }).then(function(d){ role="hc"; return d; })
+    .catch(function(){ return C.load(pass).then(function(d){ if(!d.ov||!d.ov.roster) throw new Error("The client lists come with the next refresh."); role="dir"; return {roster:d.ov.roster,generated:d.ov.generated}; }); });
+}
+function render(){
+  var list=(R.roster[coach]||[]).filter(function(x){ return show==="all"||x[1]!=="e"; });
+  $("lT").textContent=coach+" · "+(show==="all"?"every client":"not ended: active, renewal due or not started");
+  $("lN").textContent=list.length+" client"+(list.length===1?"":"s");
+  $("names").innerHTML=list.length?list.map(function(x){ return "<li>"+esc(x[0])+"</li>"; }).join(""):'<li class="dim">No clients.</li>';
+  Array.prototype.forEach.call($("segShow").querySelectorAll("button"),function(b){ b.classList.toggle("on",b.getAttribute("data-v")===show); });
+  try{ localStorage.setItem("iamroster:ui",JSON.stringify({coach:coach,show:show})); }catch(e){}
+}
+C.unlock(function(d){
+  R=d;
+  $("nav").innerHTML=NAV.filter(function(n){ return role==="dir"||n[0]==="roster.html"; }).map(function(n){ return "<a"+(n[0]==="roster.html"?' class="on"':"")+' href="./'+n[0]+'">'+n[1]+"</a>"; }).join("");
+  $("stamp").textContent=d.generated?"Read "+new Date(d.generated).toLocaleString():"";
+  var cs=Object.keys(R.roster).filter(function(c){ return c!=="(no coach)"&&R.roster[c].some(function(x){ return x[1]!=="e"; }); }).sort();
+  if(R.roster["(no coach)"]) cs.push("(no coach)");
+  try{ var u=JSON.parse(localStorage.getItem("iamroster:ui")||"{}"); coach=u.coach||""; show=u.show==="all"?"all":"open"; }catch(e){}
+  if(cs.indexOf(coach)<0) coach=cs[0]||"";
+  $("selCoach").innerHTML=cs.map(function(c){ return "<option"+(c===coach?" selected":"")+">"+esc(c)+"</option>"; }).join("");
+  $("selCoach").addEventListener("change",function(){ coach=this.value; render(); });
+  $("segShow").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ show=v; render(); } });
+  render();
+},{load:load,key:"iamlive:pass:hc"});
+if("serviceWorker" in navigator){ navigator.serviceWorker.register("./sw.js").catch(function(){}); }
+})();
+</script>
+</body>
+</html>

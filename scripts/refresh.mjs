@@ -1,7 +1,7 @@
 // Pulls every coach workbook from the shared OneDrive folder, parses the monthly sheets,
 // encrypts the result and writes live.enc.json (+ history.enc.json when HISTORY_JSON is set).
 // Env: SHARE_URL, DATA_PASSPHRASE (required) · HISTORY_JSON
-//      FINANCE_PASSPHRASE / CEO_PASSPHRASE (optional: the Finance and Overview pages' own files) ·
+//      FINANCE_PASSPHRASE / CEO_PASSPHRASE / HEADCOACH_PASSPHRASE (optional: the Finance and Overview pages' own files) ·
 //      ASSESS_SHARE_URL (the assessment tracker) · CLIENTS_SHARE_URL + CLIENTS_PASSPHRASE (the Clients page) · LIVE_FROM (default "1900-01": every month the files hold) · COACH_FILE_PATTERN (default "performance sheet") · FETCH_STRATEGIES (default "badger,od,odkey,spshares,zip,rest,browser") · OUT_DIR (default ".") · MIN_AGE_HOURS (default 12)
 import fs from "node:fs";
 import path from "node:path";
@@ -46,7 +46,7 @@ const ORDER = (env.FETCH_STRATEGIES || "badger,od,odkey,spshares,zip,rest,browse
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
-console.log("refresh build 2026-11-18a (Finance and Overview files; colour log fixed)");  // proves which version the job is running
+console.log("refresh build 2026-11-18b (Head coach list)");  // proves which version the job is running
 
 // One typed character of difference, so "Shayla" finds "Shyla".
 function near(a, b) {
@@ -389,6 +389,11 @@ async function main() {
           same = JSON.stringify(rest) === JSON.stringify(ov) && Date.now() - Date.parse(g) < MIN_AGE_H * 3600e3;
         } catch {}
       }
+      // The Head coach page: the client lists alone, under its own passphrase.
+      const hcPass = (env.HEADCOACH_PASSPHRASE || "").trim(), hcPath = path.join(OUT, "roster.enc.json");
+      if (!hcPass) L.log("No HEADCOACH_PASSPHRASE secret, so roster.enc.json was not written.");
+      else if (hcPass === PASS) console.log("::warning title=Same passphrase::roster.enc.json would use the Performance passphrase - give it its own.");
+      else if (!same || !fs.existsSync(hcPath)) { fs.writeFileSync(hcPath, JSON.stringify(await encryptJSON({ generated: new Date().toISOString(), roster: ov.roster }, hcPass))); L.log("roster.enc.json written"); }
       if (same) L.log("Overview: same figures as the last read, not rewritten.");
       else {
         ov.generated = new Date().toISOString();
