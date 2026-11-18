@@ -46,7 +46,7 @@ const ORDER = (env.FETCH_STRATEGIES || "badger,od,odkey,spshares,zip,rest,browse
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
-console.log("refresh build 2026-11-17b (money on the table checked against the sheets)");  // proves which version the job is running
+console.log("refresh build 2026-11-18a (Finance and Overview files; colour log fixed)");  // proves which version the job is running
 
 // One typed character of difference, so "Shayla" finds "Shyla".
 function near(a, b) {
@@ -270,7 +270,11 @@ async function main() {
       // them; this file is encrypted with the Performance passphrase like everything in it.
       if (r.people && r.people.length && t.p >= CL_FROM) bucket[coach].cl = r.people.map((x) => [x.n, x.p, x.m, x.k]);
       // How many day cells carried each colour: printed below, so a coach's own shades can be checked.
-      if (r.colours && t.p >= CL_FROM) { const cc = colourLog[coach] || (colourLog[coach] = {}); for (const [k, v] of Object.entries(r.colours)) cc[k] = (cc[k] || 0) + v; }
+      if (r.colours && t.p >= CL_FROM) { const cc = colourLog[coach] || (colourLog[coach] = {}); for (const [k, v] of Object.entries(r.colours)) {
+        // "other" is itself a tally by fill colour; the rest are counts.
+        if (k === "other" && v && typeof v === "object") { const o = cc.other || (cc.other = {}); for (const [rgb, n] of Object.entries(v)) o[rgb] = (o[rgb] || 0) + n; }
+        else cc[k] = (cc[k] || 0) + v;
+      } }
       entry.months.push(t.p);
     }
   }
