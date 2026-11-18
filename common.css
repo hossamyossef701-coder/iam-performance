@@ -216,3 +216,19 @@ button.on{border-color:var(--accent);color:var(--accent-2);}
 select.win{padding:5px 8px;font-size:11.5px;}
 .card-h{align-items:center;}
 .card-h .unit{margin-left:auto;}
+
+/* Each main page has its own colour, so it is clear at a glance which dashboard is open; the
+   menu shows every page's colour as a dot. */
+body.pg-perf{--accent:#ef691d;--accent-2:#ff8340;--glow:rgba(239,105,29,.09);}
+body.pg-fin{--accent:#1fb8c6;--accent-2:#4fd6e2;--glow:rgba(31,184,198,.12);}
+body.pg-ceo{--accent:#d9a628;--accent-2:#f2c24a;--glow:rgba(217,166,40,.12);}
+body.pg-dir{--accent:#8f6cf3;--accent-2:#ad92ff;--glow:rgba(143,108,243,.14);}
+body.pg-biz{--accent:#3f7fe8;--accent-2:#6aa0ff;--glow:rgba(63,127,232,.13);}
+body.pg-cli{--accent:#c255c9;--accent-2:#de7be4;--glow:rgba(194,85,201,.12);}
+body.pg-coach{--accent:#e8577e;--accent-2:#ff7d9f;--glow:rgba(232,87,126,.12);}
+body[class*="pg-"]{background-image:radial-gradient(ellipse 90% 46% at 50% -8%,var(--glow),transparent 62%);}
+body[class*="pg-"] ::selection{background:var(--glow);}
+.seg a[href$="report.html"]{--dot:#ef691d;} .seg a[href$="finance.html"]{--dot:#1fb8c6;} .seg a[href$="overview.html"]{--dot:#d9a628;}
+.seg a[href$="director.html"]{--dot:#8f6cf3;} .seg a[href$="business.html"]{--dot:#3f7fe8;} .seg a[href$="clients.html"]{--dot:#c255c9;} .seg a[href$="coach.html"]{--dot:#e8577e;}
+.seg a[href]::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;background:var(--dot,transparent);vertical-align:1px;}
+.seg a.on::before{background:rgba(0,0,0,.55);}
