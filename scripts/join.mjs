@@ -503,11 +503,12 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
     list: ulList.sort((a, b) => b.n - a.n) };
 
   /* 12. The head coach's list: each coach's clients by name, with where they stand (a = active,
-     r = renewal due, n = no package yet, e = ended), from the Clients file's Coach column. Names
+     s = active, ending within 30 days, r = renewal due, n = no package yet, e = ended), from the Clients file's Coach column. Names
      only: no IDs, numbers or money. */
   const roster = {};
   for (const c of inner.clients) {
-    const k = c.coach || "(no coach)", st = c.status === "Active" ? "a" : c.status === "Renewal due" ? "r" : c.status === "Ended" ? "e" : "n";
+    // s = active, but the package's cover ends within 30 days.
+    const k = c.coach || "(no coach)", st = c.status === "Active" ? (c.P != null && c.P - today <= 30 ? "s" : "a") : c.status === "Renewal due" ? "r" : c.status === "Ended" ? "e" : "n";
     (roster[k] || (roster[k] = [])).push([c.name, st]);
   }
   for (const k in roster) roster[k].sort((a, b) => String(a[0]).localeCompare(String(b[0])));

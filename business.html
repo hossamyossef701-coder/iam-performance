@@ -228,7 +228,7 @@ function share(){
   var cs=Object.keys(Object.assign({},act,ses)).filter(function(c){ return c!=="(no coach)"&&((act[c]||0)||(ses[c]||0)); });
   var tA=0,tS=0,tR=0; cs.forEach(function(c){ tA+=act[c]||0; tS+=ses[c]||0; tR+=rev[c]||0; });
   var rows=cs.map(function(c){ var a=tA?(act[c]||0)/tA:0, s=tS?(ses[c]||0)/tS:0, r=tR?(rev[c]||0)/tR:0; return {c:c,a:a,s:s,r:r,n:act[c]||0,ses:ses[c]||0,rev:rev[c]||0,x:a?r/a:null}; })
-    .sort(function(a,b){ return b.a-a.a||b.r-a.r; });
+    .sort(C.ivan(function(a,b){ return b.a-a.a||b.r-a.r; },function(x){ return x.c; }));
   var host=$("chShare");
   if(!rows.length){ host.innerHTML='<div class="empty">No figures for this period.</div>'; return; }
   var W=C.width(host), narrow=W<560, rh=48, H=rows.length*rh+4, L=narrow?78:100, R=narrow?70:150, mx=Math.max.apply(null,rows.map(function(r){ return Math.max(r.a,r.s,r.r); }));
@@ -253,7 +253,7 @@ var ST=[["ok","On track","var(--ink-soft)"],["short","Won't finish in time","var
 function packages(){
   var by={};
   D.ov.inUse.forEach(function(r){ var o=by[r.coach||"(no coach)"]||(by[r.coach||"(no coach)"]={ok:[],short:[],nearly:[],unpaid:[],expired:[],unlinked:[]}); o[r.state].push(r); });
-  var cs=Object.keys(by).sort(function(a,b){ return (by[b].short.length+by[b].unpaid.length+by[b].expired.length)-(by[a].short.length+by[a].unpaid.length+by[a].expired.length)||a.localeCompare(b); });
+  var cs=Object.keys(by).sort(C.ivan(function(a,b){ return (by[b].short.length+by[b].unpaid.length+by[b].expired.length)-(by[a].short.length+by[a].unpaid.length+by[a].expired.length)||a.localeCompare(b); }));
   var tot={ok:0,short:0,nearly:0,unpaid:0,expired:0,unlinked:0};
   cs.forEach(function(c){ ST.forEach(function(s){ tot[s[0]]+=by[c][s[0]].length; }); });
   // How many in each state, in the state's colour: from lists (a coach) or plain numbers (the team).
@@ -326,7 +326,7 @@ function leak(){
     return "<tr"+(cls?' class="'+cls+'"':"")+'><td class="l">'+nm+"</td><td>"+cell(o.xf)+"</td><td>"+cell(o.ax)+"</td><td>"+(used?o.fl[0]+' <span class="dim">of '+used+(o.fl[0]?" · "+Math.round(o.fd[0]/o.fl[0])+" d":"")+"</span>":dash)+"</td><td>"+rate(o.ro)+"</td><td>"+rate(o.rl)+"</td><td>"+cell(o.lc)+
       '</td><td class="sep">'+(o.chk[0]?C.full(o.chk[1])+' <span class="dim">· '+R(o.chk[0])+" ses, "+o.chkN+" cl</span>":dash)+"</td><td>"+cell(o.due)+"</td></tr>"; };
   var any=function(o){ return LKF.some(function(f){ return o[f][0]||o[f][1]; })||o.chk[0]||o.due[0]; };
-  var ks=Object.keys(by).filter(function(c){ return any(by[c]); }).sort(function(a,b){ var x=by[a], y=by[b]; return (y.xf[1]+y.ax[1])-(x.xf[1]+x.ax[1])||a.localeCompare(b); });
+  var ks=Object.keys(by).filter(function(c){ return any(by[c]); }).sort(C.ivan(function(a,b){ var x=by[a], y=by[b]; return (y.xf[1]+y.ax[1])-(x.xf[1]+x.ax[1])||a.localeCompare(b); }));
   host.innerHTML='<thead><tr><th class="l"></th><th colspan="6" class="l" style="color:var(--ink-soft)">'+esc(wl.charAt(0).toUpperCase()+wl.slice(1))+'</th><th colspan="2" class="l sep" style="color:var(--ink-soft)">Right now</th></tr>'+
     '<tr><th class="l">Coach</th><th>Fees not charged<br>AED · packages</th><th>After expiry, no fee<br>AED · sessions</th><th>Used up past expiry<br>packages · avg days late</th><th>Renewed · used up<br>by expiry · % · n</th><th>Renewed · ran<br>past expiry · % · n</th><th>Clients lost<br>AED · clients</th>'+
     '<th class="sep">Not covered by a<br>logged package</th><th>In grace period<br>AED · clients</th></tr></thead><tbody>'+row("Team",T,"total")+ks.map(function(c){ return row(esc(c),by[c]); }).join("")+"</tbody>";
@@ -334,7 +334,7 @@ function leak(){
   var byC={}; list.forEach(function(x){ (byC[x.coach]=byC[x.coach]||[]).push(x); });
   $("lkLst").innerHTML=!list.length?"":'<details><summary><span class="nm">Clients to check: sessions not covered by a logged package</span><span class="n">'+list.length+"</span></summary>"+
     '<div class="lrow h" style="grid-template-columns:minmax(150px,1.4fr) repeat(4,minmax(80px,1fr))"><span>Client</span><span>Sessions</span><span>Last session</span><span>Last package logged</span><span>Now</span></div>'+
-    Object.keys(byC).sort().map(function(c){ return '<div class="lrow h" style="padding-top:10px"><span>'+esc(c)+" · "+byC[c].length+"</span></div>"+byC[c].map(function(x){
+    Object.keys(byC).sort(C.ivan()).map(function(c){ return '<div class="lrow h" style="padding-top:10px"><span>'+esc(c)+" · "+byC[c].length+"</span></div>"+byC[c].map(function(x){
       return '<div class="lrow" style="grid-template-columns:minmax(150px,1.4fr) repeat(4,minmax(80px,1fr))"><span>'+esc(x.name)+"</span><span>"+R(x.n)+"</span><span>"+(x.last?C.date(x.last):"—")+"</span><span>"+esc(x.pk)+"</span><span"+(x.gone?' style="color:var(--down)"':"")+">"+(x.gone?"stopped":"still training")+" · "+esc(x.status)+"</span></div>"; }).join(""); }).join("")+"</details>";
   $("lkNote").textContent="Cells: AED · count. Only clients whose names are linked (Name check) and packages bought since the coach sheets start ("+C.label(L.from)+") can be followed. "+
     "Expiry date = purchase date + the days Settings gives that size; a typed extension does not move it. Extension fee = "+L.feeIncl+" AED with VAT ("+L.fee+" without), from Settings (a row \"Extension fee\" changes it). Every package used after its expiry date with no fee typed in Packages counts as not charged, free extensions included. "+
@@ -357,7 +357,7 @@ function value(){
     if(!n) return;
     rows.push({c:c, m:st.months, k:st.n, rpc:r/n, v:st.months*r/n});
   });
-  rows.sort(function(a,b){ return b.v-a.v; });
+  rows.sort(C.ivan(function(a,b){ return b.v-a.v; },function(x){ return x.c; }));
   if(!rows.length){ host.innerHTML='<div class="empty">Needs new clients since '+C.date(ov.loggedFrom)+" and 3 complete months of coach sheets.</div>"; return; }
   var W=C.width(host), rh=34, H=rows.length*rh+4, L=88, R=W<480?120:190, mx=Math.max.apply(null,rows.map(function(r){ return r.v; }));
   var s='<svg viewBox="0 0 '+W+" "+H+'"><rect class="hl" rx="6" fill="rgba(255,255,255,.035)" style="opacity:0"/>', areas=[];
@@ -383,7 +383,7 @@ function names(){
   function group(title,list,row){
     if(!list.length) return '<details class="none"><summary><span class="nm">'+title+'</span><span class="n">none</span></summary></details>';
     var by={}; list.forEach(function(x){ (by[x.coach]=by[x.coach]||[]).push(x); });
-    return '<details><summary><span class="nm">'+title+'</span><span class="n">'+list.length+"</span></summary>"+Object.keys(by).sort().map(function(c){
+    return '<details><summary><span class="nm">'+title+'</span><span class="n">'+list.length+"</span></summary>"+Object.keys(by).sort(C.ivan()).map(function(c){
       return '<div class="lrow h" style="padding-top:10px"><span>'+esc(c)+" · "+by[c].length+"</span></div>"+by[c].map(row).join("");
     }).join("")+"</details>";
   }

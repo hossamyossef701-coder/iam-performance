@@ -132,8 +132,18 @@ body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
 
   <div id="dir">
     <div class="card section">
+      <div class="card-h"><div><div class="k">Sessions day by day</div><div class="t" id="dT"></div></div><span class="unit" id="dU"></span></div>
+      <div class="scroll"><table class="kt dly" id="dTbl"></table></div>
+      <div class="card-b" style="padding-top:6px"><div class="blg">fewest that month<i></i>most · 0 = no sessions · faded = booked ahead</div></div>
+    </div>
+      <div class="card section">
       <div class="card-h"><div><div class="k">Needs your attention</div><div class="t" id="aT">Right now</div></div><span class="unit" id="aU"></span></div>
       <div class="card-b"><ul class="att" id="att"></ul><p class="note" id="aNote"></p></div>
+    </div>
+    <div class="card section">
+      <div class="card-h"><div><div class="k">Busiest days</div><div class="t" id="bT"></div></div><span class="seg sm" id="segBusy"></span></div>
+      <div class="scroll"><table class="kt" id="bTbl"></table></div>
+      <div class="card-b" style="padding-top:6px"><div class="blg">quietest day<i></i>busiest day · each row against its own week</div><p class="note" id="bNote"></p></div>
     </div>
     <div class="card section">
       <div class="card-h"><div><div class="k">Coaches at a glance</div><div class="t" id="gT"></div></div><span class="seg sm" id="segGlance"></span></div>
@@ -142,16 +152,6 @@ body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
         <div class="legend" style="margin-top:6px"><span><i style="background:rgba(94,184,122,.45)"></i><b id="gLeg" style="font-weight:400">better than the month before</b></span><span><i style="background:rgba(225,75,75,.45)"></i>worse</span><span><i style="background:rgba(255,255,255,.12)"></i>the same</span><span class="r">click a column for its chart below</span></div>
         <p class="note" id="gNote"></p>
       </div>
-    </div>
-    <div class="card section">
-      <div class="card-h"><div><div class="k">Busiest days</div><div class="t" id="bT"></div></div><span class="seg sm" id="segBusy"></span></div>
-      <div class="scroll"><table class="kt" id="bTbl"></table></div>
-      <div class="card-b" style="padding-top:6px"><div class="blg">quietest day<i></i>busiest day · each row against its own week</div><p class="note" id="bNote"></p></div>
-    </div>
-    <div class="card section">
-      <div class="card-h"><div><div class="k">Sessions day by day</div><div class="t" id="dT"></div></div><span class="unit" id="dU"></span></div>
-      <div class="scroll"><table class="kt dly" id="dTbl"></table></div>
-      <div class="card-b" style="padding-top:6px"><div class="blg">fewest that month<i></i>most · 0 = no sessions · faded = booked ahead</div></div>
     </div>
   </div>
 
@@ -238,7 +238,7 @@ function teamOf(ms){
   Object.keys(set).forEach(function(c){ var f=fileName(c); if(f) files[f]=1; });
   var by=(D.ov&&D.ov.kpiM&&D.ov.kpiM.by)||{};
   Object.keys(by).forEach(function(f){ if(files[f]) return; if(ms.some(function(p){ var m=by[f][p]; return m&&(m.act||m.nw||m.ks); })) set[f]=1; });
-  return Object.keys(set).filter(C.keep).sort();
+  return Object.keys(set).filter(C.keep).sort(C.ivan());
 }
 // Today's coaches: sessions on their sheet in the last 3 months, and their file still in the main
 // folder - a coach whose file has gone to the Inactive folder has left.
@@ -247,7 +247,7 @@ function coaches(){
   (D.live.files||[]).forEach(function(f){ if(f.folder&&!f.ignoredDuplicate&&f.coach) left[f.coach]=1; });
   (D.live.files||[]).forEach(function(f){ if(!f.folder&&f.coach) delete left[f.coach]; });
   [0,1,2].forEach(function(i){ var per=D.live.periods[C.prevP(p,i)]||{}; Object.keys(per).forEach(function(c){ var v=per[c]; if(((v.s||0)>0||(v.ms||0)>0)&&!left[c]) set[c]=1; }); });
-  return Object.keys(set).filter(C.keep).sort();
+  return Object.keys(set).filter(C.keep).sort(C.ivan());
 }
 // The Clients file and the coach sheets may spell a coach differently ("Shayla" / "Shyla").
 var nameCache={};
@@ -355,24 +355,38 @@ function move(k,a,b){ a=rnd(k,a); b=rnd(k,b); if(a==null||b==null) return null; 
 /* Every part of the page picks from the same five, each with its own picker: the summary tiles,
    the 1+1 numbers and the score. All end at the month chosen at the top: the month itself, the
    quarter it is in, the 6 or 12 months up to it, or the year so far up to it. */
-var SPANS=[["m","Month"],["q","Quarter"],["6","6 months"],["12","12 months"],["y","This year"]];
+// Years: whole calendar years, each against the one before (the year running marked * until December).
+var SPANS=[["m","Month"],["q","Quarter"],["6","6 months"],["12","12 months"],["y","This year"],["Y","Years"]];
 function qStart(p){ var m=+p.slice(5,7); return C.prevP(p,(m-1)%3); }
 function block(endP,sp){
   var ms=[], i, lab;
   if(sp==="m"){ ms=[endP]; lab=C.label(endP,true); }
   else if(sp==="y"){ var y0=endP.slice(0,4)+"-01"; for(var q2=y0;q2<=endP;q2=C.prevP(q2,-1)) ms.push(q2); lab=(ms.length===12?"":C.label(y0,true)+"–"+C.label(endP,true)+" ")+endP.slice(0,4); }
+  else if(sp==="Y"){ var yr=endP.slice(0,4), np2=now(); for(i=1;i<=12;i++){ var qy=yr+"-"+(i<10?"0":"")+i; if(qy<=np2) ms.push(qy); } lab=yr; }
   else if(sp==="q"){ var st=qStart(endP); for(i=0;i<3;i++){ var q=C.prevP(st,-i); if(q<=endP) ms.push(q); } lab="Q"+(Math.floor((+st.slice(5,7)-1)/3)+1)+" "+st.slice(2,4); }
   else { var n=+sp; for(i=n-1;i>=0;i--) ms.push(C.prevP(endP,i)); lab=C.label(ms[0],true)+"–"+C.label(endP,true)+" "+endP.slice(2,4); }
   // Not complete: a quarter cut short, the month running, or months before the coach sheets begin.
-  var first=Object.keys(D.live.periods).sort()[0], full=(sp==="q"?ms.length===3:true)&&ms[0]>=first;
+  var first=Object.keys(D.live.periods).sort()[0], full=(sp==="q"?ms.length===3:sp==="Y"?ms.length===12:true)&&ms[0]>=first;
   return {ms:ms,lab:lab,part:!full||ms.indexOf(now())>=0,end:endP};
 }
 // The block before: the month, quarter or stretch before - and for This year, the same months a year earlier.
-function prevEnd(b,sp){ return sp==="m"?C.prevP(b.end,1):sp==="q"?C.prevP(qStart(b.end),1):sp==="y"?C.prevP(b.end,12):C.prevP(b.end,+sp); }
+function prevEnd(b,sp){ if(sp==="Y") return (+b.end.slice(0,4)-1)+"-12"; return sp==="m"?C.prevP(b.end,1):sp==="q"?C.prevP(qStart(b.end),1):sp==="y"?C.prevP(b.end,12):C.prevP(b.end,+sp); }
 // n blocks, oldest first, ending with the block holding the chosen month.
 function blocks(n,sp){ sp=sp||span; var out=[block(month,sp)]; while(out.length<n) out.unshift(block(prevEnd(out[0],sp),sp)); return out; }
 // The block reviewed: the chosen month's block when complete, otherwise the one before it.
-function reviewed(sp){ sp=sp||span; var b=block(month,sp); return b.part&&sp!=="y"?block(prevEnd(b,sp),sp):b; }
+// The block shown: the chosen month's block, the month running included ("Nov so far").
+function reviewed(sp){ sp=sp||span; return block(month,sp); }
+// The last complete block: what the score (and the bonus) and the trends are worked out on.
+function completed(sp){ sp=sp||span; var b=block(month,sp); return b.part&&sp!=="y"?block(prevEnd(b,sp),sp):b; }
+// Better or worse than the block before. A block still running is not held against a whole one:
+// sessions and revenue are compared with the month before up to the same day; projection reached
+// and other counts wait until it ends; rates are compared as they stand.
+function moveB(c,k,b,pb,sp){
+  var v=agg(c,b.ms,k);
+  if(!b.part||(PCT[k]&&k!=="proj")) return move(k,v,agg(c,pb.ms,k));
+  if((sp||span)==="m"&&(k==="rev"||k==="ses")&&b.ms[0]===now()) return move(k,sameDay(c,b.ms[0],k),sameDay(c,pb.ms[0],k));
+  return null;
+}
 function vB(c,b,k){ return c?agg(c,b.ms,k):teamB(b,k); }
 function medianB(b,k){ return C.median(teamOf(b.ms).map(function(c){ return agg(c,b.ms,k); })); }
 function teamB(b,k){
@@ -381,14 +395,14 @@ function teamB(b,k){
 }
 // Where a KPI stands at the reviewed block: its last move and how many blocks in a row it has gone that way.
 function state(c,k,sp){
-  sp=sp||span; var r=reviewed(sp), s=[r]; while(s.length<(sp==="y"?3:13)) s.unshift(block(prevEnd(s[0],sp),sp));
+  sp=sp||span; var r=completed(sp), s=[r]; while(s.length<(sp==="y"||sp==="Y"?3:13)) s.unshift(block(prevEnd(s[0],sp),sp));
   var mv=[]; for(var j=1;j<s.length;j++) mv.push(move(k,vB(c,s[j],k),vB(c,s[j-1],k)));
   var last=mv[mv.length-1]; if(last==null) return {last:null,run:0};
   var run=0; for(var i=mv.length-1;i>=0&&mv[i]===last;i--) run++;
   return {last:last,run:run};
 }
-var UNIT={m:"month",q:"quarter","6":"6 months","12":"12 months",y:"year"};
-var NCOL={m:6,q:4,"6":3,"12":2,y:2}, NCHART={m:12,q:6,"6":4,"12":3,y:3};
+var UNIT={m:"month",q:"quarter","6":"6 months","12":"12 months",y:"year",Y:"year"};
+var NCOL={m:6,q:4,"6":3,"12":2,y:2,Y:3}, NCHART={m:12,q:6,"6":4,"12":3,y:3,Y:3};
 var tspan="m";
 function trendTxt(st){ if(st.last==null) return '<span class="dim">—</span>'; return st.last===1?'<span class="up">▲ '+st.run+" up</span>":st.last===-1?'<span class="down">▼ '+st.run+" down</span>":'<span class="dim">● same</span>'; }
 
@@ -421,7 +435,7 @@ function render(){
   var team=sel==="";
   $("one").style.display=team?"none":""; $("btnNames").style.display=team?"":"none"; $("scoreCard").style.display=team?"":"none";
   $("h1").textContent=PAGE==="dir"?"Fitness":team?"The team":sel;
-  $("legBefore").textContent="better than the "+(span==="m"?"month":span==="q"?"quarter":span==="y"?"same months last year":"stretch")+" before";
+  $("legBefore").textContent=span==="y"?"better than the same months last year":"better than the "+(span==="m"?"month":span==="q"?"quarter":span==="Y"?"year":"stretch")+" before";
   if(PAGE==="dir") renderDir(); else if(team) renderTeam(); else renderOne();
   chart();
 }
@@ -430,17 +444,19 @@ function renderOne(){
   var c=sel, ks=KEYS(), n=NCOL[span], bs=blocks(n), r=reviewed();
   if(bs[bs.length-1].part&&span!=="m"&&span!=="y") bs=blocks(n+1);
   // The summary tiles: their own window (the picker above them), whatever the table below shows.
-  var tr=reviewed(tspan), tsts={}, up=0, dn=0, same=0, worst=null;
+  // Revenue follows the chosen block (so far, in the month running); better/worse, the trend and
+  // the score are worked out on the last complete block.
+  var tr=reviewed(tspan), cr=completed(tspan), tsts={}, up=0, dn=0, same=0, worst=null;
   ks.forEach(function(k){ var st=tsts[k]=state(c,k,tspan); if(st.last===1) up++; else if(st.last===-1){ dn++; if(worst==null||st.run>tsts[worst].run) worst=k; } else if(st.last===0) same++; });
   var sts={}; ks.forEach(function(k){ sts[k]=state(c,k); });
   var rows=scoreRows(tspan), at=-1; rows.forEach(function(x,i){ if(x.c===c) at=i; });
   var rev=parts(c,tr.ms,"rev"), unitT=UNIT[tspan];
   $("sumK").textContent="Summary · "+tr.lab+(tr.part?" so far":"");
-  $("tiles").innerHTML=tile("Better in "+tr.lab,up+"<small>of "+ks.length+"</small>","than the "+(tspan==="y"?"same months last year":unitT+" before"),1)+
+  $("tiles").innerHTML=tile("Better in "+cr.lab,up+"<small>of "+ks.length+"</small>","than the "+(tspan==="y"?"same months last year":unitT+" before"),1)+
     tile("Worse",dn+"<small>of "+ks.length+"</small>",same?same+" the same":"")+
     tile("Look at first",worst!=null?esc(DEFK[worst].name):"Nothing slipped",worst!=null?"down "+tsts[worst].run+" "+unitT+(tsts[worst].run>1&&(tspan==="m"||tspan==="q"||tspan==="y")?"s":"")+" in a row":"",0,1)+
-    tile("Revenue, "+tr.lab,rev?C.aed(rev.n):"—",agg(c,tr.ms,"proj")!=null?Math.round(agg(c,tr.ms,"proj"))+"% of projection":"")+
-    tile("Score, "+tr.lab,at<0?"—":Math.round(rows[at].s)+"<small>"+ordinal(at+1)+" of "+rows.length+"</small>",at<0?"":(rows[at].up>rows[at].dn?"beat their "+(tspan==="y"?"same months last year":unitT+" before"):"did not beat their "+(tspan==="y"?"same months last year":unitT+" before")));
+    tile("Revenue, "+tr.lab+(tr.part?" so far":""),rev?C.aed(rev.n):"—",agg(c,tr.ms,"proj")!=null?Math.round(agg(c,tr.ms,"proj"))+"% of projection":"")+
+    tile("Score, "+cr.lab,at<0?"—":Math.round(rows[at].s)+"<small>"+ordinal(at+1)+" of "+rows.length+"</small>",at<0?"":(rows[at].up>rows[at].dn?"beat their "+(tspan==="y"?"same months last year":unitT+" before"):"did not beat their "+(tspan==="y"?"same months last year":unitT+" before")));
   $("kK").textContent="1+1 numbers · "+c;
   $("kT").textContent=(list==="bal"?"Balanced list":"The KPI sheet's rows")+", "+bs[0].lab+" to "+bs[bs.length-1].lab+(span==="m"?"":" · totals over the stretch");
   $("kU").textContent="team median = the coach in the middle when all are lined up";
@@ -451,7 +467,7 @@ function renderOne(){
     var cells=bs.map(function(b){
       var v=agg(c,b.ms,k), cls="m"+(b.lab===r.lab?" sel":"");
       if(b.part) cls+=" p";
-      else { var mv=move(k,v,agg(c,block(prevEnd(b,span),span).ms,k)); if(mv===1) cls+=" g"; else if(mv===-1) cls+=" r"; else if(mv===0) cls+=" s"; }
+      var mv=moveB(c,k,b,block(prevEnd(b,span),span)); if(mv===1) cls+=" g"; else if(mv===-1) cls+=" r"; else if(mv===0) cls+=" s";
       var t=tipOf(c,b,k);
       return '<td class="'+cls+'"'+(t?' title="'+esc(t)+'"':"")+">"+show(k,v)+"</td>";
     }).join("");
@@ -467,10 +483,10 @@ function renderOne(){
 function renderTeam(){
   var cs=coaches(), r=reviewed(), pb=block(prevEnd(r,span),span), ks=KEYS(), tr=reviewed(tspan);
   var ncS=0, ncA=0; cs.forEach(function(c){ tr.ms.forEach(function(p){ var o=val(c,p); if(o.nc!=null){ ncS+=o.nc; ncA+=o.ncAED||0; } }); });
-  var tot=function(k){ var t=0, any=false; cs.forEach(function(c){ var q=parts(c,tr.ms,k); if(q){ t+=q.n; any=true; } }); return any?t:null; };
+  var tot=function(k){ var t=0, any=false; teamOf(tr.ms).forEach(function(c){ var q=parts(c,tr.ms,k); if(q){ t+=q.n; any=true; } }); return any?t:null; };
   var endM=tr.ms[tr.ms.length-1];
   $("sumK").textContent="Summary · "+tr.lab+(tr.part?" so far":"");
-  $("tiles").innerHTML=tile("Revenue, "+tr.lab,tot("rev")!=null?C.aed(tot("rev")):"—","",1)+
+  $("tiles").innerHTML=tile("Revenue, "+tr.lab+(tr.part?" so far":""),tot("rev")!=null?C.aed(tot("rev")):"—","",1)+
     tile("Sessions",tot("ses")!=null?C.full(tot("ses")):"—","")+tile("Active clients",teamB({ms:[endM]},"act")!=null?teamB({ms:[endM]},"act"):"—","at "+C.label(endM,true)+"'s end")+
     tile("New clients",tot("nw")!=null?tot("nw"):"—","")+
     tile("Cancelled, not charged",C.full(ncS),"sessions the clients keep for later");
@@ -483,7 +499,7 @@ function renderTeam(){
   var body=ks.map(function(k){
     return '<tr data-k="'+k+'"'+(k===kSel?' class="on"':"")+">"+nameCell(k).replace('<span class="bw">','<span class="bw">'+(SUM[k]?"team total · ":"team median · "))+'<td class="sep">'+show(k,teamB(r,k))+"</td>"+
       cs.map(function(c){
-        var v=agg(c,r.ms,k), cls="m", mv=move(k,v,agg(c,pb.ms,k)); if(mv===1) cls+=" g"; else if(mv===-1) cls+=" r"; else if(mv===0) cls+=" s";
+        var v=agg(c,r.ms,k), cls="m", mv=moveB(c,k,r,pb); if(mv===1) cls+=" g"; else if(mv===-1) cls+=" r"; else if(mv===0) cls+=" s";
         var t=tipOf(c,r,k);
         return '<td class="'+cls+'"'+(t?' title="'+esc(t)+'"':"")+">"+show(k,v)+"</td>";
       }).join("")+"</tr>";
@@ -498,7 +514,7 @@ function renderTeam(){
    attention right now, coach by coach, from today's figures whatever month is chosen. And every
    coach on one row against their own block before, on the balanced list, with the score. */
 function chips(o,fmt){
-  var ks=Object.keys(o).filter(function(c){ return o[c]&&(typeof o[c]==="number"?o[c]>0:true); }).sort(function(a,b){ return (o[b].v!=null?o[b].v:o[b])-(o[a].v!=null?o[a].v:o[a]); });
+  var ks=Object.keys(o).filter(function(c){ return o[c]&&(typeof o[c]==="number"?o[c]>0:true); }).sort(C.ivan(function(a,b){ return (o[b].v!=null?o[b].v:o[b])-(o[a].v!=null?o[a].v:o[a]); }));
   return ks.map(function(c){ var v=o[c]; return '<span class="chip">'+esc(c)+"<b>"+(fmt?fmt(v):v)+"</b></span>"; }).join("");
 }
 function renderDir(){
@@ -556,8 +572,8 @@ function renderDaily(){
       '<td class="tot">'+C.full(Math.round(tot*2)/2)+(ahead?' <span class="dim">+'+C.full(ahead)+"</span>":"")+'</td><td class="tot">'+(worked?(tot/worked).toFixed(1):"—")+"</td></tr>"; };
   var head='<thead><tr><th class="l">Coach</th>';
   for(var d=1;d<=days;d++) head+='<th class="'+(wd(d)===1?"we":"")+'">'+d+"<small>"+WDL[wd(d)]+"</small></th>";
-  head+='<th class="tot">Total</th><th class="tot">A day<small>days worked</small></th></tr></thead>';
-  $("dTbl").innerHTML=head+"<tbody>"+row("Team",team,true)+cs.sort(function(a,b){ return grid[b].reduce(function(t,v){ return t+v; },0)-grid[a].reduce(function(t,v){ return t+v; },0); }).map(function(c){ return row(esc(c),grid[c]); }).join("")+"</tbody>";
+  head+='<th class="tot">Total</th><th class="tot" title="Sessions ÷ the days with at least one session">Per day<small>on days worked</small></th></tr></thead>';
+  $("dTbl").innerHTML=head+"<tbody>"+row("Team",team,true)+cs.sort(C.ivan(function(a,b){ return grid[b].reduce(function(t,v){ return t+v; },0)-grid[a].reduce(function(t,v){ return t+v; },0); })).map(function(c){ return row(esc(c),grid[c]); }).join("")+"</tbody>";
 }
 /* Busiest days: for each weekday, the sessions on the coach sheets on all those days in the
    window, divided by how many of those days there were - an average day, so a window with five
@@ -586,7 +602,7 @@ function renderBusy(){
       '<td class="sep l">'+WD[top]+'</td><td class="l dim">'+WD[low]+"</td></tr>";
   };
   $("bTbl").innerHTML='<thead><tr><th class="l">Coach</th>'+WD.map(function(w,i){ return "<th>"+w+'<br><span class="dim" style="font-size:10px">'+cnt[i]+" days</span></th>"; }).join("")+'<th class="sep l">Busiest</th><th class="l">Quietest</th></tr></thead><tbody>'+
-    row("Team",team,true)+cs.slice().sort(function(a,c){ var sa=by[a].reduce(function(t,v){ return t+v; },0), sc=by[c].reduce(function(t,v){ return t+v; },0); return sc-sa; }).map(function(c){ return row(esc(c),by[c]); }).join("")+"</tbody>";
+    row("Team",team,true)+cs.slice().sort(C.ivan(function(a,c){ var sa=by[a].reduce(function(t,v){ return t+v; },0), sc=by[c].reduce(function(t,v){ return t+v; },0); return sc-sa; })).map(function(c){ return row(esc(c),by[c]); }).join("")+"</tbody>";
   $("bNote").textContent="Sessions on that weekday ÷ how many of that weekday there were. Cancellations left out.";
 }
 function renderAttention(cs,np){
@@ -632,7 +648,7 @@ function renderGlance(cs){
   var rows=scoreRows(span,r), byC={}; rows.forEach(function(x,i){ byC[x.c]={s:x.s,i:i+1,up:x.up,dn:x.dn,n:x.n}; });
   $("gT").textContent=r.lab+(r.part?" so far":"")+": each coach against their own "+(span==="y"?"same months last year":UNIT[span]+" before")+" ("+pb.lab+")"+(span==="m"?"":" · totals over the stretch");
   $("gLeg").textContent="better than "+pb.lab;
-  var order=cs.slice().sort(function(a,b){ var x=byC[a], y=byC[b]; return (x?x.i:99)-(y?y.i:99)||a.localeCompare(b); });
+  var order=cs.slice().sort(C.ivan(function(a,b){ var x=byC[a], y=byC[b]; return (x?x.i:99)-(y?y.i:99)||a.localeCompare(b); }));
   var head='<thead><tr><th class="l">Coach</th><th class="l">Score</th><th class="l">Going well</th>'+ks.map(function(k){ return '<th data-k="'+k+'"'+(k===kSel?' class="on"':"")+' title="'+esc(DEFK[k].name)+" · "+(DEFK[k].better==="Lower"?"lower":"higher")+' is better">'+(SHORT[k]||esc(DEFK[k].name))+"</th>"; }).join("")+"</tr></thead>";
   // Team: counts added up, rates over the whole team (all numerators over all denominators),
   // the same way the Summary works them out - so the two never disagree.
@@ -646,8 +662,7 @@ function renderGlance(cs){
         // A month still running: sessions and revenue against the month before up to the same day;
         // other counts wait until it ends. Rates are compared as they stand.
         // (Projection reached grows through the month, so it waits too.)
-        if(!r.part||(PCT[k]&&k!=="proj")) mv=move(k,v,agg(c,pb.ms,k));
-        else if(span==="m"&&(k==="rev"||k==="ses")) mv=move(k,sameDay(c,r.ms[0],k),sameDay(c,pb.ms[0],k));
+        mv=moveB(c,k,r,pb);
         if(mv===1) cls+=" g"; else if(mv===-1) cls+=" r"; else if(mv===0) cls+=" s"; var t=tipOf(c,r,k);
         return '<td class="'+cls+'"'+(t?' title="'+esc(t)+'"':"")+">"+show(k,v)+"</td>"; }).join("")+"</tr>";
   }).join("");
@@ -667,10 +682,10 @@ var SHORT={rev:"Revenue",proj:"Projection<br>reached",p3:"Clients<br>3+ a week",
    point: when nothing stands out, the KPI where the coach stands highest on the team. */
 function txtOf(k,v){ v=rnd(k,v); if(v==null) return "—"; return DEC[k]?v.toFixed(1):PCT[k]?v+"%":AED[k]?"AED "+C.full(v):C.full(v); }
 function talking(c,sp,rIn){
-  var r=rIn||reviewed(sp), pb=block(prevEnd(r,sp),sp), team=teamOf(r.ms), good=[], bad=[], standing=[];
+  var r=rIn||completed(sp), pb=block(prevEnd(r,sp),sp), team=teamOf(r.ms), good=[], bad=[], standing=[];
   KEYS().forEach(function(k){
     var v=agg(c,r.ms,k); if(v==null) return;
-    var was=agg(c,pb.ms,k), mv=move(k,v,was), st=state(c,k,sp), lower=better(k)==="Lower";
+    var was=agg(c,pb.ms,k), mv=moveB(c,k,r,pb,sp), st=state(c,k,sp), lower=better(k)==="Lower";
     // Standing on the team uses the fair value for rates built on a few cases.
     var fv=fairOf(r.ms,k), rv=FAIR[k]?fv(c):rnd(k,v);
     var vals=team.map(function(x){ return FAIR[k]?fv(x):rnd(k,agg(x,r.ms,k)); }).filter(function(x){ return x!=null; }), n=vals.length;
@@ -744,28 +759,29 @@ function scores(ms){
 }
 // The score over a window: the reviewed block (the last complete one) against the one before it.
 function scoreRows(sp,rbIn){
-  var rb=rbIn||reviewed(sp), pb=block(prevEnd(rb,sp),sp), A=scores(rb.ms), B=scores(pb.ms), cs=coaches(), ks=KEYS(), pk=pick();
+  var rb=rbIn||completed(sp), pb=block(prevEnd(rb,sp),sp), A=scores(rb.ms), B=scores(pb.ms), cs=coaches(), ks=KEYS(), pk=pick();
   return cs.map(function(c){
     var a=A[c], b=B[c], up=0, dn=0;
     ks.forEach(function(k,i){ if(!pk[i]) return; var m=move(k,a.v[k],b.v[k]); if(m===1) up++; else if(m===-1) dn++; });
-    return {c:c,s:a.score,ps:b.score,up:up,dn:dn,n:a.pts.length,pts:a.pts,areas:a.areas,v:a.v};
+    return {c:c,s:a.score,ps:b.score,up:up,dn:dn,n:a.pts.length,pts:a.pts,areas:a.areas,v:a.v,f:a.f||{}};
   }).filter(function(r){ return r.s!=null; }).sort(function(x,y){ return y.s-x.s; });
 }
 function renderScore(){
-  var rb=reviewed(win), pb=block(prevEnd(rb,win),win), cs=coaches(), ks=KEYS(), pk=pick();
+  var rb=completed(win), pb=block(prevEnd(rb,win),win), cs=coaches(), ks=KEYS(), pk=pick();
   $("sT").textContent="Who leads on the "+(list==="bal"?"balanced list":"full list")+", "+rb.lab+(rb.part?" so far":"")+" · against "+pb.lab;
-  var rows=scoreRows(win), A={}; rows.forEach(function(r){ A[r.c]={v:r.v}; });
+  var rows=scoreRows(win), A={}; rows.forEach(function(r){ A[r.c]={v:r.v,f:r.f||{}}; });
   return renderScoreRows(rows,A,ks,pk);
 }
 function renderScoreRows(rows,A,ks,pk){
-  // (rows come sorted from scoreRows)
-  var nPick=pk.filter(Boolean).length;
+  // (rows come sorted from scoreRows: that order is the rank; Ivan is shown last with his rank)
+  var nPick=pk.filter(Boolean).length, rk={}; rows.forEach(function(r,i){ rk[r.c]=i+1; });
+  rows=rows.slice().sort(C.ivan(function(a,b){ return rk[a.c]-rk[b.c]; },function(x){ return x.c; }));
   $("sTbl").innerHTML=!rows.length?'<tbody><tr><td class="l dim">No figures for this stretch yet.</td></tr></tbody>':
     '<thead><tr><th class="l">#</th><th class="l">Coach</th><th class="l">Score</th><th>Score<br>before</th><th>KPIs better<br>than before</th><th>Worse</th><th class="l">Beat their own<br>results before</th><th>KPIs<br>scored</th></tr></thead><tbody>'+
     rows.map(function(r,i){
-      var tip=r.pts.map(function(x){ return (list==="bal"?AREA[x.k]+" · ":"")+DEFK[x.k].name+": "+show(x.k,A[r.c].v[x.k]).replace(/<[^>]+>/g,"")+(A[r.c].f[x.k]!=null?" (ranked as "+Math.round(A[r.c].f[x.k])+"%)":"")+" · "+Math.round(x.p)+" points"; }).join("\n");
+      var tip=r.pts.map(function(x){ return (list==="bal"?AREA[x.k]+" · ":"")+DEFK[x.k].name+": "+show(x.k,A[r.c].v[x.k]).replace(/<[^>]+>/g,"")+(A[r.c].f&&A[r.c].f[x.k]!=null?" (ranked as "+Math.round(A[r.c].f[x.k])+"%)":"")+" · "+Math.round(x.p)+" points"; }).join("\n");
       var beat=r.up+r.dn===0?'<span class="no">—</span>':r.up>r.dn?'<span class="ok">✓ '+r.up+" better, "+r.dn+" worse</span>":'<span class="no">✗ '+r.up+" better, "+r.dn+" worse</span>";
-      return '<tr><td class="l dim">'+(i+1)+'</td><td class="l">'+label(r.c)+'</td><td class="l" title="'+esc(tip)+'"><span class="sbar" style="width:'+Math.round(r.s*1.2)+'px"></span>'+Math.round(r.s)+"</td>"+
+      return '<tr><td class="l dim">'+rk[r.c]+'</td><td class="l">'+label(r.c)+'</td><td class="l" title="'+esc(tip)+'"><span class="sbar" style="width:'+Math.round(r.s*1.2)+'px"></span>'+Math.round(r.s)+"</td>"+
         '<td class="dim">'+(r.ps!=null?Math.round(r.ps):"—")+'</td><td class="up">'+r.up+'</td><td class="down">'+r.dn+'</td><td class="l">'+beat+'</td><td class="dim">'+r.n+" of "+nPick+(list==="bal"&&r.areas?" · "+r.areas+" areas":"")+"</td></tr>";
     }).join("")+"</tbody>";
   $("sPick").innerHTML=ks.map(function(k,i){ return '<label><input type="checkbox" data-i="'+i+'"'+(pk[i]?" checked":"")+">"+(list==="bal"?esc(AREA[k])+" · ":"")+esc(DEFK[k].name)+"</label>"; }).join("");
@@ -796,8 +812,10 @@ function bindRows(){
 /* The chosen KPI block by block, with the team median as a line. */
 function chart(){
   var k=kSel, d=DEFK[k], c=sel||null, host=$("chKpi"), n=NCHART[span];
-  var s=blocks(n).map(function(b){ return {b:b,v:vB(c,b,k)}; }), mid=c?s.map(function(x){ return medianB(x.b,k); }):null, r=reviewed();
-  $("cK").textContent=(c?c:"The team")+" · "+(span==="m"?"twelve months":span==="y"?"this year against the years before":n+" "+(span==="q"?"quarters":"stretches of "+span+" months"));
+  // This year: every month of the year so far. Years: whole years side by side.
+  var bl=span==="y"?block(month,"y").ms.map(function(p){ return block(p,"m"); }):blocks(n);
+  var s=bl.map(function(b){ return {b:b,v:vB(c,b,k)}; }), mid=c?s.map(function(x){ return medianB(x.b,k); }):null, r=span==="y"?block(month,"m"):reviewed();
+  $("cK").textContent=(c?c:"The team")+" · "+(span==="m"?"twelve months":span==="y"?"this year, month by month":span==="Y"?"year against year":n+" "+(span==="q"?"quarters":"stretches of "+span+" months"));
   $("cT").textContent=d.name+(c?"":SUM[k]?", team total":", team median")+(span!=="m"&&k==="prog"?", a monthly average":"");
   $("cU").textContent=(d.better==="Lower"?"lower is better":"higher is better")+(c?" · line = team median":"")+(s.some(function(x){ return x.b.part; })?" · * not complete":"");
   var vals=s.map(function(x){ return x.v; }).concat(mid||[]).filter(function(v){ return v!=null&&isFinite(v); });
@@ -884,7 +902,7 @@ function save(){ try{ localStorage.setItem(UI_KEY,JSON.stringify({sel:sel,win:wi
 C.unlock(function(d){
   D=d;
   if(!D.ov||!D.ov.kpiM) document.querySelector(".wrap").insertAdjacentHTML("afterbegin",'<div class="card section"><div class="empty">The client figures (active clients, still with us, renewals, new clients, beyond what\'s paid) arrive with the next refresh. Press Refresh now on the Performance page.</div></div>');
-  try{ var u=JSON.parse(localStorage.getItem(UI_KEY)||"{}"); sel=u.sel||""; win=/^(m|q|6|12|y)$/.test(u.win)?u.win:"q"; tspan=/^(m|q|6|12|y)$/.test(u.tspan)?u.tspan:"m"; bspan=/^(m|q|6|12|y)$/.test(u.bspan)?u.bspan:"q"; list=u.list==="bal"?"bal":"full"; span=u.span||"m"; kSel=u.k||"ses"; pickBy=u.pick||{}; }catch(e){}
+  try{ var u=JSON.parse(localStorage.getItem(UI_KEY)||"{}"); sel=u.sel||""; win=/^(m|q|6|12|y|Y)$/.test(u.win)?u.win:"q"; tspan=/^(m|q|6|12|y|Y)$/.test(u.tspan)?u.tspan:"m"; bspan=/^(m|q|6|12|y|Y)$/.test(u.bspan)?u.bspan:"q"; list=u.list==="bal"?"bal":"full"; span=u.span||"m"; kSel=u.k||"ses"; pickBy=u.pick||{}; }catch(e){}
   if(PAGE==="dir"){ sel=""; list="bal"; showNames=true; if(!u||!u.k) kSel="rev"; }
   fillCoaches(); fillMonths();
   C.scopeSwitch($("segScope"),function(){ fillCoaches(); render(); });

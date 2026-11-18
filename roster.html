@@ -13,7 +13,15 @@
 <link rel="stylesheet" href="./common.css">
 <style>
 .names{columns:3 220px;column-gap:28px;margin:0;padding:0;list-style:none;}
-.names li{break-inside:avoid;padding:7px 0;border-bottom:1px solid var(--line-soft);font-size:14px;}
+.names li{break-inside:avoid;padding:7px 0;border-bottom:1px solid var(--line-soft);font-size:14px;display:flex;align-items:center;gap:9px;}
+.names li i{width:9px;height:9px;border-radius:50%;flex:none;}
+.st-a{color:#7fd39a;} .st-a i{background:#5eb87a;}
+.st-s{color:#d6d36a;} .st-s i{background:#c9c24a;}
+.st-r{color:#f0b54a;} .st-r i{background:#e8a33a;}
+.st-n{color:var(--ink-soft);} .st-n i{background:var(--ink-faint);}
+.st-e{color:#e77b7b;} .st-e i{background:#d65a5a;}
+.key{display:flex;flex-wrap:wrap;gap:16px;font-size:12px;margin-bottom:14px;}
+.key span{display:flex;align-items:center;gap:7px;} .key i{width:9px;height:9px;border-radius:50%;}
 .count{font-size:13px;color:var(--ink-soft);}
 </style>
 </head>
@@ -45,7 +53,7 @@
   </div>
   <div class="card section">
     <div class="card-h"><div><div class="k">Client list</div><div class="t" id="lT"></div></div><span class="count" id="lN"></span></div>
-    <div class="card-b"><ul class="names" id="names"></ul></div>
+    <div class="card-b"><div class="key" id="key"></div><ul class="names" id="names"></ul></div>
   </div>
 </div>
 
@@ -62,11 +70,16 @@ function load(pass){
   return C.loadEnc("roster.enc.json").then(function(e){ return C.decrypt(e,pass); }).then(function(d){ role="hc"; return d; })
     .catch(function(){ return C.load(pass).then(function(d){ if(!d.ov||!d.ov.roster) throw new Error("The client lists come with the next refresh."); role="dir"; return {roster:d.ov.roster,generated:d.ov.generated}; }); });
 }
+// Green = active, yellow-green = active but the package ends within 30 days, amber = renewal due
+// (package over, not renewed yet), grey = bought but not started, red = ended. Listed in that order.
+var ST=[["a","Active"],["s","Ending within 30 days"],["r","Renewal due"],["n","Not started"],["e","Ended"]], RANK={a:0,s:1,r:2,n:3,e:4};
 function render(){
-  var list=(R.roster[coach]||[]).filter(function(x){ return show==="all"||x[1]!=="e"; });
-  $("lT").textContent=coach+" · "+(show==="all"?"every client":"not ended: active, renewal due or not started");
+  var list=(R.roster[coach]||[]).filter(function(x){ return show==="all"||x[1]!=="e"; }).slice().sort(function(a,b){ return (RANK[a[1]]-RANK[b[1]])||String(a[0]).localeCompare(String(b[0])); });
+  var cnt={}; list.forEach(function(x){ cnt[x[1]]=(cnt[x[1]]||0)+1; });
+  $("key").innerHTML=ST.filter(function(s){ return cnt[s[0]]; }).map(function(s){ return '<span class="st-'+s[0]+'"><i></i>'+s[1]+" · "+cnt[s[0]]+"</span>"; }).join("");
+  $("lT").textContent=coach+" · "+(show==="all"?"every client":"not ended");
   $("lN").textContent=list.length+" client"+(list.length===1?"":"s");
-  $("names").innerHTML=list.length?list.map(function(x){ return "<li>"+esc(x[0])+"</li>"; }).join(""):'<li class="dim">No clients.</li>';
+  $("names").innerHTML=list.length?list.map(function(x){ return '<li class="st-'+x[1]+'"><i></i>'+esc(x[0])+"</li>"; }).join(""):'<li class="dim">No clients.</li>';
   Array.prototype.forEach.call($("segShow").querySelectorAll("button"),function(b){ b.classList.toggle("on",b.getAttribute("data-v")===show); });
   try{ localStorage.setItem("iamroster:ui",JSON.stringify({coach:coach,show:show})); }catch(e){}
 }
@@ -75,7 +88,7 @@ C.unlock(function(d){
   $("nav").innerHTML=NAV.filter(function(n){ return role==="dir"||n[0]==="roster.html"; }).map(function(n){ return "<a"+(n[0]==="roster.html"?' class="on"':"")+' href="./'+n[0]+'">'+n[1]+"</a>"; }).join("");
   $("stamp").textContent=d.generated?"Read "+new Date(d.generated).toLocaleString():"";
   // The Fitness Director's own clients are not on the head coach's list.
-  var cs=Object.keys(R.roster).filter(function(c){ return c!=="(no coach)"&&c!==C.DIRECTOR&&R.roster[c].some(function(x){ return x[1]!=="e"; }); }).sort();
+  var cs=Object.keys(R.roster).filter(function(c){ return c!=="(no coach)"&&c!==C.DIRECTOR&&R.roster[c].some(function(x){ return x[1]!=="e"; }); }).sort(C.ivan());
   if(R.roster["(no coach)"]) cs.push("(no coach)");
   try{ var u=JSON.parse(localStorage.getItem("iamroster:ui")||"{}"); coach=u.coach||""; show=u.show==="all"?"all":"open"; }catch(e){}
   if(cs.indexOf(coach)<0) coach=cs[0]||"";

@@ -694,7 +694,7 @@ function chartSales(){
 /* ---------- up for renewal, per coach ---------- */
 function chartUp(){
   var host=$("chUp"), rows=Object.keys(M.up.coach).map(function(c){ var o=M.up.coach[c]; return {c:c,n:o.n,aed:o.aed,due:o.due}; })
-    .sort(function(a,b){ return b.aed-a.aed; });
+    .sort(function(a,b){ return (a.c==="Ivan")-(b.c==="Ivan")||b.aed-a.aed; });
   if(!rows.length){ host.innerHTML='<div class="empty">Nothing is up for renewal.</div>'; return; }
   var W=width(host),rh=30,T=4,H=T+rows.length*rh+4,L=96,R=150, mx=Math.max.apply(null,rows.map(function(r){ return r.aed; }))||1;
   var sx=function(v){ return (W-L-R)*v/mx; };
@@ -1041,6 +1041,8 @@ function controls(){
 /* ---------- page ---------- */
 function paint(){
   M=view(M0);
+  // Ivan is always listed last wherever coaches are listed.
+  if(M.coaches) M.coaches=M.coaches.slice().sort(function(a,b){ return (a.c==="Ivan")-(b.c==="Ivan"); });
   Array.prototype.forEach.call($("segScope").querySelectorAll("button"),function(b){ b.classList.toggle("on",b.getAttribute("data-v")===scope); });
   var gen=M.generated?new Date(M.generated):null;
   $("stamp").innerHTML=(gen?"Read "+gen.toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"}):"")+"<br>"+M.kpi.total+" clients on file · AED without VAT";

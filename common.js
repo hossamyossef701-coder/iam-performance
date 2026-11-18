@@ -71,6 +71,14 @@ C.unlock = function (onOpen, opt) {
   var saved = null; try { saved = localStorage.getItem(KEY) || (KEY !== PASS_KEY ? localStorage.getItem(PASS_KEY) : null); } catch (e) {}
   if (saved) attempt(saved, true, true); else input.focus();
 };
+// Ivan is always listed last wherever coaches are listed, whatever the sort.
+// C.ivan(cmp, get): a sort function that puts Ivan last, then sorts the rest by cmp (or by name);
+// get(x) gives the coach's name of an item (default: the item itself).
+C.LAST = "Ivan";
+C.ivan = function (cmp, get) {
+  get = get || function (x) { return x; };
+  return function (a, b) { var d = (get(a) === C.LAST) - (get(b) === C.LAST); return d || (cmp ? cmp(a, b) : String(get(a)).localeCompare(String(get(b)))); };
+};
 // With or without the Fitness Director's own figures: one switch shared by every page.
 C.DIRECTOR = "Hossam";
 C.scope = function () { try { return localStorage.getItem("iam:scope") === "team" ? "team" : "all"; } catch (e) { return "all"; } };

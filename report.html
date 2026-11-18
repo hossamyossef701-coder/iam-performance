@@ -370,6 +370,8 @@ var PAGE=/finance\.html$/i.test(location.pathname)?"fin":/overview\.html$/i.test
 var PAGE_NAME={full:"Team Performance",fin:"Finance",ceo:"Overview"}[PAGE];
 // Finance and Overview remember their passphrase under their own key, so typing the Finance one
 // on a device never replaces the Performance one the other pages use.
+// Ivan is always listed last wherever coaches are listed, whatever the sort.
+function ivan(cmp,get){ get=get||function(x){ return x; }; return function(a,b){ var d=(get(a)==="Ivan")-(get(b)==="Ivan"); return d||(cmp?cmp(a,b):String(get(a)).localeCompare(String(get(b)))); }; }
 var PASS_KEY="iamlive:pass"+(PAGE==="full"?"":":"+PAGE), CFG_KEY="iamlive:cfg", UI_KEY="iamreport:ui"+(PAGE==="full"?"":":"+PAGE);
 (function(){
   document.body.classList.add("v-"+PAGE);
@@ -588,13 +590,13 @@ function inEven(c){ return !pref(c).noEven; }
 function allCoaches(){
   var set={};
   Object.keys(DATA).forEach(function(p){ Object.keys(DATA[p]).forEach(function(c){ set[c]=1; }); });
-  return Object.keys(set).sort();
+  return Object.keys(set).sort(ivan());
 }
 // Only coaches seen in the last year, so the panel does not fill with people long gone.
 function recentCoaches(){
   var cut=PERIODS.slice(-13), set={};
   cut.forEach(function(p){ Object.keys(DATA[p]||{}).forEach(function(c){ set[c]=1; }); });
-  var list=Object.keys(set).sort();
+  var list=Object.keys(set).sort(ivan());
   return list.length?list:allCoaches();
 }
 function coachesIn(p){
@@ -740,7 +742,7 @@ function projTeam(p){
     if(q.pr>0){ t.pr+=q.pr; t.r+=(q.r||0); }
     if(q.ps>0){ t.ps+=q.ps; t.s+=(q.s||0); }
   });
-  t.unset.sort();
+  t.unset.sort(ivan());
   t.pctR=t.pr?t.r/t.pr*100:null;
   t.pctS=t.ps?t.s/t.ps*100:null;
   return t;
@@ -799,11 +801,11 @@ function coachRows(p,target,tip){
   var basis=runningTo(p)?"sessions to date / projected":(rangeTo(p)!==currentPeriod()?"sessions delivered / projected":"sessions booked / projected");
   var rows=coachesIn(p).map(function(c){ return {c:c, q:projOf(p,c)}; }).filter(function(x){ return x.q; });
   rows.forEach(function(x){ var q=x.q; x.pct=!q.set?null:(q.pctS!=null?q.pctS:q.pctR); });
-  rows.sort(function(a,b){
+  rows.sort(ivan(function(a,b){
     if(a.pct==null&&b.pct==null) return a.c<b.c?-1:1;
     if(a.pct==null) return 1; if(b.pct==null) return -1;
     return b.pct-a.pct;
-  });
+  },function(x){ return x.c; }));
   // The month so far: only while it is running and counted to date (a closed month is all of it).
   var running=runningTo(p)&&target<99.5;
   var head=!running?basis:isV(p)?basis+" \u00b7 due by today: "+target.toFixed(0)+"% of the window's projection":basis+" \u00b7 month so far: "+target.toFixed(0)+"% (day "+daysUsed(p)+" of "+monthDays(p)+")";
@@ -909,7 +911,7 @@ function freqData(p){
     var tr=cl.filter(function(x){ return x.s>0; }), b=[[],[],[],[],[],[]], tot=0, wk=0;
     tr.forEach(function(x){ var w=x.s/x.cw; x.pw=w; tot+=x.s; wk+=x.cw; b[Math.min(5,Math.floor(w))].push(x); });
     return {c:c, n:tr.length, b:b, avg:wk?tot/wk:null, list:tr};
-  }).filter(function(x){ return x&&x.n; }).sort(function(a,b){ return b.avg-a.avg; });
+  }).filter(function(x){ return x&&x.n; }).sort(ivan(function(a,b){ return b.avg-a.avg; },function(x){ return x.c; }));
 }
 function panelFreq(p){
   var rows=freqData(p), upto=lastDay(p), host;
@@ -955,7 +957,7 @@ function panelLoad(p){
     if(cur==null||!past.length) return null;
     var best=past.reduce(function(a,b){ return b.s>a.s?b:a; }), last3=past.slice(-3), avg3=last3.reduce(function(t,x){ return t+x.s; },0)/last3.length;
     return {c:c, cur:cur, sofar:now?d.ms:null, best:best, avg3:avg3, n3:last3.length};
-  }).filter(Boolean).sort(function(a,b){ return b.cur/b.best.s-a.cur/a.best.s; });
+  }).filter(Boolean).sort(ivan(function(a,b){ return b.cur/b.best.s-a.cur/a.best.s; },function(x){ return x.c; }));
   if(!rows.length) return "";
   setTimeout(function(){ drawLoad(rows,now,md,days); },0);
   return dCard("Load","Sessions this month against what each coach has already shown they can do",now?"on pace for the month, from day "+md:"sessions",
@@ -976,7 +978,7 @@ function panelLoadRange(p){
     if(!past.length) return null;
     var best=past.reduce(function(a,b){ return b.s>a.s?b:a; }), last3=past.slice(-3), avg3=last3.reduce(function(t,x){ return t+x.s; },0)/last3.length;
     return {c:c, cur:avg, sofar:null, best:best, avg3:avg3, n3:last3.length, months:vals.length};
-  }).filter(Boolean).sort(function(a,b){ return b.cur/b.best.s-a.cur/a.best.s; });
+  }).filter(Boolean).sort(ivan(function(a,b){ return b.cur/b.best.s-a.cur/a.best.s; },function(x){ return x.c; }));
   if(!rows.length) return "";
   setTimeout(function(){ drawLoad(rows,false,null,null,true); },0);
   return dCard("Load","Each coach's average month against what they have already shown they can do","sessions in an average month of "+label(p),
@@ -1011,7 +1013,7 @@ function panelRpc(p){
     var o={c:c,n:tr.length,s:0,r:0,cm:0,cw:0}; tr.forEach(function(x){ o.s+=x.s; o.r+=x.r; o.cm+=x.cm; o.cw+=x.cw; });
     ["n","s","r","cm","cw"].forEach(function(k){ T[k]+=o[k]; });
     return o;
-  }).filter(Boolean).sort(function(a,b){ return b.r/b.cm-a.r/a.cm; });
+  }).filter(Boolean).sort(ivan(function(a,b){ return b.r/b.cm-a.r/a.cm; },function(x){ return x.c; }));
   if(!rows.length) return "";
   // Over a stretch, "per client" is per client per month they trained (so a client who trained
   // three months counts three times), which keeps a stretch comparable with a single month.
@@ -1027,36 +1029,39 @@ function panelRpc(p){
 }
 
 /* 4. Training less often: clients well below their own usual */
+// Clients training less often: sessions a week over the month (or the stretch chosen) against
+// the client's own average over the 3 full months before it began; half or less is flagged.
+// Only clients at 1.5 a week or more in those 3 months are watched. The same rule as Coach review.
 function lessData(p){
-  var upto=lastDay(p), anchor=pIso(p,upto), from=addDaysIso(anchor,-76), out=[];
-  var months=[prevP(p,3),prevP(p,2),prevP(p,1),p];
+  var ms=isV(p)?rangeOf(p):[p], first=ms[0], lastP=ms[ms.length-1], before=[prevP(first,3),prevP(first,2),prevP(first,1)], out=[];
   coachesIn(p).forEach(function(c){
-    var cur=clientsIn(p,c); if(!cur) return;
-    var onSheet={}; cur.forEach(function(x){ onSheet[x.key]=x.name; });
-    var days={};
-    months.forEach(function(q){
-      var cl=clOf(q,c); if(!cl) return;
-      var last=(q===p)?upto:monthDays(q);
-      cl.forEach(function(r){
-        var k=nameKey(r[0]); if(!(k in onSheet)) return;
-        var m=String(r[2]||""), d=days[k]||(days[k]={});
-        for(var i=0;i<Math.min(last,m.length);i++){ var w=wOf(m[i]); if(w){ var iso=pIso(q,i+1); if(iso>=from&&iso<=anchor) d[iso]=(d[iso]||0)+w; } }
+    var onSheet={}, any=false;
+    ms.forEach(function(q){ var cur=clientsIn(q,c); if(cur){ any=true; cur.forEach(function(x){ onSheet[x.key]=x.name; }); } });
+    if(!any) return;
+    var lastDayOf={};
+    function per(qs,track){
+      var t={}, days=0;
+      qs.forEach(function(q){
+        var last=(q===lastP)?lastDay(q):monthDays(q); days+=last;
+        var cl=clOf(q,c); if(!cl) return;
+        cl.forEach(function(r){
+          var k=nameKey(r[0]); if(!(k in onSheet)) return;
+          var m=String(r[2]||"");
+          for(var i=0;i<Math.min(last,m.length);i++){ var w=wOf(m[i]); if(w){ t[k]=(t[k]||0)+w; if(track){ var iso=pIso(q,i+1); if(!lastDayOf[k]||iso>lastDayOf[k]) lastDayOf[k]=iso; } } }
+        });
       });
-    });
-    var flagged=[], watched=0;
+      return {t:t,weeks:days/7};
+    }
+    var B=per(before,false), N=per(ms,true), flagged=[], watched=0;
     Object.keys(onSheet).forEach(function(k){
-      var d=days[k]||{}, ds=Object.keys(d).sort(); if(!ds.length) return;
-      var cut=addDaysIso(anchor,-20), recent=0, base=0;
-      ds.forEach(function(iso){ if(iso>=cut) recent+=d[iso]; else base+=d[iso]; });
-      var usual=base/8, nowW=recent/3;
-      // At least six weeks on record before the last three, and a usual of 1.5 a week or more.
-      if(ds[0]>addDaysIso(anchor,-62)||usual<1.5) return;
+      var usual=(B.t[k]||0)/B.weeks, nowW=(N.t[k]||0)/N.weeks;
+      if(usual<1.5) return;
       watched++;
-      if(nowW<=usual*0.5) flagged.push({name:onSheet[k],usual:usual,now:nowW,last:ds.filter(function(x){ return d[x]>0; }).pop()});
+      if(nowW<=usual*0.5) flagged.push({name:onSheet[k],usual:usual,now:nowW,last:lastDayOf[k]||null});
     });
     out.push({c:c,list:flagged.sort(function(a,b){ return a.now/a.usual-b.now/b.usual; }),watched:watched});
   });
-  return out.sort(function(a,b){ return b.list.length-a.list.length||a.c.localeCompare(b.c); });
+  return out.sort(ivan(function(a,b){ return b.list.length-a.list.length||a.c.localeCompare(b.c); },function(x){ return x.c; }));
 }
 function panelLess(p){
   var rows=lessData(p), upto=lastDay(p), anchor=pIso(p,upto);
@@ -1066,12 +1071,12 @@ function panelLess(p){
     var n=r.list.length;
     if(!n) return '<details class="none"><summary><span class="nm">'+r.c+'</span><span class="n">none · '+r.watched+" watched</span></summary></details>";
     return '<details><summary><span class="nm">'+r.c+'</span><span class="n'+(n>=3?" hi":"")+'">'+n+(n===1?" client":" clients")+" · "+r.watched+' watched</span></summary>'+
-      '<div class="lrow h"><span>Client</span><span>Usual a week</span><span>Last 3 weeks</span><span>Last session</span></div>'+
+      '<div class="lrow h"><span>Client</span><span>Usual a week<br>(3 months before)</span><span>This period</span><span>Last session</span></div>'+
       r.list.map(function(x){ return '<div class="lrow"><span>'+dEsc(x.name)+"</span><span>"+x.usual.toFixed(1)+'</span><span class="nw">'+x.now.toFixed(1)+"</span><span>"+(x.last?fmtDay(x.last):"—")+"</span></div>"; }).join("")+"</details>";
   }).join("");
-  return dCard("Training less often",total+(total===1?" client is":" clients are")+" training well below their own usual","the 3 weeks to "+fmtDay(anchor)+" against the 8 weeks before",
+  return dCard("Training less often",total+(total===1?" client is":" clients are")+" training well below their own usual",label(p)+" against each client's 3 months before",
     '<div class="dcard-b less">'+body+'<p class="dnote">Each client is compared with themselves, not with a fixed number, so a client who always trains once a week is never listed. '+
-    "Listed: a usual of 1.5 a week or more, at least 6 weeks on record, and the last 3 weeks at half their usual or less. Only clients still on this month's sheet; names as the coach typed them. "+
+    "Listed: a usual of 1.5 a week or more over the 3 months before, and this period at half that or less. Names as the coach typed them. "+
     "Watched = clients with enough history to judge. Holidays and travel are not taken out, so ask before reading a drop as a problem.</p></div>");
 }
 function fmtDay(iso){ return +iso.slice(8,10)+" "+MONTHS[+iso.slice(5,7)-1]; }
@@ -1207,14 +1212,14 @@ function render(){
   ranked.forEach(function(r,i){ r.rank=i; });
   var rankSpan=Math.max(1,ranked.length-1);
 
-  rows.sort(function(a,b){
+  rows.sort(ivan(function(a,b){
     if(ui.sort==="coach") return a.coach.localeCompare(b.coach)*(ui.dir<0?1:-1);
     var av=a[ui.sort], bv=b[ui.sort];
     if(av==null&&bv==null) return 0;
     if(av==null) return 1;
     if(bv==null) return -1;
     return (av-bv)*ui.dir;
-  });
+  },function(x){ return x.coach; }));
 
   var head="<thead><tr>"+cols.map(function(c){
     return '<th class="'+(ui.sort===c.k?"on":"")+'" data-k="'+c.k+'">'+c.t+" "+(ui.sort===c.k?(ui.dir<0?"↓":"↑"):"")+"</th>";
