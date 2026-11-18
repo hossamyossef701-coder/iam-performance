@@ -28,6 +28,13 @@ html{scroll-behavior:smooth;}
 body{background:var(--ground);color:var(--ink);font-family:var(--f-display);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;
   background-image:radial-gradient(ellipse 90% 46% at 50% -8%,rgba(239,105,29,.085),transparent 62%);}
 .wrap{max-width:1300px;margin:0 auto;padding:26px 20px 70px;}
+/* One page, three views (scripts/selftest.mjs keeps finance.html and overview.html identical to
+   this file): Performance shows everything; Finance the coaches' numbers only; Overview the
+   projection only. The file name picks the view. */
+body.v-ceo #tiles,body.v-ceo #mainCard,body.v-ceo #deep,body.v-ceo #selCompare,body.v-ceo #chipWhole,
+body.v-fin #proj,body.v-fin #deep,
+body.v-ceo #btnRefresh,body.v-fin #btnRefresh,body.v-ceo #tokenPanel,body.v-fin #tokenPanel,
+body.v-ceo #coveragePanel,body.v-fin #coveragePanel,body.v-ceo #coachPanel,body.v-fin #coachPanel{display:none !important;}
 @media(max-width:640px){.wrap{padding:18px 14px 50px;}}
 ::selection{background:rgba(239,105,29,.3);}
 
@@ -278,7 +285,7 @@ body.notes .dnote{display:block;}
   </div>
 
   <div class="bar">
-    <span class="seg"><a class="on" href="./report.html">Performance</a><a href="./clients.html">Clients</a><a href="./overview.html">Overview</a><a href="./coach.html">Coach review</a></span>
+    <span class="seg" id="nav"></span>
     <select id="selSpan" aria-label="Window">
       <option value="1">One month</option><option value="3">3 months to</option><option value="6">6 months to</option>
       <option value="12">12 months to</option><option value="ytd">Year to date</option><option value="custom">From…</option>
@@ -319,7 +326,7 @@ body.notes .dnote{display:block;}
 
   <div class="tiles" id="tiles"></div>
 
-  <div class="card">
+  <div class="card" id="mainCard">
     <div class="scroll"><table id="tbl"></table></div>
     <div class="empty" id="empty" style="display:none">No coach has figures for this month yet.</div>
   </div>
@@ -355,7 +362,21 @@ window.addEventListener("error",function(e){console.error("[report]",e.error||e.
 window.addEventListener("unhandledrejection",function(e){console.error("[report]",e.reason);e.preventDefault();});
 
 var GH_OWNER="hossamyossef701-coder", GH_REPO="iam-performance", GH_BRANCH="main", GH_WORKFLOW="refresh.yml";
-var PASS_KEY="iamlive:pass", CFG_KEY="iamlive:cfg", UI_KEY="iamreport:ui";
+// Which view: the file name decides (finance.html, overview.html; anything else is Performance).
+var PAGE=/finance\.html$/i.test(location.pathname)?"fin":/overview\.html$/i.test(location.pathname)?"ceo":"full";
+var PAGE_NAME={full:"Coach Performance",fin:"Finance",ceo:"Overview"}[PAGE];
+var PASS_KEY="iamlive:pass", CFG_KEY="iamlive:cfg", UI_KEY="iamreport:ui"+(PAGE==="full"?"":":"+PAGE);
+(function(){
+  document.body.classList.add("v-"+PAGE);
+  document.title=PAGE_NAME+" — I AM Performance";
+  Array.prototype.forEach.call(document.querySelectorAll("h1"),function(h){ h.textContent=PAGE_NAME; });
+  // The full menu shows where the Performance page has been opened on this device (Hossam's).
+  // On a device that only ever opens Finance or Overview, the menu is that page alone.
+  var NAV=[["report.html","Performance","full"],["finance.html","Finance","fin"],["overview.html","Overview","ceo"],["business.html","Business"],["clients.html","Clients"],["coach.html","Coach review"]];
+  var full=PAGE==="full"; try{ if(full) localStorage.setItem("iam:director","1"); else full=localStorage.getItem("iam:director")==="1"; }catch(e){}
+  document.getElementById("nav").innerHTML=NAV.filter(function(n){ return full||n[2]===PAGE; }).map(function(n){
+    return '<a'+(n[2]===PAGE?' class="on"':"")+' href="./'+n[0]+'">'+n[1]+"</a>"; }).join("");
+})();
 var DIRECTOR="Hossam";
 var MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 var PASS=null, LIVE=null, HIST=null, DATA={}, PERIODS=[];
@@ -655,7 +676,13 @@ function teamTotals(p,useBasis){   // p is needed for the day count
    The pace mark is a straight line from nothing on day 1 to the full projection on the last
    day - only a guide, since sessions do not fall evenly, but it is the same assumption the
    "same point last month" comparison makes. */
-function projTarget(p){ return toDate(p) ? Math.min(100, daysUsed(p)/monthDays(p)*100) : 100; }
+function projTarget(p){
+  // Over a window: each month's share due by now, weighted by the team's projection that month.
+  if(isV(p)){ var num=0, den=0; rangeOf(p).forEach(function(q){ var t=projTeam(q), w=t.ps||t.pr||0; num+=w*projTarget(q); den+=w; }); return den?num/den:100; }
+  return toDate(p) ? Math.min(100, daysUsed(p)/monthDays(p)*100) : 100;
+}
+// The month the window ends on is still running and counted to date.
+function runningTo(p){ return isV(p)?(ui.basis==="mtd"&&rangeTo(p)===currentPeriod()):toDate(p); }
 // Green at or past the target, amber within a tenth of it, red further behind.
 function projState(pct,target){
   if(pct==null) return "";
@@ -664,6 +691,24 @@ function projState(pct,target){
   return "low";
 }
 function projOf(p,c){
+  // Over a window: the months with a projection only, each month's sessions against that
+  // month's projection (to date in the month running). Months before the projection columns
+  // existed are left out on both sides.
+  if(isV(p)){
+    if(!metrics(p,c)) return null;
+    var o={has:false,set:false,pr:0,ps:0,r:0,s:0,mtdMissing:false,pm:0,months:0}, anyR=false, anyS=false;
+    rangeOf(p).forEach(function(q){
+      var x=projOf(q,c); if(!x) return;
+      if(x.has) o.has=true;
+      if(!x.set) return;
+      o.set=true; o.months++; o.pm+=x.pm; if(x.mtdMissing) o.mtdMissing=true;
+      if(x.pr>0){ o.pr+=x.pr; o.r+=(x.r||0); anyR=true; }
+      if(x.ps>0){ o.ps+=x.ps; o.s+=(x.s||0); anyS=true; }
+    });
+    if(!anyR){ o.pr=null; o.r=null; } if(!anyS){ o.ps=null; o.s=null; }
+    o.pctR=anyR&&o.pr>0?o.r/o.pr*100:null; o.pctS=anyS&&o.ps>0?o.s/o.ps*100:null;
+    return o;
+  }
   var m=metrics(p,c); if(!m) return null;
   var has=(m.pr!=null||m.ps!=null), set=((m.pr||0)>0||(m.ps||0)>0);
   return { has:has, set:set, pr:m.pr, ps:m.ps, r:m.r, s:m.s, mtdMissing:m.mtdMissing, pm:m.pm||0,
@@ -695,17 +740,22 @@ function projBar(pct,target,st,small,tip){
 }
 function renderProj(p){
   var el=document.getElementById("proj");
-  if(isV(p)){ el.style.display="none"; el.innerHTML=""; return; }   // a projection is set for one month
   var t=projTeam(p);
-  if(!t.any){ el.style.display="none"; el.innerHTML=""; return; }
+  if(!t.any){
+    // The Overview page is only this panel, so it says why it is empty rather than vanish.
+    if(PAGE==="ceo"){ el.style.display=""; el.innerHTML='<div class="proj-head"><span class="k">Projection \u00b7 '+label(p)+'</span></div><div class="proj-foot">No projection was set '+(isV(p)?"in these months":"for this month")+". The coaches' sheets carry it from Nov 2026.</div>"; return; }
+    el.style.display="none"; el.innerHTML=""; return;
+  }
   el.style.display="";
-  var target=projTarget(p), live=toDate(p), closed=(p!==currentPeriod());
+  var target=projTarget(p), live=runningTo(p), closed=(rangeTo(p)!==currentPeriod());
+  if(isV(p)){ var all=rangeOf(p), withP=all.filter(function(q){ return projTeam(q).set.length; }); }
   var total=t.set.length+t.unset.length;
   var who=t.set.length?("Set by "+t.set.length+" of "+total+(total===1?" coach":" coaches")):"No coach has set a projection yet";
   // Who has not set it, and who left clients out, is on each coach's own row below.
   if(t.set.length&&t.unset.length) who+=' \u00b7 <b>'+t.unset.length+" not set</b>";
   if(t.partly.length) who+=' \u00b7 <b>'+t.partly.length+" partly set</b>";
-  var tip=live?("Pace mark: a straight line to the full projection, day "+daysUsed(p)+" of "+monthDays(p)):"";
+  if(isV(p)&&withP.length<all.length) who+=" \u00b7 projection in "+withP.length+" of "+all.length+" months: "+withP.map(label).join(", ");
+  var tip=live?(isV(p)?"Pace mark: the share of the window's projection due by today":"Pace mark: a straight line to the full projection, day "+daysUsed(p)+" of "+monthDays(p)):"";
   // gapFmt: how a shortfall is written. A pace target is fractional, so sessions round to whole ones there.
   function line(lbl,pct,done,goal,fmt,unit,gapFmt){
     if(!goal) return "";
@@ -718,7 +768,7 @@ function renderProj(p){
       var gap=done-goal*target/100;
       note=(Math.abs(gap)<0.5)?"on pace":(gapFmt(Math.abs(gap))+(gap>0?" ahead of pace":" behind pace"));
       cls=st;
-    } else { note="booked so far, bookings ahead included"; cls="flat"; }
+    } else { note=isV(p)?"bookings ahead included in "+label(rangeTo(p)):"booked so far, bookings ahead included"; cls="flat"; }
     return '<div class="proj-row" title="'+lbl+': '+fmt(done)+" of "+fmt(goal)+unit+" ("+pct.toFixed(1)+'%)">'+
       '<span class="lbl">'+lbl+'</span><span class="pct '+st+'">'+pct.toFixed(0)+"%</span>"+
       projBar(pct,target,st,false,tip)+
@@ -734,7 +784,7 @@ function renderProj(p){
    booked this month, following the basis switch - with the same bar and pace mark as the team.
    Revenue sits beside it, smaller. Best progress first; coaches with no projection last. */
 function coachRows(p,target,tip){
-  var basis=toDate(p)?"sessions to date / projected":(p!==currentPeriod()?"sessions delivered / projected":"sessions booked this month / projected");
+  var basis=runningTo(p)?"sessions to date / projected":(rangeTo(p)!==currentPeriod()?"sessions delivered / projected":"sessions booked / projected");
   var rows=coachesIn(p).map(function(c){ return {c:c, q:projOf(p,c)}; }).filter(function(x){ return x.q; });
   rows.forEach(function(x){ var q=x.q; x.pct=!q.set?null:(q.pctS!=null?q.pctS:q.pctR); });
   rows.sort(function(a,b){
@@ -743,11 +793,12 @@ function coachRows(p,target,tip){
     return b.pct-a.pct;
   });
   // The month so far: only while it is running and counted to date (a closed month is all of it).
-  var running=toDate(p)&&target<99.5;
-  var head=running?basis+" \u00b7 month so far: "+target.toFixed(0)+"% (day "+daysUsed(p)+" of "+monthDays(p)+")":basis;
+  var running=runningTo(p)&&target<99.5;
+  var head=!running?basis:isV(p)?basis+" \u00b7 due by today: "+target.toFixed(0)+"% of the window's projection":basis+" \u00b7 month so far: "+target.toFixed(0)+"% (day "+daysUsed(p)+" of "+monthDays(p)+")";
   var pm=function(pct){
     if(!running||pct==null) return "<span></span>";
-    return '<span class="pm" title="How far through the month we are: day '+daysUsed(p)+" of "+monthDays(p)+'">month '+target.toFixed(0)+"%</span>";
+    return isV(p)?'<span class="pm" title="Share of the window\'s projection due by today">due '+target.toFixed(0)+"%</span>"
+      :'<span class="pm" title="How far through the month we are: day '+daysUsed(p)+" of "+monthDays(p)+'">month '+target.toFixed(0)+"%</span>";
   };
   return '<div class="pc-head"><span>By coach</span><span>'+head+"</span></div>"+rows.map(function(x){
     var q=x.q;
@@ -1057,12 +1108,12 @@ function renderTiles(p){
      d:cmp(now.s,was&&was.s,false)+(now.spd==null?"":'<span class="d flat">'+now.spd.toFixed(1)+" a day over "+daysUsed(p)+" days</span>")},
     {k:"Team revenue AED", v:fmtInt(now.r), d:cmp(now.r,was&&was.r,false), lead:true},
     {k:"Rate / session", v:fmtRate(now.rate), d:cmp(now.rate,was&&was.rate,false)},
-    {k:"Assessments", v:now.a==null?"—":fmtInt(now.a),
+    PAGE==="fin"?null:{k:"Assessments", v:now.a==null?"—":fmtInt(now.a),
      d:(now.conv==null?"":'<span class="d '+(was&&was.conv!=null?(now.conv>=was.conv?"up":"down"):"flat")+'">'+now.conv.toFixed(0)+"% converted</span>")},
     {k:"Cancelled", v:now.x==null?"—":fmtInt(now.x),
      d:(now.cpc==null?"":'<span class="d '+(was&&was.cpc!=null?(now.cpc<=was.cpc?"up":"down"):"flat")+'">'+now.cpc.toFixed(1)+"% of booked</span>")}
   ];
-  document.getElementById("tiles").innerHTML=tiles.map(function(t){
+  document.getElementById("tiles").innerHTML=tiles.filter(Boolean).map(function(t){
     return '<div class="tile'+(t.lead?" lead":"")+'"><div class="k">'+t.k+'</div><div class="v">'+t.v+"</div>"+
       '<div class="sub">'+(t.d||'<span class="d flat">&nbsp;</span>')+"</div></div>";
   }).join("");
@@ -1079,8 +1130,18 @@ function attCell(att){
     '<span class="att-pct '+(over?"over":"under")+'">'+att.toFixed(0)+"%</span></span>";
 }
 
-var COLS=[{k:"coach",t:"Coach"},{k:"sessions",t:"Sessions"},{k:"spd",t:"Sessions / day"},{k:"rate",t:"Rate / session"},
-          {k:"revenue",t:"Revenue AED"},{k:"cancelled",t:"Cancelled"},{k:"cpc",t:"Cancelled %"},{k:"assess",t:"Assessments"},{k:"conv",t:"Converted"},{k:"attain",t:"Even share"}];
+var COLS=PAGE==="fin"
+  ? [{k:"coach",t:"Coach"},{k:"sessions",t:"Sessions"},{k:"spd",t:"Sessions / day"},{k:"rate",t:"Rate / session"},
+     {k:"revenue",t:"Revenue AED"},{k:"share",t:"Share of revenue"},{k:"cancelled",t:"Cancelled"},{k:"cpc",t:"Cancelled %"}]
+  : [{k:"coach",t:"Coach"},{k:"sessions",t:"Sessions"},{k:"spd",t:"Sessions / day"},{k:"rate",t:"Rate / session"},
+     {k:"revenue",t:"Revenue AED"},{k:"cancelled",t:"Cancelled"},{k:"cpc",t:"Cancelled %"},{k:"assess",t:"Assessments"},{k:"conv",t:"Converted"},{k:"attain",t:"Even share"}];
+// A coach's share of the team's revenue in the window, and the change in points against the comparison.
+function shareCell(now,was){
+  if(now==null) return '<span class="dim">\u2014</span>';
+  var d="";
+  if(was!=null){ var pts=now-was; d=Math.abs(pts)<0.05?'<span class="d flat">\u2014</span>':'<span class="d '+(pts>0?"up":"down")+'">'+(pts>0?"+":"")+pts.toFixed(1)+" pts</span>"; }
+  return now.toFixed(1)+"%"+d;
+}
 // Green through amber to red across the order. A coach with no revenue this month gets a
 // neutral mark rather than a place in the ranking.
 function rankMark(r,span){
@@ -1111,11 +1172,14 @@ function render(){
   var evenRevenue=evenList.reduce(function(t,c){ var m=metrics(p,c); return t+((m&&m.r)||0); },0);
   var evenShare=evenList.length?evenRevenue/evenList.length:0;
   var cols=COLS;
+  var wasT=(ui.compare==="none")?null:teamTotals(p,true);
   var rows=list.map(function(c){
-    var m=metrics(p,c);
+    var m=metrics(p,c), b=basis(p,c);
     return {coach:c, sessions:m.s, spd:m.spd, rate:m.rate, revenue:m.r, cancelled:m.x, cpc:m.cpc,
             assess:m.a, conv:m.conv, cv:m.cv, mtdMissing:m.mtdMissing,
-            attain:(evenShare&&m.r!=null&&inEven(c))?m.r/evenShare*100:null, b:basis(p,c)};
+            share:(team.r&&m.r!=null)?m.r/team.r*100:null,
+            shareWas:(b&&b.r!=null&&wasT&&wasT.r)?b.r/wasT.r*100:null,
+            attain:(evenShare&&m.r!=null&&inEven(c))?m.r/evenShare*100:null, b:b};
   });
 
   // Ranked on revenue regardless of how the table is sorted, so the colour always means
@@ -1138,36 +1202,44 @@ function render(){
     return '<th class="'+(ui.sort===c.k?"on":"")+'" data-k="'+c.k+'">'+c.t+" "+(ui.sort===c.k?(ui.dir<0?"↓":"↑"):"")+"</th>";
   }).join("")+"</tr></thead>";
 
+  var dash='<span class="dim">\u2014</span>';
+  // One function per column, so each view lists only the columns it shows.
+  var CELL={
+    sessions:function(r,b){ return fmtSess(r.sessions)+delta(r.sessions,b.s,false); },
+    spd:function(r,b){ return r.spd==null?dash:r.spd.toFixed(1)+delta(r.spd,b.spd,false); },
+    rate:function(r,b){ return fmtRate(r.rate)+delta(r.rate,b.rate,false); },
+    revenue:function(r,b){ return fmtInt(r.revenue)+delta(r.revenue,b.r,false); },
+    share:function(r){ return shareCell(r.share,r.shareWas); },
+    cancelled:function(r,b){ return r.cancelled==null?dash:fmtInt(r.cancelled)+delta(r.cancelled,b.x,true); },
+    cpc:function(r,b){ return r.cpc==null?dash:r.cpc.toFixed(1)+"%"+delta(r.cpc,b.cpc,true); },
+    assess:function(r,b){ return r.assess==null?dash:fmtInt(r.assess)+delta(r.assess,b.a,false); },
+    conv:function(r){ return r.conv==null?dash:r.conv.toFixed(0)+"%"+'<span class="d flat">'+fmtInt(r.cv)+" of "+fmtInt(r.assess)+"</span>"; },
+    attain:function(r){ return attCell(r.attain); }
+  };
   var body="<tbody>"+rows.map(function(r){
     var b=r.b||{};
-    var bar=attCell(r.attain);
     return '<tr class="'+(r.coach===DIRECTOR?"me":"")+'">'+
       "<td>"+rankMark(r,rankSpan)+r.coach+
         (r.mtdMissing?'<span class="nomtd" title="This sheet has no day-by-day counts, so this row is the whole month, bookings ahead included">\u25cf</span>':"")+"</td>"+
-      "<td>"+fmtSess(r.sessions)+delta(r.sessions,b.s,false)+"</td>"+
-      "<td>"+(r.spd==null?'<span class="dim">\u2014</span>':r.spd.toFixed(1)+delta(r.spd,b.spd,false))+"</td>"+
-      "<td>"+fmtRate(r.rate)+delta(r.rate,b.rate,false)+"</td>"+
-      "<td>"+fmtInt(r.revenue)+delta(r.revenue,b.r,false)+"</td>"+
-      "<td>"+(r.cancelled==null?'<span class="dim">—</span>':fmtInt(r.cancelled)+delta(r.cancelled,b.x,true))+"</td>"+
-      "<td>"+(r.cpc==null?'<span class="dim">—</span>':r.cpc.toFixed(1)+"%"+delta(r.cpc,b.cpc,true))+"</td>"+
-      "<td>"+(r.assess==null?'<span class="dim">—</span>':fmtInt(r.assess)+delta(r.assess,b.a,false))+"</td>"+
-      "<td>"+(r.conv==null?'<span class="dim">—</span>':r.conv.toFixed(0)+"%"+'<span class="d flat">'+fmtInt(r.cv)+" of "+fmtInt(r.assess)+"</span>")+"</td>"+
-      "<td>"+bar+"</td></tr>";
+      cols.slice(1).map(function(c){ return "<td>"+CELL[c.k](r,b)+"</td>"; }).join("")+"</tr>";
   }).join("")+"</tbody>";
 
-  var was=(ui.compare==="none")?null:teamTotals(p,true);
+  var was=wasT;
   var tcmp=function(a,b,inv){ return was&&was.n?delta(a,b,inv):""; };
+  var FOOT={
+    sessions:function(){ return fmtSess(team.s)+tcmp(team.s,was&&was.s,false); },
+    spd:function(){ return team.spd==null?dash:team.spd.toFixed(1)+tcmp(team.spd,was&&was.spd,false); },
+    rate:function(){ return fmtRate(team.rate)+tcmp(team.rate,was&&was.rate,false); },
+    revenue:function(){ return fmtInt(team.r)+tcmp(team.r,was&&was.r,false); },
+    share:function(){ return team.r?"100%":dash; },
+    cancelled:function(){ return team.x==null?dash:fmtInt(team.x)+tcmp(team.x,was&&was.x,true); },
+    cpc:function(){ return team.cpc==null?dash:team.cpc.toFixed(1)+"%"+tcmp(team.cpc,was&&was.cpc,true); },
+    assess:function(){ return team.a==null?dash:fmtInt(team.a)+tcmp(team.a,was&&was.a,false); },
+    conv:function(){ return team.conv==null?dash:team.conv.toFixed(0)+"%"+'<span class="d flat">'+fmtInt(team.cv)+" of "+fmtInt(team.a)+"</span>"; },
+    attain:function(){ return evenSummary(rows); }
+  };
   var foot="<tfoot><tr><td>"+(ui.scope==="all"?"Team":"Team ex. FD")+" · "+rows.length+"</td>"+
-    "<td>"+fmtSess(team.s)+tcmp(team.s,was&&was.s,false)+"</td>"+
-    "<td>"+(team.spd==null?'<span class="dim">\u2014</span>':team.spd.toFixed(1)+tcmp(team.spd,was&&was.spd,false))+"</td>"+
-    "<td>"+fmtRate(team.rate)+tcmp(team.rate,was&&was.rate,false)+"</td>"+
-    "<td>"+fmtInt(team.r)+tcmp(team.r,was&&was.r,false)+"</td>"+
-
-    "<td>"+(team.x==null?'<span class="dim">—</span>':fmtInt(team.x)+tcmp(team.x,was&&was.x,true))+"</td>"+
-    "<td>"+(team.cpc==null?'<span class="dim">—</span>':team.cpc.toFixed(1)+"%"+tcmp(team.cpc,was&&was.cpc,true))+"</td>"+
-    "<td>"+(team.a==null?'<span class="dim">—</span>':fmtInt(team.a)+tcmp(team.a,was&&was.a,false))+"</td>"+
-    "<td>"+(team.conv==null?'<span class="dim">—</span>':team.conv.toFixed(0)+"%"+'<span class="d flat">'+fmtInt(team.cv)+" of "+fmtInt(team.a)+"</span>")+"</td>"+
-    "<td>"+evenSummary(rows)+"</td></tr></tfoot>";
+    cols.slice(1).map(function(c){ return "<td>"+FOOT[c.k]()+"</td>"; }).join("")+"</tr></tfoot>";
 
   // Said out loud: a figure that is not to date must never sit silently under that heading.
   var noMtd=rows.filter(function(r){ return r.mtdMissing; }).map(function(r){ return r.coach; });
@@ -1186,8 +1258,8 @@ function render(){
     });
   });
   renderTiles(p);
-  renderProj(p);
-  renderDeep(p);
+  if(PAGE!=="fin") renderProj(p);
+  if(PAGE==="full") renderDeep(p);
 }
 // How much of the team is carrying its equal share: how many coaches sit at or above 100%,
 // as a percentage of those with revenue this month.

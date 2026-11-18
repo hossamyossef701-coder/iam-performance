@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Business — I AM Performance</title>
+<meta name="theme-color" content="#050505">
+<meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="./report.webmanifest">
+<link rel="icon" href="./icon-192.png" sizes="192x192">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="stylesheet" href="./fonts/alata.css">
+<link rel="stylesheet" href="./common.css">
+<style>#lkTbl .sep{border-left:1px solid var(--line);} #lkTbl th{white-space:nowrap;}</style>
+</head>
+<body class="locked">
+
+<div class="gate" id="gate">
+  <div class="gate-box">
+    <div class="eyebrow">I AM Performance</div>
+    <h1>Business</h1>
+    <form id="gateForm" autocomplete="off">
+      <input type="password" id="gatePass" placeholder="Performance passphrase" autocomplete="current-password" spellcheck="false">
+      <label class="rem"><input type="checkbox" id="gateRemember" checked> Remember on this device</label>
+      <button type="submit" id="gateBtn">Unlock</button>
+    </form>
+    <p class="status" id="gateStatus"></p>
+  </div>
+</div>
+
+<div class="wrap" id="app" style="display:none">
+  <div class="head">
+    <div><div class="eyebrow">I AM Performance</div><h1>Business</h1></div>
+    <div class="stamp" id="stamp"></div>
+  </div>
+  <div class="bar">
+    <span class="seg"><a href="./report.html">Performance</a><a href="./finance.html">Finance</a><a href="./overview.html">Overview</a><a class="on" href="./business.html">Business</a><a href="./clients.html">Clients</a><a href="./coach.html">Coach review</a></span>
+    <span class="grow"></span>
+    <span class="seg" id="segScope"></span>
+    <button id="btnNotes">Notes</button>
+    <button id="btnReload">Reload</button>
+  </div>
+
+  <div id="noOv" class="card section" style="display:none"><div class="empty">The coach sheets have not been joined to the Clients file yet. The next refresh does it: press Refresh now on the Performance page.</div></div>
+
+  <div id="main">
+  <div class="card section">
+    <div class="card-h"><div><div class="k">This month</div><div class="t" id="tmTitle"></div></div></div>
+    <div class="card-b"><ul class="sent" id="sent"></ul></div>
+  </div>
+
+  <div class="card section">
+    <div class="card-h"><div><div class="k">Sold and delivered</div><div class="t">Package sales against revenue</div></div><span class="unit">AED, without VAT</span><select class="win" data-k="sold" aria-label="Period"><option value="3">Last 3 months</option><option value="6">Last 6 months</option><option value="y">This year</option><option value="12">Last 12 months</option><option value="all">Everything logged</option></select></div>
+    <div class="card-b">
+      <div class="legend"><span><i style="background:var(--accent)"></i>package sales: what clients paid</span><span><i style="background:var(--s-ret)"></i>revenue: sessions delivered × rate</span><span class="r">on top: sold − delivered</span></div>
+      <div class="chart" id="chSold"></div>
+      <p class="note">Sold more than delivered: clients are paying ahead. Delivered more than sold: the month lives off packages sold earlier, which cannot go on for long. The month running counts what has happened so far.</p>
+    </div>
+  </div>
+
+  <div class="card section">
+    <div class="card-h"><div><div class="k">Unused sessions</div><div class="t">Paid for and not yet trained, since <span id="ovFrom"></span></div></div><span class="unit">AED, running total</span><select class="win" data-k="unused" aria-label="Period"><option value="3">Last 3 months</option><option value="6">Last 6 months</option><option value="y">This year</option><option value="12">Last 12 months</option><option value="all">Everything logged</option></select></div>
+    <div class="card-b">
+      <div class="chart" id="chUnused"></div>
+      <p class="note">Running total of package sales minus revenue. Rising: selling faster than delivering. Falling: delivering sessions sold earlier. It starts at zero on the first logged month, so it shows the change since then, not the full amount owed (packages bought before then are not in it).</p>
+    </div>
+  </div>
+
+  <div class="card section">
+    <div class="card-h"><div><div class="k">Packages in use</div><div class="t">Where each coach's running packages stand</div></div><span class="unit">clients · open a coach for the names</span></div>
+    <div class="card-b" style="padding-bottom:4px"><div class="legend" id="useTot" style="margin:0"></div></div>
+    <div class="lst" id="useLst"></div>
+    <div class="card-b"><p class="note" style="margin:0">Sessions are counted against packages in order: a package takes sessions until it is used up, and the sessions after that belong to the next package, whenever it is paid. Sessions left = all the client's paid sessions not yet trained. Won't finish in time = at the client's pace over the last 4 weeks, more than one session will be left when the last package ends. Training beyond what's paid = sessions in the last 31 days after every paid session was used (usually a renewal not yet logged). Using sessions after the end date = sessions in the last 31 days taken from a package past its end date. Nearly used up = 2 sessions or fewer left. Not linked = the client's name on the sheet is not matched yet (see Name check).</p></div>
+  </div>
+
+  <div class="card section">
+    <div class="card-h"><div><div class="k">Money on the table</div><div class="t">What slips through, and what to check</div></div><span class="unit">AED, without VAT</span><select class="win" data-k="leak" aria-label="Period"><option value="1">Last month</option><option value="3">Last 3 months</option><option value="6">Last 6 months</option><option value="y">This year</option><option value="12">Last 12 months</option><option value="all">Everything followed</option></select></div>
+    <div class="card-b"><div class="k" id="lkW" style="margin-bottom:8px"></div><div class="big3" id="lkBig"></div>
+      <div class="k" style="margin:16px 0 8px">Right now</div><div class="big3" id="lkNow"></div></div>
+    <div class="card-b" style="padding-top:0"><ul class="sent" id="lkSent"></ul></div>
+    <div class="scroll"><table id="lkTbl"></table></div>
+    <div class="lst" id="lkLst"></div>
+    <div class="card-b"><p class="note" style="margin:0" id="lkNote"></p></div>
+  </div>
+
+  <div class="card section">
+    <div class="card-h"><div><div class="k">Share of the team</div><div class="t">Each coach's share of the active clients, the sessions and the revenue</div></div>
+      <span class="seg sm" id="segShare"><button data-v="1">Last month</button><button data-v="3">Last 3 months</button><button data-v="0">This month so far</button><button data-v="-1">This year</button></span></div>
+    <div class="card-b">
+      <div class="legend"><span><i style="background:var(--ink-soft)"></i>active clients, now</span><span><i style="background:var(--s-ret)"></i>sessions</span><span><i style="background:var(--accent)"></i>revenue</span><span class="r">right: revenue share ÷ client share</span></div>
+      <div class="chart" id="chShare"></div>
+      <p class="note">Active clients = clients with a running package today, by the coach on the Clients tab. Sessions and revenue = the coach sheets for the period picked. A coach with a quarter of the clients should bring in about a quarter of the revenue: 1.0× is the team's average. Below 1.0× means each of their clients trains less often or at a lower rate than the team's; the gap between the blue and orange bars says which. New coaches, leave and handoffs move these figures, so read them with that in mind.</p>
+    </div>
+  </div>
+
+  <div class="cols2">
+    <div class="card">
+      <div class="card-h"><div><div class="k">Value of a client</div><div class="t">What a new client is worth in their first year</div></div><span class="unit">AED, without VAT</span></div>
+      <div class="card-b"><div class="chart" id="chValue"></div>
+        <p class="note">Months a new client stays in their first year (by the coach of their first package; clients still with us count as long as watched) × the coach's revenue per client per month over the last 3 complete months. Brackets: new clients it is based on.</p></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><div><div class="k">Name check</div><div class="t">Coach-sheet names matched to the Clients file</div></div></div>
+      <div class="card-b" style="padding-bottom:6px"><div class="big3" id="nameBig"></div></div>
+      <div class="lst" id="nameLst"></div>
+      <div class="card-b"><p class="note" style="margin:0" id="nameNote"></p></div>
+    </div>
+  </div>
+  </div>
+</div>
+
+<script src="./common.js"></script>
+<script>
+(function(){
+"use strict";
+var C=window.IAM, $=C.$, esc=C.esc, aed=C.aed, D=null, OV0=null;
+// The overview with the director's figures left out when the switch says so.
+function ovView(o){
+  if(!o||C.scope()==="all") return o;
+  var k=C.keep, v=Object.assign({},o);
+  v.months=o.months.map(function(m){ var s=0,r=0,ss=0,ds=0; Object.keys(m.coach||{}).forEach(function(c){ if(!k(c)) return; var x=m.coach[c]; s+=x.s; r+=x.r; ss+=x.ss; ds+=x.ds; });
+    return Object.assign({},m,{sales:s,rev:r,soldS:ss,delS:Math.round(ds*10)/10}); });
+  v.inUse=o.inUse.filter(function(r){ return k(r.coach); });
+  v.perCoach={}; Object.keys(o.perCoach).forEach(function(c){ if(k(c)) v.perCoach[c]=o.perCoach[c]; });
+  v.activeByCoach={}; Object.keys(o.activeByCoach||{}).forEach(function(c){ if(k(c)) v.activeByCoach[c]=o.activeByCoach[c]; });
+  if(o.up&&o.up.coach){ var u={n:0,due:0,aed:0,coach:{}}; Object.keys(o.up.coach).forEach(function(c){ if(!k(c)) return; var x=o.up.coach[c]; u.coach[c]=x; u.n+=x.n; u.due+=x.due; u.aed+=x.aed; }); v.up=u; }
+  var nm=o.names, f=function(l){ return l.filter(function(x){ return k(x.coach); }); };
+  v.names=Object.assign({},nm,{unclear:f(nm.unclear),notInFile:f(nm.notInFile),endedOnSheet:f(nm.endedOnSheet)});
+  return v;
+}
+
+function render(){
+  D.ov=ovView(OV0);
+  var live=D.live, ov=D.ov;
+  $("stamp").innerHTML="Read "+new Date(ov?ov.generated:live.generated).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"})+"<br>AED without VAT";
+  if(!ov){ $("noOv").style.display=""; $("main").style.display="none"; return; }
+  $("noOv").style.display="none"; $("main").style.display="";
+  $("ovFrom").textContent=C.date(ov.loggedFrom);
+  thisMonth(); chartSold(); chartUnused(); share(); packages(); leak(); value(); names();
+}
+
+/* ---- This month ---- */
+function keptOf(c){ var x=D.ov.perCoach[c]; return x?{k:x.kept,n:x.kept+x.moved+x.lost}:{k:0,n:0}; }
+function thisMonth(){
+  var live=D.live, ov=D.ov, p=ov.now, M=ov.months, cur=M[M.length-1], out=[];
+  $("tmTitle").textContent=C.label(p)+", to "+C.day(ov.today);
+  if(cur&&cur.p===p){
+    var done=M.filter(function(m){ return !m.partial; }), streak=0;
+    for(var i=done.length-1;i>=0&&done[i].sales<done[i].rev;i--) streak++;
+    out.push([cur.sales<cur.rev?"var(--down)":"var(--up)","Package sales so far ("+aed(cur.sales)+") are "+(cur.sales<cur.rev?"below":"above")+" revenue so far ("+aed(cur.rev)+")"+
+      (streak?". Sales were below revenue in each of the last "+streak+" complete month"+(streak>1?"s":"")+".":".")]);
+  }
+  if(ov.up) out.push(["var(--watch)",ov.up.n+" clients are up for renewal, worth "+aed(ov.up.aed)+". "+ov.up.due+" of them have already run out."]);
+  var less=0, worst=null;
+  Object.keys(live.periods[p]||{}).filter(C.keep).forEach(function(c){ var l=C.lessOften(live,p,c); if(l&&l.length){ less+=l.length; if(!worst||l.length>worst.n) worst={c:c,n:l.length}; } });
+  if(less) out.push(["var(--watch)",less+" clients are training well below their own usual"+(worst?". "+worst.c+" has "+worst.n+".":".")]);
+  var cnt=function(st){ return ov.inUse.filter(function(r){ return r.state===st; }).length; }, short=cnt("short"), unpaid=cnt("unpaid"), exp=cnt("expired");
+  if(short) out.push(["var(--watch)",short+" clients won't finish their package in time at their current pace."]);
+  if(unpaid||exp) out.push(["var(--down)",unpaid+" clients are training beyond what they have paid for; "+exp+" are using sessions after their package's end date."]);
+  var curC=Object.keys(live.periods[p]||{});
+  var ks=Object.keys(ov.perCoach).filter(function(c){ return curC.indexOf(c)>=0; }).map(function(c){ var k=keptOf(c); return {c:c,k:k.k,n:k.n}; }).filter(function(x){ return x.n>=5; }).sort(function(a,b){ return b.k/b.n-a.k/a.n; });
+  if(ks.length>1) out.push(["var(--up)","Most clients kept in the last 12 months: "+ks[0].c+", "+ks[0].k+" of "+ks[0].n+". Fewest: "+ks[ks.length-1].c+", "+ks[ks.length-1].k+" of "+ks[ks.length-1].n+"."]);
+  var pr=0, mr=0, md=live.cutoffDay, days=C.daysIn(p);
+  Object.keys(live.periods[p]||{}).filter(C.keep).forEach(function(c){ var x=live.periods[p][c]; if(x.pr) pr+=x.pr; if(x.mr!=null) mr+=x.mr; });
+  if(pr&&md) out.push(["var(--ink-soft)","Revenue is on pace for "+Math.round(mr/md*days/pr*100)+"% of what coaches projected for the month ("+aed(mr/md*days)+" of "+aed(pr)+")."]);
+  var nm=ov.names.unclear.length;
+  if(nm) out.push(["var(--watch)",nm+" coach-sheet name"+(nm>1?"s need":" needs")+" confirming: see Name check."]);
+  $("sent").innerHTML=out.map(function(x){ return '<li><span class="dot" style="background:'+x[0]+'"></span><span>'+esc(x[1])+"</span></li>"; }).join("");
+}
+
+/* ---- each chart's own period ---- */
+var win={sold:"12",unused:"all",leak:"3"}; try{ var sw=JSON.parse(localStorage.getItem("iamov:win")||"{}"); for(var wk in sw) win[wk]=sw[wk]; }catch(e){}
+function inWin(k,list){ if(win[k]==="all") return list; var from=win[k]==="y"?D.ov.now.slice(0,4)+"-01":C.prevP(D.ov.now,+win[k]-1); return list.filter(function(m){ return m.p>=from; }); }
+
+/* ---- Sold and delivered ---- */
+function chartSold(){
+  var host=$("chSold"), M=inWin("sold",D.ov.months); if(!M.length){ host.innerHTML='<div class="empty">No months yet.</div>'; return; }
+  var W=C.width(host),H=290,L=44,R=10,T=22,B=26, step=(W-L-R)/M.length, bw=Math.min(30,step*.3);
+  var mx=C.niceMax(Math.max.apply(null,M.map(function(m){ return Math.max(m.sales,m.rev); }))*1.12), y=function(v){ return T+(H-T-B)*(1-v/mx); };
+  var s='<svg viewBox="0 0 '+W+" "+H+'"><rect class="hl" rx="6" fill="rgba(255,255,255,.035)" style="opacity:0"/>'+C.grid(W,L,R,y,[0,mx/2,mx],aed);
+  s+='<line class="base" x1="'+L+'" x2="'+(W-R)+'" y1="'+y(0)+'" y2="'+y(0)+'"/>';
+  var areas=[];
+  M.forEach(function(m,i){
+    var c=L+step*(i+.5), d=m.sales-m.rev;
+    s+=C.bar(c-bw-1,y(m.sales),bw,y(0)-y(m.sales),"var(--accent)")+C.bar(c+1,y(m.rev),bw,y(0)-y(m.rev),"var(--s-ret)");
+    s+=C.txt(c,y(Math.max(m.sales,m.rev))-7,(d>=0?"+":"−")+aed(Math.abs(d)),{c:d>=0?"var(--up)":"var(--down)",s:10.5});
+    s+='<text x="'+c+'" y="'+(H-6)+'" text-anchor="middle" style="font-size:10.5px;fill:var(--ink-faint)">'+C.label(m.p,true)+(m.partial?"*":"")+"</text>";
+    areas.push({x:L+step*i,y:T,w:step,h:H-T-B,ax:c,ay:y(Math.max(m.sales,m.rev)),html:"<b>"+C.label(m.p)+(m.partial?" (so far)":"")+"</b>"+
+      C.trow("Package sales","AED "+C.full(m.sales),"var(--accent)")+C.trow("Revenue","AED "+C.full(m.rev),"var(--s-ret)")+
+      C.trow("Sessions sold",C.full(m.soldS))+C.trow("Sessions delivered",C.full(m.delS))+'<div class="row sep"><span>Sold − delivered</span><span>AED '+C.full(d)+"</span></div>"});
+  });
+  host.innerHTML=s+"</svg>"; C.hits(host,areas);
+}
+
+/* ---- Unused sessions ---- */
+function chartUnused(){
+  var host=$("chUnused"), M=D.ov.months; if(!M.length){ host.innerHTML=""; return; }
+  var run=0, runS=0, pts=M.map(function(m){ run+=m.sales-m.rev; runS+=m.soldS-m.delS; return {p:m.p,v:run,s:runS,partial:m.partial}; });
+  pts=inWin("unused",pts);   // the total still runs from the first logged month; the period only picks what is shown
+  var W=C.width(host),H=240,L=50,R=14,T=18,B=26, step=(W-L-R)/pts.length;
+  var lo=Math.min(0,Math.min.apply(null,pts.map(function(x){ return x.v; }))), hi=Math.max(0,Math.max.apply(null,pts.map(function(x){ return x.v; })));
+  var span=C.niceMax(Math.max(Math.abs(lo),Math.abs(hi))*1.2||1000), y0=lo<0?-span:0, y1=hi>0?span:0;
+  var y=function(v){ return T+(H-T-B)*(y1-v)/(y1-y0); }, x=function(i){ return L+step*(i+.5); };
+  var s='<svg viewBox="0 0 '+W+" "+H+'"><line class="hl" style="opacity:0"/>'+C.grid(W,L,R,y,[y0,0,y1].filter(function(v,i,a){ return a.indexOf(v)===i; }),aed);
+  s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(0)+'" y2="'+y(0)+'" stroke="var(--ink-faint)" stroke-width="1"/>';
+  var path=pts.map(function(q,i){ return (i?"L":"M")+x(i)+","+y(q.v); }).join("");
+  s+='<path d="'+path+"L"+x(pts.length-1)+","+y(0)+"L"+x(0)+","+y(0)+'Z" fill="var(--accent)" opacity=".12"/><path d="'+path+'" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linejoin="round"/>';
+  var areas=[];
+  pts.forEach(function(q,i){
+    s+='<circle cx="'+x(i)+'" cy="'+y(q.v)+'" r="4" fill="var(--accent)" stroke="var(--panel)" stroke-width="2"/>';
+    s+='<text x="'+x(i)+'" y="'+(H-6)+'" text-anchor="middle" style="font-size:10.5px;fill:var(--ink-faint)">'+C.label(q.p,true)+(q.partial?"*":"")+"</text>";
+    if(i===pts.length-1||i===0) s+=C.txt(x(i),y(q.v)-10,aed(q.v),{c:"var(--ink)"});
+    areas.push({x:L+step*i,y:T,w:step,h:H-T-B,ax:x(i),ay:y(q.v),html:"<b>To the end of "+C.label(q.p)+(q.partial?" (so far)":"")+"</b>"+C.trow("Sold − delivered, running","AED "+C.full(q.v))+C.trow("In sessions",C.full(q.s))});
+  });
+  host.innerHTML=s+"</svg>"; C.hits(host,areas);
+}
+
+/* ---- Share of the team ---- */
+var shareN=1; try{ shareN=+(localStorage.getItem("iamov:share")||1); }catch(e){}
+function share(){
+  var live=D.live, ov=D.ov, act=ov.activeByCoach||{}, p=ov.now;
+  Array.prototype.forEach.call($("segShare").querySelectorAll("button"),function(b){ b.classList.toggle("on",+b.getAttribute("data-v")===shareN); });
+  // This year: every month from January to the month running (so far).
+  var months=shareN===0?[p]:shareN===-1?(function(){ var o=[]; for(var q=p;q.slice(0,4)===p.slice(0,4);q=C.prevP(q,1)) o.push(q); return o; })():[1,2,3].slice(0,shareN).map(function(n){ return C.prevP(p,n); });
+  var ses={}, rev={};
+  months.forEach(function(q){ var P=live.periods[q]||{}; Object.keys(P).filter(C.keep).forEach(function(c){ var x=P[c], cur=q===p&&x.mr!=null;
+    ses[c]=(ses[c]||0)+((cur?x.ms:x.s)||0); rev[c]=(rev[c]||0)+((cur?x.mr:x.r)||0); }); });
+  var cs=Object.keys(Object.assign({},act,ses)).filter(function(c){ return c!=="(no coach)"&&((act[c]||0)||(ses[c]||0)); });
+  var tA=0,tS=0,tR=0; cs.forEach(function(c){ tA+=act[c]||0; tS+=ses[c]||0; tR+=rev[c]||0; });
+  var rows=cs.map(function(c){ var a=tA?(act[c]||0)/tA:0, s=tS?(ses[c]||0)/tS:0, r=tR?(rev[c]||0)/tR:0; return {c:c,a:a,s:s,r:r,n:act[c]||0,ses:ses[c]||0,rev:rev[c]||0,x:a?r/a:null}; })
+    .sort(function(a,b){ return b.a-a.a||b.r-a.r; });
+  var host=$("chShare");
+  if(!rows.length){ host.innerHTML='<div class="empty">No figures for this period.</div>'; return; }
+  var W=C.width(host), narrow=W<560, rh=48, H=rows.length*rh+4, L=narrow?78:100, R=narrow?70:150, mx=Math.max.apply(null,rows.map(function(r){ return Math.max(r.a,r.s,r.r); }));
+  var sx=function(v){ return (W-L-R)*v/mx; }, s='<svg viewBox="0 0 '+W+" "+H+'"><rect class="hl" rx="6" fill="rgba(255,255,255,.035)" style="opacity:0"/>', areas=[];
+  rows.forEach(function(r,i){
+    var y0=i*rh+2, bh=10;
+    s+=C.txt(L-10,y0+rh/2+4,esc(r.c),{a:"end",s:12});
+    [[r.a,"var(--ink-soft)"],[r.s,"var(--s-ret)"],[r.r,"var(--accent)"]].forEach(function(b,j){
+      var yy=y0+7+j*(bh+3); s+=C.hbar(L,yy,Math.max(1,sx(b[0])),bh,b[1]);
+      if(!narrow) s+=C.txt(L+sx(b[0])+6,yy+9,Math.round(b[0]*100)+"%",{a:"start",s:10,c:"var(--ink-faint)"});
+    });
+    if(r.x!=null) s+=C.txt(W-8,y0+rh/2+5,r.x.toFixed(1)+"×",{a:"end",s:14,c:r.x<0.75?"var(--down)":r.x>=1.1?"var(--up)":"var(--ink)"});
+    areas.push({x:0,y:y0,w:W,h:rh,ax:L+sx(Math.max(r.a,r.s,r.r))/2,ay:y0+6,html:"<b>"+esc(r.c)+"</b>"+
+      C.trow("Active clients",r.n+" · "+Math.round(r.a*100)+"% of the team","var(--ink-soft)")+C.trow("Sessions",C.full(r.ses)+" · "+Math.round(r.s*100)+"%","var(--s-ret)")+
+      C.trow("Revenue","AED "+C.full(r.rev)+" · "+Math.round(r.r*100)+"%","var(--accent)")+C.trow("Revenue share ÷ client share",r.x!=null?r.x.toFixed(2)+"×":"—")});
+  });
+  host.innerHTML=s+"</svg>"; C.hits(host,areas);
+}
+
+/* ---- Packages in use ---- */
+var ST=[["ok","On track","var(--ink-soft)"],["short","Won't finish in time","var(--watch)"],["nearly","Nearly used up","var(--ink)"],["unpaid","Training beyond what's paid","var(--down)"],["expired","Using sessions after the end date","#e08a8a"],["unlinked","Not linked","var(--ink-faint)"]];
+function packages(){
+  var by={};
+  D.ov.inUse.forEach(function(r){ var o=by[r.coach||"(no coach)"]||(by[r.coach||"(no coach)"]={ok:[],short:[],nearly:[],unpaid:[],expired:[],unlinked:[]}); o[r.state].push(r); });
+  var cs=Object.keys(by).sort(function(a,b){ return (by[b].short.length+by[b].unpaid.length+by[b].expired.length)-(by[a].short.length+by[a].unpaid.length+by[a].expired.length)||a.localeCompare(b); });
+  var tot={ok:0,short:0,nearly:0,unpaid:0,expired:0,unlinked:0};
+  cs.forEach(function(c){ ST.forEach(function(s){ tot[s[0]]+=by[c][s[0]].length; }); });
+  // How many in each state, in the state's colour: from lists (a coach) or plain numbers (the team).
+  function counts(o){ var n=function(k){ return typeof o[k]==="number"?o[k]:o[k].length; };
+    return ST.filter(function(s){ return n(s[0]); }).map(function(s){ return '<span style="color:'+s[2]+'">'+n(s[0])+" "+s[1].toLowerCase()+"</span>"; }).join('<span class="dim"> · </span>'); }
+  $("useTot").innerHTML="<span>Team: "+counts(tot)+"</span>";
+  $("useLst").innerHTML=cs.map(function(c){
+    var o=by[c], list=[].concat(o.unpaid,o.expired,o.short,o.nearly,o.unlinked);
+    if(!list.length) return '<details class="none"><summary><span class="nm">'+esc(c)+'</span><span class="n">'+counts(o)+"</span></summary></details>";
+    return '<details><summary><span class="nm">'+esc(c)+'</span><span class="n">'+counts(o)+"</span></summary>"+
+      '<div class="lrow h"><span>Client</span><span>State</span><span>Sessions left</span><span>Package ends</span></div>'+
+      list.map(function(r){
+        var st=ST.filter(function(s){ return s[0]===r.state; })[0];
+        var left=r.state==="unpaid"?r.unpaid+" not paid for":r.state==="expired"?r.late+" used after the end date":r.left!=null?r.left+" left"+(r.pace!=null&&r.state==="short"?" · "+r.pace.toFixed(1)+" a week":""):"—";
+        return '<div class="lrow"><span>'+esc(r.name)+(r.sheetName&&C.nameKey(r.sheetName)!==C.nameKey(r.name)?' <span class="dim">· "'+esc(r.sheetName)+'"</span>':"")+'</span><span style="color:'+st[2]+'">'+st[1]+"</span><span>"+left+"</span><span>"+C.date(r.state==="unpaid"||r.state==="short"?(r.lastEnd||r.end):r.end)+"</span></div>";
+      }).join("")+"</details>";
+  }).join("");
+}
+
+/* ---- Money on the table ----
+   From the refresh (join.mjs, part 11): per coach and month, [count, AED]. The window picks the
+   months. "Right now" is today's, whatever the window. */
+var LKF=["xf","xc","ax","fl","fd","fo","ro","rl","lc","lb","ls"];
+function leak(){
+  var L=D.ov.leak, host=$("lkTbl");
+  if(!L||!L.list){ ["lkBig","lkNow","lkSent","lkTbl","lkLst"].forEach(function(id){ $(id).innerHTML=""; }); $("lkW").textContent=""; $("lkNote").textContent="Comes with the next refresh."; return; }
+  var now=D.ov.now, w=win.leak;
+  var inW=function(p){ if(w==="all") return true; if(w==="1") return p===C.prevP(now,1); if(w==="y") return p.slice(0,4)===now.slice(0,4)&&p<=now; return p>=C.prevP(now,+w-1)&&p<=now; };
+  var wl=w==="all"?"since "+C.label(L.from):w==="1"?C.label(C.prevP(now,1)):w==="y"?"this year":"the last "+w+" months";
+  var wIn=w==="y"||w==="all"?wl:"in "+wl;
+  var list=L.list.filter(function(x){ return C.keep(x.coach); });
+  var cs={}; Object.keys(L.m).concat(Object.keys(L.now.due)).forEach(function(c){ if(C.keep(c)) cs[c]=1; }); list.forEach(function(x){ cs[x.coach]=1; });
+  var blank=function(){ var o={}; LKF.forEach(function(f){ o[f]=[0,0]; }); o.chk=[0,0]; o.due=[0,0]; o.chkN=0; return o; };
+  var by={}, T=blank();
+  Object.keys(cs).forEach(function(c){
+    var o=by[c]=blank(), m=L.m[c]||{};
+    Object.keys(m).forEach(function(p){ if(!inW(p)) return; LKF.forEach(function(f){ var v=m[p][f]; if(v){ o[f][0]+=v[0]; o[f][1]+=v[1]; T[f][0]+=v[0]; T[f][1]+=v[1]; } }); });
+    var v=L.now.due[c]; if(v){ o.due=v.slice(); T.due[0]+=v[0]; T.due[1]+=v[1]; }
+  });
+  list.forEach(function(x){ var o=by[x.coach]; o.chk[0]+=x.n; o.chk[1]+=x.aed; o.chkN++; T.chk[0]+=x.n; T.chk[1]+=x.aed; T.chkN++; });
+  // Each coach's renewal rate over the last 12 months (the team's when the coach has fewer than 5 decisions).
+  var pc=D.ov.perCoach||{}, tk=0, tn=0; Object.keys(pc).forEach(function(c){ var x=pc[c]; tk+=x.kept+x.moved; tn+=x.kept+x.moved+x.lost; });
+  var rateOf=function(c){ var x=pc[c], n=x?x.kept+x.moved+x.lost:0; return n>=5?(x.kept+x.moved)/n:(tn?tk/tn:0.5); };
+  var exp=0; Object.keys(by).forEach(function(c){ exp+=by[c].due[1]*rateOf(c); });
+  var big=function(v,l,c){ return '<div><div class="v" style="color:'+c+'">'+v+'</div><div class="l">'+l+"</div></div>"; };
+  var sm=function(t){ return ' <small style="font-size:13px;color:var(--ink-soft)">'+t+"</small>"; };
+  var R=function(n){ return C.full(Math.round(n)); };
+  $("lkW").textContent="In "+(w==="y"||w==="all"?wl.replace(/^since/,"everything since"):wl);
+  $("lkBig").innerHTML=big(aed(T.xf[1])+sm("· "+T.xf[0]+" packages"),"extension fees not charged","var(--down)")+
+    big(aed(T.ax[1])+sm("· "+R(T.ax[0])+" sessions"),"up to: sessions after expiry, no fee","var(--watch)")+
+    big(T.lc[0]+sm("· "+aed(T.lc[1])),"clients lost · counted "+D.ov.grace+" days after the cover ran out","var(--ink)");
+  $("lkNow").innerHTML=big(aed(T.chk[1])+sm("· "+R(T.chk[0])+" sessions, "+T.chkN+" clients"),"to check: not covered by any logged package","var(--watch)")+
+    big(T.due[0]+sm("· "+aed(T.due[1])),"clients in the grace period · about "+aed(exp)+" expected back","var(--watch)");
+  var pct=function(v){ return v[1]?Math.round(v[0]/v[1]*100)+"%":"—"; };
+  var out=[];
+  out.push(["var(--down)",T.xf[0]+" package"+(T.xf[0]===1?" was":"s were")+" used after the expiry date "+wIn+" with no extension fee typed: "+T.xf[0]+" × "+aed(L.fee)+" = "+aed(T.xf[1])+"."+(T.xc[0]?" "+T.xc[0]+" had the fee charged.":" None had the fee charged.")]);
+  out.push(["var(--watch)","On those packages, "+R(T.ax[0])+" sessions were trained after the expiry date. Under the policy each of those sessions needed the fee or a new package: up to "+aed(T.ax[1])+" at the package's rate."]);
+  if(T.fl[0]+T.fo[0]) out.push(["var(--watch)",T.fl[0]+" of "+(T.fl[0]+T.fo[0])+" packages used up "+wIn+" finished after their expiry date"+(T.fl[0]?", on average "+Math.round(T.fd[0]/T.fl[0])+" days late. Had those clients trained at the pace the package is sold for, their renewals would have come sooner: up to "+aed(T.fl[1])+" more over the same days (an estimate, not money owed)":"")+"."]);
+  if(!T.ro[1]&&!T.rl[1]) out.push(["var(--ink-soft)","Renewal rate by pace: too early to tell for packages that expired "+wIn+". A package counts once the grace period ("+D.ov.grace+" days) after its expiry date has passed: pick a longer window."]);
+  else { var a=T.ro[1]?T.ro[0]/T.ro[1]:null, b=T.rl[1]?T.rl[0]/T.rl[1]:null, gap=a!=null&&b!=null?a-b:0;
+    out.push([gap>=0.1?"var(--down)":"var(--ink-soft)","Renewal rate by pace: clients who used up their package by its expiry date renewed "+pct(T.ro)+" of the time ("+T.ro[0]+" of "+T.ro[1]+"); clients who ran past it renewed "+pct(T.rl)+" ("+T.rl[0]+" of "+T.rl[1]+")."+
+      (gap>=0.1?" Running past expiry is an early sign of a client about to leave: act on the pace, not at the end. (It shows they go together; it does not prove enforcing the expiry would keep them.)":gap<=-0.1?" Here, running past expiry did not cost renewals.":"")]); }
+  out.push(["var(--ink-soft)",T.lc[0]+" client"+(T.lc[0]===1?"":"s")+" lost "+wIn+" (a client counts as lost only "+D.ov.grace+" days after the cover ran out; the ones still inside that time are under Right now, in the grace period): cover ran out with no renewal within the grace period, no purchase since and not training on any sheet. Their last packages: "+aed(T.lc[1])+"."+
+    (T.lb[0]?" Not counted: "+T.lb[0]+" who came back later"+(T.ls[0]?" and "+T.ls[0]+" the file has as ended but a sheet shows training in the last month (check those purchases)":"")+".":T.ls[0]?" Not counted: "+T.ls[0]+" the file has as ended but a sheet shows training in the last month.":"")]);
+  out.push(["var(--watch)","To check now: "+R(T.chk[0])+" sessions by "+T.chkN+" clients are not covered by any package typed into the Clients file ("+aed(T.chk[1])+" at their last package's rate). The file cannot tell an unpaid session from a purchase that was never logged: the list below says who."]);
+  $("lkSent").innerHTML=out.map(function(x){ return '<li><span class="dot" style="background:'+x[0]+'"></span><span>'+esc(x[1])+"</span></li>"; }).join("");
+  var dash='<span class="dim">—</span>', cell=function(v,cnt){ return v[0]||v[1]?C.full(Math.round(v[1]))+' <span class="dim">· '+R(cnt!=null?cnt:v[0])+"</span>":dash; };
+  var rate=function(v){ return v[1]?pct(v)+' <span class="dim">· '+v[1]+"</span>":dash; };
+  var row=function(nm,o,cls){ var used=o.fl[0]+o.fo[0];
+    return "<tr"+(cls?' class="'+cls+'"':"")+'><td class="l">'+nm+"</td><td>"+cell(o.xf)+"</td><td>"+cell(o.ax)+"</td><td>"+(used?o.fl[0]+' <span class="dim">of '+used+(o.fl[0]?" · "+Math.round(o.fd[0]/o.fl[0])+" d":"")+"</span>":dash)+"</td><td>"+rate(o.ro)+"</td><td>"+rate(o.rl)+"</td><td>"+cell(o.lc)+
+      '</td><td class="sep">'+(o.chk[0]?C.full(o.chk[1])+' <span class="dim">· '+R(o.chk[0])+" ses, "+o.chkN+" cl</span>":dash)+"</td><td>"+cell(o.due)+"</td></tr>"; };
+  var any=function(o){ return LKF.some(function(f){ return o[f][0]||o[f][1]; })||o.chk[0]||o.due[0]; };
+  var ks=Object.keys(by).filter(function(c){ return any(by[c]); }).sort(function(a,b){ var x=by[a], y=by[b]; return (y.xf[1]+y.ax[1])-(x.xf[1]+x.ax[1])||a.localeCompare(b); });
+  host.innerHTML='<thead><tr><th class="l"></th><th colspan="6" class="l" style="color:var(--ink-soft)">'+esc(wl.charAt(0).toUpperCase()+wl.slice(1))+'</th><th colspan="2" class="l sep" style="color:var(--ink-soft)">Right now</th></tr>'+
+    '<tr><th class="l">Coach</th><th>Fees not charged<br>AED · packages</th><th>After expiry, no fee<br>AED · sessions</th><th>Used up past expiry<br>packages · avg days late</th><th>Renewed · used up<br>by expiry · % · n</th><th>Renewed · ran<br>past expiry · % · n</th><th>Clients lost<br>AED · clients</th>'+
+    '<th class="sep">Not covered by a<br>logged package</th><th>In grace period<br>AED · clients</th></tr></thead><tbody>'+row("Team",T,"total")+ks.map(function(c){ return row(esc(c),by[c]); }).join("")+"</tbody>";
+  // Who is behind "not covered by a logged package", by coach.
+  var byC={}; list.forEach(function(x){ (byC[x.coach]=byC[x.coach]||[]).push(x); });
+  $("lkLst").innerHTML=!list.length?"":'<details><summary><span class="nm">Clients to check: sessions not covered by a logged package</span><span class="n">'+list.length+"</span></summary>"+
+    '<div class="lrow h" style="grid-template-columns:minmax(150px,1.4fr) repeat(4,minmax(80px,1fr))"><span>Client</span><span>Sessions</span><span>Last session</span><span>Last package logged</span><span>Now</span></div>'+
+    Object.keys(byC).sort().map(function(c){ return '<div class="lrow h" style="padding-top:10px"><span>'+esc(c)+" · "+byC[c].length+"</span></div>"+byC[c].map(function(x){
+      return '<div class="lrow" style="grid-template-columns:minmax(150px,1.4fr) repeat(4,minmax(80px,1fr))"><span>'+esc(x.name)+"</span><span>"+R(x.n)+"</span><span>"+(x.last?C.date(x.last):"—")+"</span><span>"+esc(x.pk)+"</span><span"+(x.gone?' style="color:var(--down)"':"")+">"+(x.gone?"stopped":"still training")+" · "+esc(x.status)+"</span></div>"; }).join(""); }).join("")+"</details>";
+  $("lkNote").textContent="Cells: AED · count. Only clients whose names are linked (Name check) and packages bought since the coach sheets start ("+C.label(L.from)+") can be followed. "+
+    "Expiry date = purchase date + the days Settings gives that size; a typed extension does not move it. Extension fee = "+L.feeIncl+" AED with VAT ("+L.fee+" without), from Settings (a row \"Extension fee\" changes it). Every package used after its expiry date with no fee typed in Packages counts as not charged, free extensions included. "+
+    "After expiry, no fee = the sessions trained after that date, at the package's rate per session: the most the policy could have brought in. "+
+    "Used up past expiry = packages whose last session came after the expiry date, of all packages used up in the window (packages bought before the sheets start are left out: their early sessions are not on any sheet). "+
+    "Renewed = the client bought again; counted for packages whose expiry date fell in the window once the grace period after it has passed; n = how many packages. "+
+    "Clients lost = cover ran out with no renewal within the grace period, by the coach of that package, in the month it ran out; clients who bought again later or are training on a sheet in the last month are left out. "+
+    "Not covered by a logged package = sessions on the sheets after every package typed into the Clients file was used up, for everyone followed: an unpaid session or a purchase not logged. Stopped = no session in the last 31 days. "+
+    "Uncharged cancellations (0) are not counted: the client keeps the session.";
+}
+
+/* ---- Value of a client ---- */
+function value(){
+  var host=$("chValue"), live=D.live, ov=D.ov, rows=[];
+  var qs=[1,2,3].map(function(n){ return C.prevP(ov.now,n); });
+  Object.keys(ov.perCoach).forEach(function(c){
+    var st=ov.perCoach[c].stay; if(!st) return;
+    var r=0, n=0;
+    qs.forEach(function(q){ var cl=C.clientsIn(live,q,c); if(!cl) return; cl.forEach(function(x){ if(x.s>0){ n++; r+=x.s*(x.price||0); } }); });
+    if(!n) return;
+    rows.push({c:c, m:st.months, k:st.n, rpc:r/n, v:st.months*r/n});
+  });
+  rows.sort(function(a,b){ return b.v-a.v; });
+  if(!rows.length){ host.innerHTML='<div class="empty">Needs new clients since '+C.date(ov.loggedFrom)+" and 3 complete months of coach sheets.</div>"; return; }
+  var W=C.width(host), rh=34, H=rows.length*rh+4, L=88, R=W<480?120:190, mx=Math.max.apply(null,rows.map(function(r){ return r.v; }));
+  var s='<svg viewBox="0 0 '+W+" "+H+'"><rect class="hl" rx="6" fill="rgba(255,255,255,.035)" style="opacity:0"/>', areas=[];
+  rows.forEach(function(r,i){
+    var y0=i*rh+2, w=(W-L-R)*r.v/mx;
+    s+=C.txt(L-10,y0+rh/2+4,esc(r.c),{a:"end",s:12});
+    s+=C.hbar(L,y0+8,w,rh-16,"var(--accent)");
+    s+=C.txt(L+w+8,y0+rh/2+4,aed(r.v)+(W<480?"":'  <tspan style="fill:var(--ink-faint)">'+r.m.toFixed(1)+" mo × "+aed(r.rpc)+" ("+r.k+")</tspan>"),{a:"start",s:11.5,c:"var(--ink)"});
+    areas.push({x:0,y:y0,w:W,h:rh,ax:L+w/2,ay:y0+8,html:"<b>"+esc(r.c)+"</b>"+C.trow("Months in the first year",r.m.toFixed(1))+C.trow("Revenue per client a month","AED "+C.full(r.rpc))+C.trow("Value in the first year","AED "+C.full(r.v))+C.trow("New clients behind it",r.k)});
+  });
+  host.innerHTML=s+"</svg>"; C.hits(host,areas);
+}
+
+/* ---- Name check ---- */
+function copy(t,btn){
+  function done(){ var o=btn.textContent; btn.textContent="Copied"; setTimeout(function(){ btn.textContent=o; },1200); }
+  if(navigator.clipboard) navigator.clipboard.writeText(t).then(done,function(){}); else { var a=document.createElement("textarea"); a.value=t; document.body.appendChild(a); a.select(); try{ document.execCommand("copy"); done(); }catch(e){} a.remove(); }
+}
+function names(){
+  var n=D.ov.names;
+  $("nameBig").innerHTML=[[n.auto+n.byHand,"linked"+(n.byHand?" ("+n.byHand+" by hand)":""),"var(--up)"],[n.unclear.length,"to confirm","var(--watch)"],[n.notInFile.length,"on a sheet, not in the file","var(--ink)"],[n.endedOnSheet.length,"ended, still on a sheet","var(--down)"]]
+    .map(function(x){ return '<div><div class="v" style="color:'+(x[0]?x[2]:"var(--ink-faint)")+'">'+x[0]+'</div><div class="l">'+x[1]+"</div></div>"; }).join("");
+  function group(title,list,row){
+    if(!list.length) return '<details class="none"><summary><span class="nm">'+title+'</span><span class="n">none</span></summary></details>';
+    var by={}; list.forEach(function(x){ (by[x.coach]=by[x.coach]||[]).push(x); });
+    return '<details><summary><span class="nm">'+title+'</span><span class="n">'+list.length+"</span></summary>"+Object.keys(by).sort().map(function(c){
+      return '<div class="lrow h" style="padding-top:10px"><span>'+esc(c)+" · "+by[c].length+"</span></div>"+by[c].map(row).join("");
+    }).join("")+"</details>";
+  }
+  var k=0;
+  $("nameLst").innerHTML=group("To confirm",n.unclear,function(x){
+    return '<div class="lrow" style="grid-template-columns:minmax(120px,1fr) 2fr"><span>'+esc(x.name)+' <span class="dim">· '+C.label(x.last,true)+"</span></span><span>"+x.sug.map(function(s){
+      return esc(s.name)+' <span class="dim">'+s.id+'</span> <button class="copy" data-t="'+esc(x.coach+"\t"+x.name+"\t"+s.id)+'">Copy</button>'; }).join("<br>")+
+      '<br><span class="dim">none of these</span> <button class="copy" data-t="'+esc(x.coach+"\t"+x.name+"\tnone")+'">Copy</button></span></div>';
+  })+group("On a sheet, not in the file",n.notInFile,function(x){
+    return '<div class="lrow"><span>'+esc(x.name)+'</span><span class="dim">'+C.label(x.last)+'</span><span></span><span><button class="copy" data-t="'+esc(x.coach+"\t"+x.name+"\tnone")+'">Copy as none</button></span></div>';
+  })+group("Ended, still on a sheet",n.endedOnSheet,function(x){
+    return '<div class="lrow"><span>'+esc(x.name)+'</span><span class="dim">'+x.id+'</span><span></span><span class="dim">ended '+C.date(x.until)+"</span></div>";
+  });
+  Array.prototype.forEach.call($("nameLst").querySelectorAll("button.copy"),function(b){ b.addEventListener("click",function(e){ e.preventDefault(); copy(b.getAttribute("data-t"),b); }); });
+  $("nameNote").textContent=(n.hasTab?"":"There is no Name links tab in the Clients file yet. Add a tab named Name links with the headings Coach · Name on coach sheet · Client ID. ")+
+    "To confirm a name, press Copy beside the right client and paste the row into the Name links tab; it is remembered from the next refresh on. “none” marks a name that is not a client in the file (a trial, a family member)."+
+    (n.bad.length?" Problems on the tab: "+n.bad.join("; ")+".":"");
+}
+
+C.unlock(function(d,pass){
+  D=d; OV0=d.ov; render();
+  C.scopeSwitch($("segScope"),render);
+  Array.prototype.forEach.call(document.querySelectorAll("select.win"),function(sel){
+    var k=sel.getAttribute("data-k"); sel.value=win[k];
+    sel.addEventListener("change",function(){ win[k]=sel.value; try{ localStorage.setItem("iamov:win",JSON.stringify(win)); }catch(e){} if(k==="sold") chartSold(); else if(k==="leak") leak(); else chartUnused(); });
+  });
+  C.notes($("btnNotes"));
+  $("btnReload").addEventListener("click",function(){ var b=this; b.disabled=true; b.textContent="Reloading…"; C.load(pass).then(function(x){ D=x; OV0=x.ov; render(); }).catch(function(){}).then(function(){ b.disabled=false; b.textContent="Reload"; }); });
+  Array.prototype.forEach.call($("segShare").querySelectorAll("button"),function(b){ b.addEventListener("click",function(){ shareN=+b.getAttribute("data-v"); try{ localStorage.setItem("iamov:share",shareN); }catch(e){} share(); }); });
+  var rt; window.addEventListener("resize",function(){ clearTimeout(rt); rt=setTimeout(function(){ if(D&&D.ov){ chartSold(); chartUnused(); share(); value(); } },150); });
+});
+if("serviceWorker" in navigator){ navigator.serviceWorker.register("./sw.js").catch(function(){}); }
+})();
+</script>
+</body>
+</html>

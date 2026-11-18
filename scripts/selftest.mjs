@@ -458,4 +458,16 @@ check("sheet names", ["Oct 2026", "Sept 2026", "October 2026", " October 2022", 
 }
 
 if (failures) { console.error(`\n${failures} self-test(s) failed - refusing to publish figures.`); process.exit(1); }
+/* 10. Finance and Overview are the Performance page under another name: the file name picks the
+       view. They must stay byte-for-byte the same file, or one would drift. */
+{
+  const fs = await import("fs"), url = await import("url"), path = await import("path");
+  const root = path.dirname(path.dirname(url.fileURLToPath(import.meta.url)));
+  const rep = fs.readFileSync(path.join(root, "report.html"), "utf8");
+  for (const f of ["finance.html", "overview.html"]) {
+    const other = fs.existsSync(path.join(root, f)) ? fs.readFileSync(path.join(root, f), "utf8") : null;
+    if (other !== rep) { console.error(`FAIL: ${f} differs from report.html - copy report.html over it (cp report.html ${f})`); process.exit(1); }
+  }
+  console.log("ok  finance.html and overview.html match report.html");
+}
 console.log("\nAll layout self-tests passed.");

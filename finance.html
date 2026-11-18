@@ -1,0 +1,1650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Coach Performance — I AM Performance</title>
+<meta name="theme-color" content="#050505">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Coaches">
+<meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="./report.webmanifest">
+<link rel="icon" href="./icon-192.png" sizes="192x192">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="stylesheet" href="./fonts/alata.css">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --ground:#050505; --panel:#0e0e10; --panel-2:#17171a; --panel-3:#1f1f22;
+  --line:#2a2a2d; --line-soft:#1c1c1f;
+  --ink:#f2ede6; --ink-soft:#b0a89e; --ink-faint:#6e6862;
+  --up:#5eb87a; --down:#e14b4b; --flat:#6e6862; --watch:#e0a63c;
+  --accent:#ef691d; --accent-2:#ff8340;
+  --f-display:'Alata',system-ui,sans-serif; --f-mono:'Alata',system-ui,sans-serif;
+  --r:12px;
+}
+html{scroll-behavior:smooth;}
+body{background:var(--ground);color:var(--ink);font-family:var(--f-display);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  background-image:radial-gradient(ellipse 90% 46% at 50% -8%,rgba(239,105,29,.085),transparent 62%);}
+.wrap{max-width:1300px;margin:0 auto;padding:26px 20px 70px;}
+/* One page, three views (scripts/selftest.mjs keeps finance.html and overview.html identical to
+   this file): Performance shows everything; Finance the coaches' numbers only; Overview the
+   projection only. The file name picks the view. */
+body.v-ceo #tiles,body.v-ceo #mainCard,body.v-ceo #deep,body.v-ceo #selCompare,body.v-ceo #chipWhole,
+body.v-fin #proj,body.v-fin #deep,
+body.v-ceo #btnRefresh,body.v-fin #btnRefresh,body.v-ceo #tokenPanel,body.v-fin #tokenPanel,
+body.v-ceo #coveragePanel,body.v-fin #coveragePanel,body.v-ceo #coachPanel,body.v-fin #coachPanel{display:none !important;}
+@media(max-width:640px){.wrap{padding:18px 14px 50px;}}
+::selection{background:rgba(239,105,29,.3);}
+
+.head{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;justify-content:space-between;padding-bottom:16px;margin-bottom:18px;position:relative;}
+.head::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:linear-gradient(90deg,var(--accent),transparent 68%);opacity:.6;}
+.eyebrow{font-family:var(--f-mono);font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--accent);display:flex;align-items:center;gap:8px;}
+.eyebrow::before{content:"";width:20px;height:1.5px;background:var(--accent);}
+h1{font-size:31px;line-height:1.04;letter-spacing:-.012em;margin-top:7px;}
+@media(max-width:640px){h1{font-size:24px;}}
+.stamp{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-faint);text-align:right;line-height:1.85;}
+@media(max-width:640px){.stamp{text-align:left;}}
+
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:18px;}
+select,button{font-family:var(--f-display);font-size:13px;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:8px 11px;cursor:pointer;}
+select:focus,button:focus-visible{outline:none;border-color:var(--accent);}
+button:hover,select:hover{border-color:var(--ink-faint);}
+.seg{display:inline-flex;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;overflow:hidden;}
+.seg button{border:none;border-radius:0;background:transparent;padding:8px 13px;color:var(--ink-soft);}
+.seg button+button{border-left:1px solid var(--line);}
+.seg button.on{background:var(--accent);color:#120800;font-weight:600;}
+/* switching between the pages; each asks for its own passphrase */
+.seg a{padding:8px 13px;color:var(--ink-soft);font-size:13px;text-decoration:none;}
+.seg a+a{border-left:1px solid var(--line);}
+.seg a.on{background:var(--accent);color:#120800;font-weight:600;}
+.chip-line{margin:-6px 0 12px;min-height:24px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.chip.warn{color:var(--down);border-color:rgba(225,75,75,.5);}
+.nomtd{color:var(--down);margin-left:5px;font-size:11px;vertical-align:2px;}
+.chip{font-family:var(--f-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);border:1px solid rgba(239,105,29,.4);border-radius:999px;padding:5px 10px;white-space:nowrap;}
+.note{font-family:var(--f-mono);font-size:11px;color:var(--ink-faint);margin-left:auto;}
+@media(max-width:700px){.note{margin-left:0;width:100%;}}
+
+/* team tiles */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(176px,1fr));gap:10px;margin-bottom:16px;}
+@media(max-width:700px){.tiles{grid-template-columns:repeat(2,1fr);}}
+.tile{background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r);padding:14px 15px;position:relative;overflow:hidden;}
+.tile::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--line);}
+.tile.lead::before{background:linear-gradient(180deg,var(--accent),var(--accent-2));}
+.tile .k{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.17em;text-transform:uppercase;color:var(--ink-faint);}
+.tile .v{font-family:var(--f-mono);font-size:27px;font-weight:600;letter-spacing:-.02em;margin-top:5px;line-height:1.1;}
+@media(max-width:640px){.tile .v{font-size:22px;}}
+.tile.lead .v{color:var(--accent-2);}
+.tile .sub{font-family:var(--f-mono);font-size:10.5px;margin-top:3px;}
+
+.card{background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r);overflow:hidden;}
+.scroll{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;min-width:980px;}
+th,td{text-align:right;padding:11px 9px;border-bottom:1px solid var(--line-soft);white-space:nowrap;}
+th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:var(--panel);}
+th{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-faint);font-weight:500;cursor:pointer;user-select:none;background:var(--panel);position:sticky;top:0;z-index:1;}
+th:first-child{z-index:2;}
+th.on{color:var(--accent);}
+td{font-family:var(--f-mono);font-size:13.5px;}
+td:first-child{font-family:var(--f-display);font-size:14px;}
+tbody tr:hover td,tbody tr:hover td:first-child{background:var(--panel-2);}
+tbody tr.me td,tbody tr.me td:first-child{background:rgba(239,105,29,.055);}
+tfoot td{border-bottom:none;border-top:1px solid var(--line);font-weight:600;background:var(--panel-2);}
+tfoot td:first-child{background:var(--panel-2);}
+.d{display:block;font-size:10.5px;margin-top:2px;}
+.d.up{color:var(--up);} .d.down{color:var(--down);} .d.flat{color:var(--flat);}
+.dim{color:var(--ink-faint);}
+/* Rank marker: where a coach sits on revenue within the month being viewed - green at the
+   top of the order through to red at the bottom. */
+.rk{display:inline-block;width:4px;height:17px;border-radius:2px;margin-right:9px;vertical-align:-3px;}
+.att{display:flex;align-items:center;gap:9px;justify-content:flex-end;}
+.att-track{position:relative;width:72px;height:6px;border-radius:3px;background:var(--panel-3);}
+.att-fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px;}
+.att-fill.over{background:linear-gradient(90deg,rgba(94,184,122,.5),var(--up));}
+.att-fill.under{background:linear-gradient(90deg,rgba(225,75,75,.45),var(--down));}
+/* the even line: a coach on exactly their equal share reaches this mark */
+.att-mark{position:absolute;top:-3px;bottom:-3px;width:1px;left:50%;background:var(--ink-faint);opacity:.9;}
+.att-pct{min-width:46px;font-size:12.5px;}
+.att-pct.over{color:var(--up);} .att-pct.under{color:var(--down);}
+/* projection: what each coach set at the start of the month, and how much of it is reached */
+.proj{background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r);padding:14px 16px 10px;margin:16px 0;position:relative;overflow:hidden;}
+.proj::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:linear-gradient(180deg,var(--accent),var(--accent-2));}
+.proj-head{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;justify-content:space-between;margin-bottom:6px;}
+.proj-head .k{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.17em;text-transform:uppercase;color:var(--ink-faint);}
+.proj-head .who{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-faint);}
+.proj-head .who b{color:var(--watch);font-weight:500;}
+.proj-row{display:grid;grid-template-columns:76px 70px minmax(140px,1fr) minmax(190px,auto);gap:4px 16px;align-items:center;padding:9px 0;}
+.proj-row+.proj-row{border-top:1px solid var(--line-soft);}
+.proj-row .lbl{font-family:var(--f-mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-soft);}
+.proj-row .pct{font-family:var(--f-mono);font-size:24px;font-weight:600;letter-spacing:-.02em;line-height:1;}
+.proj-row .fig{font-family:var(--f-mono);font-size:12.5px;color:var(--ink);text-align:right;line-height:1.35;}
+.proj-row .fig .d{font-size:10.5px;}
+.proj-foot{font-family:var(--f-mono);font-size:10px;color:var(--ink-faint);padding-top:7px;border-top:1px solid var(--line-soft);line-height:1.6;}
+.proj-foot i{display:inline-block;width:1.5px;height:10px;background:var(--ink);vertical-align:-1px;margin:0 4px 0 1px;}
+@media(max-width:640px){
+  .proj-row{grid-template-columns:auto 1fr;gap:6px 12px;}
+  .proj-row .pj-track{grid-column:1/-1;}
+  .proj-row .fig{grid-column:1/-1;text-align:left;}
+  .proj-row .pct{text-align:right;}
+}
+/* per coach: sessions done against sessions projected */
+.pc-head{display:flex;justify-content:space-between;gap:10px;margin-top:4px;padding:10px 0 4px;border-top:1px solid var(--line-soft);
+  font-family:var(--f-mono);font-size:9.5px;letter-spacing:.17em;text-transform:uppercase;color:var(--ink-faint);}
+.pc-row{display:grid;grid-template-columns:112px minmax(140px,1fr) 104px 48px 76px 190px;gap:2px 16px;align-items:center;padding:7px 0;}
+/* how far through the month we are, beside each coach's progress, and the gap between the two */
+.pc-row .pm{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-faint);text-align:right;line-height:1.4;white-space:nowrap;}
+
+.pc-row+.pc-row{border-top:1px solid var(--line-soft);}
+.pc-row .nm{font-size:13.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pc-row .ss{font-family:var(--f-mono);font-size:13px;color:var(--ink);text-align:right;white-space:nowrap;}
+.pc-row .ss .dim{color:var(--ink-faint);}
+.pc-row .pp{font-family:var(--f-mono);font-size:14px;font-weight:600;text-align:right;}
+.pc-row .rv{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-faint);text-align:right;line-height:1.45;white-space:nowrap;}
+.pc-row .rv .near{display:block;}
+.pc-row.unset .nm{color:var(--ink-soft);}
+@media(max-width:640px){
+  .pc-row{grid-template-columns:1fr auto auto auto;gap:5px 12px;}
+  .pc-row .pj-track{grid-column:1/-1;grid-row:2;}
+  .pc-row .rv{grid-column:1/-1;grid-row:3;text-align:left;}
+}
+.pj-track{position:relative;display:block;height:8px;border-radius:4px;background:var(--panel-3);}
+.pj-track.sm{display:inline-block;width:72px;height:6px;border-radius:3px;}
+.pj-fill{position:absolute;left:0;top:0;bottom:0;border-radius:inherit;}
+.pj-fill.ok{background:linear-gradient(90deg,rgba(94,184,122,.5),var(--up));}
+.pj-fill.near{background:linear-gradient(90deg,rgba(224,166,60,.45),var(--watch));}
+.pj-fill.low{background:linear-gradient(90deg,rgba(225,75,75,.45),var(--down));}
+/* the full projection sits at 100 of a 120 scale, so a coach beyond it still shows */
+.pj-full{position:absolute;top:-3px;bottom:-3px;left:83.333%;width:1px;background:var(--ink-faint);}
+/* straight-line pace for the day: where the fill should have reached by now */
+.pj-pace{position:absolute;top:-4px;bottom:-4px;width:2px;margin-left:-1px;background:var(--ink);border-radius:1px;box-shadow:0 0 0 1.5px var(--panel);}
+.pj-track.sm .pj-pace{top:-3px;bottom:-3px;}
+.ok{color:var(--up);} .near{color:var(--watch);} .low{color:var(--down);}
+.att-pct.ok{color:var(--up);} .att-pct.near{color:var(--watch);} .att-pct.low{color:var(--down);}
+.notset{font-family:var(--f-mono);font-size:11px;color:var(--watch);letter-spacing:.06em;}
+.d.near{color:var(--watch);}
+/* the last read failed: the figures on screen are older than they look */
+.readfail{display:flex;gap:12px;align-items:flex-start;border:1px solid rgba(225,75,75,.45);background:rgba(225,75,75,.08);
+  border-radius:var(--r);padding:12px 14px;margin-bottom:16px;font-size:13px;line-height:1.5;color:var(--ink);}
+.readfail b{color:var(--down);font-weight:600;}
+.readfail .when{display:block;font-family:var(--f-mono);font-size:10.5px;color:var(--ink-faint);margin-top:3px;}
+details.coaches{margin-bottom:16px;background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r);padding:11px 14px;}
+details.coaches summary{cursor:pointer;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-faint);list-style:none;}
+details.coaches summary::-webkit-details-marker{display:none;}
+details.coaches summary::before{content:"\25B8 ";color:var(--accent);}
+details.coaches[open] summary::before{content:"\25BE ";}
+.coach-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:4px 20px;margin-top:11px;}
+.coach-row{display:flex;align-items:center;gap:10px;padding:4px 0;border-bottom:1px solid var(--line-soft);}
+.coach-row span.nm{flex:1;font-size:13px;}
+.coach-row label{display:flex;align-items:center;gap:5px;white-space:nowrap;font-family:var(--f-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);cursor:pointer;}
+.coach-row input{accent-color:var(--accent);}
+#coverage{min-width:520px;margin-top:10px;}
+#coverage th,#coverage td{padding:7px 10px;font-size:12px;}
+#coverage td:first-child,#coverage th:first-child{position:static;background:transparent;}
+#coverage th{position:static;background:transparent;cursor:default;}
+#coverage td{font-family:var(--f-mono);}
+.gap{color:var(--down);}
+.token-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px;}
+.token-row input{flex:1;min-width:230px;padding:8px 11px;font-size:13px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;color:var(--ink);font-family:var(--f-mono);}
+.token-row input:focus{outline:none;border-color:var(--accent);}
+.even-note{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-faint);margin-top:2px;display:block;font-weight:400;}
+.empty{padding:40px 16px;text-align:center;color:var(--ink-faint);font-family:var(--f-mono);font-size:12px;}
+.status{font-family:var(--f-mono);font-size:11.5px;margin-top:12px;color:var(--ink-faint);min-height:17px;}
+.status.err{color:var(--down);} .status.ok{color:var(--up);}
+
+.gate{position:fixed;inset:0;z-index:99;background:var(--ground);display:flex;align-items:center;justify-content:center;padding:24px;
+  background-image:radial-gradient(ellipse 80% 50% at 50% -10%,rgba(239,105,29,.1),transparent 60%);}
+.gate-box{width:100%;max-width:370px;}
+.gate h1{margin:9px 0 2px;}
+#gateForm{display:flex;flex-direction:column;gap:11px;margin-top:18px;}
+#gatePass{width:100%;padding:12px 14px;font-size:16px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);color:var(--ink);font-family:var(--f-mono);}
+#gatePass:focus{outline:none;border-color:var(--accent);}
+#gateBtn{background:var(--accent);border-color:var(--accent);color:#120800;font-weight:600;padding:12px;}
+.rem{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-soft);cursor:pointer;}
+body.locked{overflow:hidden;}
+/* client-level panels: training frequency, load, revenue per client, training less often */
+.deep{margin:16px 0;}
+.dcard{background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r);margin-bottom:16px;overflow:hidden;}
+.dcard-h{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:flex-start;justify-content:space-between;padding:13px 16px 11px;border-bottom:1px solid var(--line-soft);}
+.dcard-h .k{font-size:9.5px;letter-spacing:.17em;text-transform:uppercase;color:var(--ink-faint);}
+.dcard-h .t{font-size:15px;margin-top:2px;}
+.dcard-h .u{font-size:10.5px;color:var(--ink-faint);}
+.dcard-b{padding:12px 16px 14px;}
+.dnote{font-size:11px;color:var(--ink-faint);margin-top:8px;line-height:1.6;}
+.dleg{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:11px;color:var(--ink-soft);margin:0 0 8px;}
+.dleg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px;}
+.dleg .r{margin-left:auto;color:var(--ink-faint);}
+.dchart{position:relative;}
+.dchart svg{display:block;width:100%;height:auto;overflow:visible;}
+.dchart text{font-family:var(--f-display);}
+.dtip{position:absolute;pointer-events:none;background:var(--panel-3);border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:11.5px;line-height:1.6;
+  color:var(--ink);box-shadow:0 8px 24px rgba(0,0,0,.45);opacity:0;transition:opacity .08s;z-index:5;max-width:340px;}
+.dtip b{font-weight:400;display:block;margin-bottom:2px;font-size:12.5px;}
+.dtip .row{display:flex;justify-content:space-between;gap:18px;font-variant-numeric:tabular-nums;}
+.dtip .row span:first-child{color:var(--ink-soft);}
+.dtip i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;}
+.dtbl{width:100%;border-collapse:collapse;}
+.dtbl th,.dtbl td{text-align:right;padding:9px 10px;white-space:nowrap;border-bottom:1px solid var(--line-soft);font-variant-numeric:tabular-nums;}
+.dtbl th{font-size:9.5px;font-weight:400;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-faint);vertical-align:bottom;line-height:1.5;}
+.dtbl td{font-size:13px;}
+.dtbl th:first-child,.dtbl td:first-child{text-align:left;padding-left:16px;}
+.dtbl th:last-child,.dtbl td:last-child{padding-right:16px;}
+.dtbl tr.total td{border-top:1px solid var(--line);border-bottom:none;color:var(--ink-soft);}
+.dtbl .big{font-size:15px;color:var(--ink);}
+.less details{border-top:1px solid var(--line-soft);}
+.less details:first-child{border-top:none;}
+.less summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:10px 0;font-size:14px;}
+.less summary::-webkit-details-marker{display:none;}
+.less summary::before{content:"▸";color:var(--accent);margin-right:8px;font-size:11px;}
+.less details[open] summary::before{content:"▾";}
+.less summary .nm{flex:1;}
+.less summary .n{font-size:13px;color:var(--ink-soft);}
+.less summary .n.hi{color:var(--watch);}
+.less .none summary{color:var(--ink-faint);cursor:default;}
+.less .none summary::before{color:transparent;}
+.lrow{display:grid;grid-template-columns:minmax(120px,1fr) 120px 120px 130px;gap:10px;padding:6px 0 6px 19px;font-size:12.5px;font-variant-numeric:tabular-nums;color:var(--ink-soft);}
+.lrow span:not(:first-child){text-align:right;}
+.lrow.h{font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-faint);padding-top:2px;}
+.lrow .nw{color:var(--down);}
+@media(max-width:560px){.lrow{grid-template-columns:1fr 70px 70px;} .lrow span:last-child{display:none;}}
+.dtbl .up{color:var(--up);} .dtbl .down{color:var(--down);}
+.dgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;}
+.dgrid>.dcard{margin-bottom:16px;}
+.dgrid .dtbl th,.dgrid .dtbl td{padding:9px 7px;}
+.dgrid .dtbl th{white-space:normal;min-width:54px;}
+.dgrid .dtbl th:first-child,.dgrid .dtbl td:first-child{padding-left:16px;}
+@media(max-width:1000px){.dgrid{grid-template-columns:1fr;}}
+.dnote{display:none;}
+body.notes .dnote{display:block;}
+#btnNotes.on{border-color:var(--accent);color:var(--accent-2);}
+.dempty{padding:22px 16px;text-align:center;color:var(--ink-faint);font-size:12px;}
+</style>
+</head>
+<body class="locked">
+
+<div class="gate" id="gate">
+  <div class="gate-box">
+    <div class="eyebrow">I AM Performance</div>
+    <h1>Coach Performance</h1>
+    <form id="gateForm" autocomplete="off">
+      <input type="password" id="gatePass" placeholder="Passphrase" autocomplete="current-password" spellcheck="false">
+      <label class="rem"><input type="checkbox" id="gateRemember" checked> Remember on this device</label>
+      <button type="submit" id="gateBtn">Unlock</button>
+    </form>
+    <p class="status" id="gateStatus"></p>
+  </div>
+</div>
+
+<div class="wrap" id="app" style="display:none">
+  <div class="head">
+    <div>
+      <div class="eyebrow">I AM Performance</div>
+      <h1>Coach Performance</h1>
+    </div>
+    <div class="stamp" id="stamp"></div>
+  </div>
+
+  <div class="bar">
+    <span class="seg" id="nav"></span>
+    <select id="selSpan" aria-label="Window">
+      <option value="1">One month</option><option value="3">3 months to</option><option value="6">6 months to</option>
+      <option value="12">12 months to</option><option value="ytd">Year to date</option><option value="custom">From…</option>
+    </select>
+    <select id="selFrom" aria-label="From" style="display:none"></select>
+    <select id="selMonth" aria-label="Month"></select>
+    <span class="seg" id="segBasis">
+      <button data-v="mtd" class="on">To date</button>
+      <button data-v="full">Whole month</button>
+    </span>
+    <span class="seg" id="segScope">
+      <button data-v="all" class="on">With Hossam</button>
+      <button data-v="team">Team only</button>
+    </span>
+    <select id="selCompare">
+      <option value="pace">vs last month, same point</option>
+      <option value="prev">vs last month, full</option>
+      <option value="yoy">vs same month last year, same point</option>
+      <option value="yoyfull">vs same month last year, full</option>
+      <option value="avg3">vs 3-month average</option>
+      <option value="avg6">vs 6-month average</option>
+      <option value="avg12">vs 12-month average</option>
+      <option value="since2025-10">vs average since Oct 2025</option>
+      <option value="since2024-06">vs average since Jun 2024</option>
+      <option value="none">no comparison</option>
+    </select>
+    <button id="btnNotes">Notes</button>
+    <button id="btnReload">Reload</button>
+    <button id="btnRefresh">Refresh now</button>
+    <span class="note" id="note"></span>
+  </div>
+
+  <p class="chip-line"><span class="chip" id="chipMtd" style="display:none"></span><span class="chip warn" id="chipWhole" style="display:none"></span></p>
+  <p class="status" id="status"></p>
+
+
+  <div class="readfail" id="readFail" style="display:none"></div>
+
+  <div class="tiles" id="tiles"></div>
+
+  <div class="card" id="mainCard">
+    <div class="scroll"><table id="tbl"></table></div>
+    <div class="empty" id="empty" style="display:none">No coach has figures for this month yet.</div>
+  </div>
+
+  <div class="proj" id="proj" style="display:none"></div>
+  <div class="deep" id="deep"></div>
+
+  <details class="coaches" id="coveragePanel">
+    <summary id="coverageSummary">Coverage</summary>
+    <div class="scroll"><table id="coverage"></table></div>
+  </details>
+
+  <details class="coaches" id="tokenPanel">
+    <summary id="tokenSummary">Refresh access</summary>
+    <div class="token-row">
+      <input type="password" id="liveToken" placeholder="github_pat_..." autocomplete="off" spellcheck="false">
+      <button id="btnSaveToken">Save</button>
+      <button id="btnClearToken">Remove</button>
+    </div>
+    <p class="status" id="tokenStatus"></p>
+  </details>
+
+  <details class="coaches" id="coachPanel">
+    <summary id="coachSummary">Coaches</summary>
+    <div class="coach-grid" id="coachGrid"></div>
+  </details>
+</div>
+
+<script>
+(function(){
+"use strict";
+window.addEventListener("error",function(e){console.error("[report]",e.error||e.message);e.preventDefault();});
+window.addEventListener("unhandledrejection",function(e){console.error("[report]",e.reason);e.preventDefault();});
+
+var GH_OWNER="hossamyossef701-coder", GH_REPO="iam-performance", GH_BRANCH="main", GH_WORKFLOW="refresh.yml";
+// Which view: the file name decides (finance.html, overview.html; anything else is Performance).
+var PAGE=/finance\.html$/i.test(location.pathname)?"fin":/overview\.html$/i.test(location.pathname)?"ceo":"full";
+var PAGE_NAME={full:"Coach Performance",fin:"Finance",ceo:"Overview"}[PAGE];
+var PASS_KEY="iamlive:pass", CFG_KEY="iamlive:cfg", UI_KEY="iamreport:ui"+(PAGE==="full"?"":":"+PAGE);
+(function(){
+  document.body.classList.add("v-"+PAGE);
+  document.title=PAGE_NAME+" — I AM Performance";
+  Array.prototype.forEach.call(document.querySelectorAll("h1"),function(h){ h.textContent=PAGE_NAME; });
+  // The full menu shows where the Performance page has been opened on this device (Hossam's).
+  // On a device that only ever opens Finance or Overview, the menu is that page alone.
+  var NAV=[["report.html","Performance","full"],["finance.html","Finance","fin"],["overview.html","Overview","ceo"],["business.html","Business"],["clients.html","Clients"],["coach.html","Coach review"]];
+  var full=PAGE==="full"; try{ if(full) localStorage.setItem("iam:director","1"); else full=localStorage.getItem("iam:director")==="1"; }catch(e){}
+  document.getElementById("nav").innerHTML=NAV.filter(function(n){ return full||n[2]===PAGE; }).map(function(n){
+    return '<a'+(n[2]===PAGE?' class="on"':"")+' href="./'+n[0]+'">'+n[1]+"</a>"; }).join("");
+})();
+var DIRECTOR="Hossam";
+var MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+var PASS=null, LIVE=null, HIST=null, DATA={}, PERIODS=[];
+var ui={month:null, span:"1", from:null, compare:"pace", scope:"all", basis:"mtd", sort:"revenue", dir:-1};
+// Per-coach switches. Ivan starts outside the even-share figure because his sessions are
+// counted differently; everyone else is in by default.
+var COACH_KEY="iamreport:coaches";
+var PREFS=(function(){
+  try{ var v=JSON.parse(localStorage.getItem(COACH_KEY)||"null"); if(v&&typeof v==="object") return v; }catch(e){}
+  return { Ivan:{ noEven:true } };
+})();
+function pref(c){ return PREFS[c]||{}; }
+function savePrefs(){ try{ localStorage.setItem(COACH_KEY,JSON.stringify(PREFS)); }catch(e){} }
+function setPref(c,k,v){
+  PREFS[c]=PREFS[c]||{};
+  if(v) PREFS[c][k]=true; else delete PREFS[c][k];
+  if(!Object.keys(PREFS[c]).length) delete PREFS[c];
+  savePrefs();
+}
+try{ var sv=JSON.parse(localStorage.getItem(UI_KEY)||"{}");
+  ["compare","scope","basis","sort","span","from"].forEach(function(k){ if(sv[k]) ui[k]=sv[k]; });
+  // With or without the Fitness Director: one switch shared by every page.
+  var shared=localStorage.getItem("iam:scope"); if(shared==="team"||shared==="all") ui.scope=shared;
+  if(sv.dir) ui.dir=sv.dir;
+}catch(e){}
+function saveUi(){ try{ localStorage.setItem(UI_KEY,JSON.stringify({compare:ui.compare,scope:ui.scope,basis:ui.basis,sort:ui.sort,dir:ui.dir,span:ui.span,from:ui.from})); localStorage.setItem("iam:scope",ui.scope); }catch(e){} }
+function cfg(){ try{ return JSON.parse(localStorage.getItem(CFG_KEY)||"{}"); }catch(e){ return {}; } }
+function setStat(id,t,c){ var e=document.getElementById(id); if(e){ e.className="status "+(c||""); e.textContent=t; } }
+
+/* ---------- decryption: identical parameters to scripts/crypto.mjs ---------- */
+function b2b(s){ var b=atob(s),u=new Uint8Array(b.length); for(var i=0;i<b.length;i++) u[i]=b.charCodeAt(i); return u; }
+function decrypt(env,pass){
+  return crypto.subtle.importKey("raw",new TextEncoder().encode(String(pass).trim()),"PBKDF2",false,["deriveKey"])
+    .then(function(base){
+      return crypto.subtle.deriveKey({name:"PBKDF2",salt:b2b(env.salt),iterations:env.it||250000,hash:"SHA-256"},
+        base,{name:"AES-GCM",length:256},false,["decrypt"]);
+    })
+    .then(function(k){ return crypto.subtle.decrypt({name:"AES-GCM",iv:b2b(env.iv)},k,b2b(env.ct)); })
+    .then(function(buf){ return JSON.parse(new TextDecoder().decode(buf)); });
+}
+function getJson(url,headers){
+  return fetch(url,{cache:"no-store",headers:headers||{}}).then(function(r){
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    return r.json();
+  });
+}
+// The GitHub API always serves the committed file; the Pages cache can lag a few minutes.
+// Unauthenticated API calls are capped at 60 an hour, and once that cap is hit this quietly
+// fell back to the Pages copy - which is how a forced refresh could still show a read from
+// hours earlier. The saved token lifts the cap to 5,000, so it is sent whenever there is one.
+function loadEnc(name,viaApi){
+  var rel="./"+name+"?t="+Date.now();
+  if(!viaApi) return getJson(rel);
+  var c=cfg(), h={Accept:"application/vnd.github.raw"};
+  if(c&&c.pat) h.Authorization="Bearer "+c.pat;
+  return getJson("https://api.github.com/repos/"+GH_OWNER+"/"+GH_REPO+"/contents/"+name+"?ref="+GH_BRANCH+"&t="+Date.now(), h)
+    .catch(function(){ return getJson(rel); });
+}
+
+/* ---------- data ----------
+   Whatever coaches appear in the files are the coaches shown: nothing here is a fixed list,
+   so a coach added to the folder turns up on their own, and one who leaves simply stops
+   appearing in new months while their past months stay in place. */
+function build(){
+  DATA={};
+  var H=(HIST&&HIST.HIST)||{};
+  Object.keys(H).forEach(function(p){
+    DATA[p]={};
+    Object.keys(H[p]).forEach(function(c){ DATA[p][c]={s:H[p][c][0], r:H[p][c][1], x:null, a:null, c:null}; });
+  });
+  // Assessments recorded by hand before the tracker was wired in.
+  var SEED=(HIST&&HIST.SEED)||{};
+  Object.keys(SEED).forEach(function(p){
+    DATA[p]=DATA[p]||{};
+    Object.keys(SEED[p]).forEach(function(c){
+      var v=SEED[p][c]||{}, cell=DATA[p][c]||(DATA[p][c]={s:null,r:null,x:null,a:null,c:null});
+      if(v.a!=null) cell.a=v.a;
+      if(v.c!=null) cell.c=v.c;
+    });
+  });
+  if(LIVE&&LIVE.periods) Object.keys(LIVE.periods).forEach(function(p){
+    DATA[p]=DATA[p]||{};
+    Object.keys(LIVE.periods[p]).forEach(function(c){
+      var v=LIVE.periods[p][c]||{}, prev=DATA[p][c]||{};
+      DATA[p][c]={ s:(v.s!=null?v.s:prev.s), r:(v.r!=null?v.r:prev.r), x:(v.x!=null?v.x:(prev.x!=null?prev.x:null)),
+                   a:(prev.a!=null?prev.a:null), c:(prev.c!=null?prev.c:null),
+                   // The same month counted only to the day the job last ran.
+                   ms:(v.ms!=null?v.ms:null), mr:(v.mr!=null?v.mr:null), mx:(v.mx!=null?v.mx:null), md:(v.md!=null?v.md:null),
+                   // The month's projection, set by the coach at the start of it. Absent on older sheets.
+                   ps:(v.ps!=null?v.ps:null), pr:(v.pr!=null?v.pr:null),
+                   // pm: clients with sessions this month but nothing projected for them.
+                   pm:(v.pm!=null?v.pm:null) };
+    });
+  });
+  // The tracker is the authority on assessments wherever it covers a month.
+  if(LIVE&&LIVE.assess) Object.keys(LIVE.assess).forEach(function(p){
+    DATA[p]=DATA[p]||{};
+    Object.keys(LIVE.assess[p]).forEach(function(c){
+      var v=LIVE.assess[p][c]||{}, cell=DATA[p][c]||(DATA[p][c]={s:null,r:null,x:null,a:null,c:null});
+      cell.a=v.a!=null?v.a:cell.a;
+      cell.c=v.c!=null?v.c:cell.c;
+    });
+  });
+  PERIODS=Object.keys(DATA).filter(function(p){
+    return Object.keys(DATA[p]).some(function(c){ var d=DATA[p][c]; return d&&(d.s!=null||d.r!=null||d.a!=null); });
+  }).sort();
+}
+function label(p){
+  if(isV(p)){ var k=p.split(":"), f=k[1].split("-"), t=k[2].split("-");
+    return MONTHS[+f[1]-1]+(f[0]===t[0]?"":" "+f[0])+" – "+MONTHS[+t[1]-1]+" "+t[0]; }
+  var a=p.split("-"); return MONTHS[+a[1]-1]+" "+a[0];
+}
+/* ---------- a stretch of months ----------
+   One month is shown by its own key ("2026-10"). A stretch is shown by a key of its own,
+   "R:2026-08:2026-10", whose figures are each coach's months added up (the month running counts
+   to date when "To date" is on). Everything that reads DATA then works on it unchanged. */
+function isV(p){ return typeof p==="string"&&p.indexOf("R:")===0; }
+function vKey(from,to){ return "R:"+from+":"+to; }
+function monthsBetween(from,to){ var out=[], q=from; while(q<=to){ out.push(q); q=prevP(q,-1); } return out; }
+function rangeOf(p){ if(!isV(p)) return [p]; var k=p.split(":"); return PERIODS.filter(function(q){ return q>=k[1]&&q<=k[2]; }); }
+function rangeTo(p){ return isV(p)?p.split(":")[2]:p; }
+function buildRange(key,scaleLast){
+  var ms=rangeOf(key), out={};
+  ms.forEach(function(q,i){
+    var f=(scaleLast!=null&&q===key.split(":")[2])?scaleLast:1;
+    Object.keys(DATA[q]||{}).forEach(function(c){
+      var m=metrics(q,c); if(!m) return;
+      var o=out[c]||(out[c]={s:null,r:null,x:null,a:null,c:null,n:0});
+      [["s","s"],["r","r"],["x","x"],["a","a"],["cv","c"]].forEach(function(kk){ var v=m[kk[0]]; if(v!=null) o[kk[1]]=(o[kk[1]]||0)+v*f; });
+      if(m.mtdMissing) o.mtdMissing=true; o.n++;
+    });
+  });
+  DATA[key]=out; return key;
+}
+function viewKey(){
+  var to=ui.month; if(!to) return null;
+  var from=to;
+  if(ui.span==="ytd") from=to.slice(0,4)+"-01";
+  else if(ui.span==="custom") from=(ui.from&&ui.from<=to)?ui.from:to;
+  else if(+ui.span>1) from=prevP(to,+ui.span-1);
+  if(from===to) return to;
+  return buildRange(vKey(from,to));
+}
+function currentPeriod(){
+  return new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Dubai",year:"numeric",month:"2-digit"}).format(new Date()).slice(0,7);
+}
+function monthDays(p){
+  if(isV(p)){ var k=p.split(":"); return monthsBetween(k[1],k[2]).reduce(function(t,q){ return t+monthDays(q); },0); }
+  var a=p.split("-"); return new Date(+a[0],+a[1],0).getDate();
+}
+function dayOfMonth(){ return +new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Dubai",day:"numeric"}).format(new Date()); }
+// Only a month still running is part-complete; a finished month counts whole.
+function daysUsed(p){
+  if(isV(p)){ var k=p.split(":"); return monthsBetween(k[1],k[2]).reduce(function(t,q){ return t+daysUsed(q); },0); }
+  if(p!==currentPeriod()) return monthDays(p);
+  // Counting the whole month as entered means the daily rate is over the whole month.
+  if(ui.basis!=="mtd") return monthDays(p);
+  return cutoffDay(p) || dayOfMonth();
+}
+function progress(p){ if(isV(p)) return 1; return p===currentPeriod()? Math.max(0.03,Math.min(1,daysUsed(p)/monthDays(p))) : 1; }
+function prevPeriods(p,n){ var i=PERIODS.indexOf(p); return i<0?[]:PERIODS.slice(Math.max(0,i-n),i); }
+// Every month on record from an anchor up to, but not including, the month being viewed.
+function periodsSince(anchor,p){
+  var i=PERIODS.indexOf(p); if(i<0) return [];
+  return PERIODS.slice(0,i).filter(function(q){ return q>=anchor; });
+}
+// Which earlier months this comparison averages over.
+// The same month a year earlier, if it is on record.
+function sameMonthLastYear(p){
+  var a=p.split("-"), q=(+a[0]-1)+"-"+a[1];
+  return PERIODS.indexOf(q)<0?[]:[q];
+}
+function basisPeriods(p){
+  var m=ui.compare;
+  // A stretch is compared with the stretch of the same length before it, or the same stretch a
+  // year earlier. When the stretch ends in the month running (to date), the matching month of
+  // the earlier stretch is cut to the same point in its own length.
+  if(isV(p)){
+    if(m==="none") return [];
+    var k=p.split(":"), n=monthsBetween(k[1],k[2]).length, shift=(m==="yoy"||m==="yoyfull")?12:n;
+    var f=prevP(k[1],shift), t=prevP(k[2],shift), key=vKey(f,t);
+    var cut=(ui.basis==="mtd"&&k[2]===currentPeriod()&&m!=="prev"&&m!=="yoyfull")?Math.min(1,daysUsed(k[2])/monthDays(t)):null;
+    buildRange(key,cut);
+    // Only when every month of the earlier stretch is on record: a part-stretch would mislead.
+    return rangeOf(key).length===n?[key]:[];
+  }
+  if(m==="prev"||m==="pace") return prevPeriods(p,1);
+  if(m==="yoy"||m==="yoyfull") return sameMonthLastYear(p);
+  if(m==="avg3") return prevPeriods(p,3);
+  if(m==="avg6") return prevPeriods(p,6);
+  if(m==="avg12") return prevPeriods(p,12);
+  if(m.indexOf("since")===0) return periodsSince(m.slice(5),p);
+  return [];
+}
+function inScope(c){ return (ui.scope==="all" || c!==DIRECTOR) && !pref(c).off; }
+function inEven(c){ return !pref(c).noEven; }
+function allCoaches(){
+  var set={};
+  Object.keys(DATA).forEach(function(p){ Object.keys(DATA[p]).forEach(function(c){ set[c]=1; }); });
+  return Object.keys(set).sort();
+}
+// Only coaches seen in the last year, so the panel does not fill with people long gone.
+function recentCoaches(){
+  var cut=PERIODS.slice(-13), set={};
+  cut.forEach(function(p){ Object.keys(DATA[p]||{}).forEach(function(c){ set[c]=1; }); });
+  var list=Object.keys(set).sort();
+  return list.length?list:allCoaches();
+}
+function coachesIn(p){
+  return Object.keys(DATA[p]||{}).filter(function(c){
+    var d=DATA[p][c]; return inScope(c) && d && (d.s!=null||d.r!=null||d.a!=null);
+  });
+}
+// Sessions are booked ahead, so for the month still running the sheet's own totals count
+// days that have not happened. "To date" uses the figures counted up to the cutoff day;
+// "Whole month" uses the totals as entered, which is the projection.
+function toDate(p){ return ui.basis==="mtd" && p===currentPeriod(); }
+function cutoffDay(p){
+  if(!toDate(p)) return null;
+  var days=null;
+  Object.keys(DATA[p]||{}).forEach(function(c){ var d=DATA[p][c]; if(d&&d.md!=null) days=d.md; });
+  return days;
+}
+function metrics(p,coach){
+  var raw=(DATA[p]||{})[coach];
+  if(!raw) return null;
+  var d=raw, mtdMissing=false;
+  if(toDate(p)){
+    if(raw.ms!=null) d={ s:raw.ms, r:raw.mr, x:raw.mx, a:raw.a, c:raw.c };
+    else if(raw.s!=null||raw.r!=null) mtdMissing=true;   // no day-by-day counts for this sheet
+  }
+  // Cancelled as a share of everything booked: conducted plus cancelled.
+  var booked=(d.s!=null&&d.x!=null)?(d.s+d.x):null;
+  var days=daysUsed(p);
+  // The projection is one figure for the whole month: the same whichever basis is chosen.
+  return { s:d.s, r:d.r, x:d.x, a:d.a, cv:d.c, mtdMissing:mtdMissing||!!raw.mtdMissing, ps:raw.ps, pr:raw.pr, pm:raw.pm,
+           rate:(d.r!=null&&d.s)?d.r/d.s:null, cpc:booked?d.x/booked*100:null,
+           spd:(d.s!=null&&days)?d.s/days:null,
+           conv:(d.a)?d.c/d.a*100:null };
+}
+// The comparison figure for one coach. "pace" scales the earlier month down to the share of
+// the month that has run, so a month-to-date column is not measured against a whole month.
+function basis(p,coach){
+  if(ui.compare==="none") return null;
+  var list=basisPeriods(p);
+  if(!list.length) return null;
+  var TOTALS=["s","r","x","a","cv"];          // running totals, cut down to the same point
+  var RATIOS=["rate","cpc","spd","conv"];     // already per-session or per-day, never scaled
+  var acc={}; TOTALS.concat(RATIOS).forEach(function(k){ acc[k]=[]; });
+  // "full" weighs against the whole earlier month; otherwise each earlier month is cut to
+  // the same point IN ITS OWN LENGTH - day 23 of a 30-day month is 23/30 of it, not 23/31.
+  // Using the current month's length here is what made the sessions and sessions-a-day
+  // comparisons disagree by the difference between the two months.
+  // Only a part-month is measured against part of an earlier one. Reading the whole month
+  // as entered is a projection, so it is weighed against whole months.
+  var partial=toDate(p) && ui.compare!=="prev" && ui.compare!=="yoyfull";
+  var day=daysUsed(p), any=false;
+  list.forEach(function(q){
+    var m=metrics(q,coach); if(!m) return;
+    var f=partial?Math.min(1,day/monthDays(q)):1;
+    TOTALS.forEach(function(k){ if(m[k]!=null) acc[k].push(m[k]*f); });
+    RATIOS.forEach(function(k){ if(m[k]!=null) acc[k].push(m[k]); });
+    any=true;
+  });
+  if(!any) return null;
+  var out={};
+  TOTALS.concat(RATIOS).forEach(function(key){
+    var vals=acc[key];
+    out[key]=vals.length?vals.reduce(function(a,b){return a+b;},0)/vals.length:null;
+  });
+  return out;
+}
+function teamTotals(p,useBasis){   // p is needed for the day count
+  var t={s:0,r:0,x:null,a:null,cv:null,n:0}, anyX=false, anyA=false;
+  coachesIn(p).forEach(function(c){
+    var m=useBasis?basis(p,c):metrics(p,c);
+    if(!m) return;
+    t.n++;
+    if(m.s!=null) t.s+=m.s;
+    if(m.r!=null) t.r+=m.r;
+    if(m.x!=null){ t.x=(t.x||0)+m.x; anyX=true; }
+    if(m.a!=null){ t.a=(t.a||0)+m.a; t.cv=(t.cv||0)+(m.cv||0); anyA=true; }
+  });
+  if(!anyA){ t.a=null; t.cv=null; }
+  t.rate=t.s?t.r/t.s:null;
+  if(!anyX) t.x=null;
+  t.cpc=(t.x!=null&&(t.s+t.x))?t.x/(t.s+t.x)*100:null;
+  t.spd=daysUsed(p)?t.s/daysUsed(p):null;
+  t.conv=(t.a)?t.cv/t.a*100:null;
+  return t;
+}
+
+/* ---------- projection ----------
+   Each coach sets, at the start of the month, the sessions they expect to deliver and what
+   those come to at each client's rate. Planned holidays are already allowed for, so the
+   projection is the month's honest estimate; this measures how much of it has been reached.
+   The pace mark is a straight line from nothing on day 1 to the full projection on the last
+   day - only a guide, since sessions do not fall evenly, but it is the same assumption the
+   "same point last month" comparison makes. */
+function projTarget(p){
+  // Over a window: each month's share due by now, weighted by the team's projection that month.
+  if(isV(p)){ var num=0, den=0; rangeOf(p).forEach(function(q){ var t=projTeam(q), w=t.ps||t.pr||0; num+=w*projTarget(q); den+=w; }); return den?num/den:100; }
+  return toDate(p) ? Math.min(100, daysUsed(p)/monthDays(p)*100) : 100;
+}
+// The month the window ends on is still running and counted to date.
+function runningTo(p){ return isV(p)?(ui.basis==="mtd"&&rangeTo(p)===currentPeriod()):toDate(p); }
+// Green at or past the target, amber within a tenth of it, red further behind.
+function projState(pct,target){
+  if(pct==null) return "";
+  if(pct>=target-0.5) return "ok";
+  if(pct>=target*0.9) return "near";
+  return "low";
+}
+function projOf(p,c){
+  // Over a window: the months with a projection only, each month's sessions against that
+  // month's projection (to date in the month running). Months before the projection columns
+  // existed are left out on both sides.
+  if(isV(p)){
+    if(!metrics(p,c)) return null;
+    var o={has:false,set:false,pr:0,ps:0,r:0,s:0,mtdMissing:false,pm:0,months:0}, anyR=false, anyS=false;
+    rangeOf(p).forEach(function(q){
+      var x=projOf(q,c); if(!x) return;
+      if(x.has) o.has=true;
+      if(!x.set) return;
+      o.set=true; o.months++; o.pm+=x.pm; if(x.mtdMissing) o.mtdMissing=true;
+      if(x.pr>0){ o.pr+=x.pr; o.r+=(x.r||0); anyR=true; }
+      if(x.ps>0){ o.ps+=x.ps; o.s+=(x.s||0); anyS=true; }
+    });
+    if(!anyR){ o.pr=null; o.r=null; } if(!anyS){ o.ps=null; o.s=null; }
+    o.pctR=anyR&&o.pr>0?o.r/o.pr*100:null; o.pctS=anyS&&o.ps>0?o.s/o.ps*100:null;
+    return o;
+  }
+  var m=metrics(p,c); if(!m) return null;
+  var has=(m.pr!=null||m.ps!=null), set=((m.pr||0)>0||(m.ps||0)>0);
+  return { has:has, set:set, pr:m.pr, ps:m.ps, r:m.r, s:m.s, mtdMissing:m.mtdMissing, pm:m.pm||0,
+           pctR:((m.pr||0)>0&&m.r!=null)?m.r/m.pr*100:null,
+           pctS:((m.ps||0)>0&&m.s!=null)?m.s/m.ps*100:null };
+}
+// Only coaches who set a projection are measured against it: one who did not set it would
+// otherwise add revenue with nothing to set it against, and lift the team's figure.
+function projTeam(p){
+  var t={any:false, pr:0, ps:0, r:0, s:0, set:[], unset:[], partly:[]};
+  coachesIn(p).forEach(function(c){
+    var q=projOf(p,c); if(!q) return;
+    if(q.has) t.any=true;
+    if(!q.set){ t.unset.push(c); return; }
+    t.set.push(c);
+    if(q.pm>0) t.partly.push(c+" ("+q.pm+")");
+    if(q.pr>0){ t.pr+=q.pr; t.r+=(q.r||0); }
+    if(q.ps>0){ t.ps+=q.ps; t.s+=(q.s||0); }
+  });
+  t.unset.sort();
+  t.pctR=t.pr?t.r/t.pr*100:null;
+  t.pctS=t.ps?t.s/t.ps*100:null;
+  return t;
+}
+function projBar(pct,target,st,small,tip){
+  var w=Math.max(1.5,Math.min(100,pct/1.2)), tick=Math.min(100,target/1.2);
+  return '<span class="pj-track'+(small?" sm":"")+'"'+(tip?' title="'+tip+'"':"")+'><span class="pj-fill '+st+'" style="width:'+w.toFixed(1)+'%"></span>'+
+    '<span class="pj-full"></span>'+(target<99.5?'<span class="pj-pace" style="left:'+tick.toFixed(2)+'%"></span>':"")+"</span>";
+}
+function renderProj(p){
+  var el=document.getElementById("proj");
+  var t=projTeam(p);
+  if(!t.any){
+    // The Overview page is only this panel, so it says why it is empty rather than vanish.
+    if(PAGE==="ceo"){ el.style.display=""; el.innerHTML='<div class="proj-head"><span class="k">Projection \u00b7 '+label(p)+'</span></div><div class="proj-foot">No projection was set '+(isV(p)?"in these months":"for this month")+". The coaches' sheets carry it from Nov 2026.</div>"; return; }
+    el.style.display="none"; el.innerHTML=""; return;
+  }
+  el.style.display="";
+  var target=projTarget(p), live=runningTo(p), closed=(rangeTo(p)!==currentPeriod());
+  if(isV(p)){ var all=rangeOf(p), withP=all.filter(function(q){ return projTeam(q).set.length; }); }
+  var total=t.set.length+t.unset.length;
+  var who=t.set.length?("Set by "+t.set.length+" of "+total+(total===1?" coach":" coaches")):"No coach has set a projection yet";
+  // Who has not set it, and who left clients out, is on each coach's own row below.
+  if(t.set.length&&t.unset.length) who+=' \u00b7 <b>'+t.unset.length+" not set</b>";
+  if(t.partly.length) who+=' \u00b7 <b>'+t.partly.length+" partly set</b>";
+  if(isV(p)&&withP.length<all.length) who+=" \u00b7 projection in "+withP.length+" of "+all.length+" months: "+withP.map(label).join(", ");
+  var tip=live?(isV(p)?"Pace mark: the share of the window's projection due by today":"Pace mark: a straight line to the full projection, day "+daysUsed(p)+" of "+monthDays(p)):"";
+  // gapFmt: how a shortfall is written. A pace target is fractional, so sessions round to whole ones there.
+  function line(lbl,pct,done,goal,fmt,unit,gapFmt){
+    if(!goal) return "";
+    var st=projState(pct,target), note, cls;
+    if(closed){
+      var over=done-goal;
+      note=(Math.abs(over)<0.5)?"finished on projection":("finished "+gapFmt(Math.abs(over))+(over>0?" above":" short"));
+      cls=st;
+    } else if(live){
+      var gap=done-goal*target/100;
+      note=(Math.abs(gap)<0.5)?"on pace":(gapFmt(Math.abs(gap))+(gap>0?" ahead of pace":" behind pace"));
+      cls=st;
+    } else { note=isV(p)?"bookings ahead included in "+label(rangeTo(p)):"booked so far, bookings ahead included"; cls="flat"; }
+    return '<div class="proj-row" title="'+lbl+': '+fmt(done)+" of "+fmt(goal)+unit+" ("+pct.toFixed(1)+'%)">'+
+      '<span class="lbl">'+lbl+'</span><span class="pct '+st+'">'+pct.toFixed(0)+"%</span>"+
+      projBar(pct,target,st,false,tip)+
+      '<span class="fig">'+fmt(done)+" <span class=\"dim\">of</span> "+fmt(goal)+unit+'<span class="d '+cls+'">'+note+"</span></span></div>";
+  }
+  el.innerHTML='<div class="proj-head"><span class="k">Projection \u00b7 '+label(p)+'</span><span class="who">'+who+"</span></div>"+
+    (t.set.length?(line("Revenue",t.pctR,t.r,t.pr,fmtInt," AED",function(v){ return fmtInt(v)+" AED"; })+
+                   line("Sessions",t.pctS,t.s,t.ps,fmtSess,"",function(v){ var n=Math.round(v); return n+(n===1?" session":" sessions"); })+
+                   coachRows(p,target,tip))
+                 :'<div class="proj-foot">The projection columns are on the sheets but nothing has been entered in them yet.</div>');
+}
+/* Each coach on one line: sessions done against sessions projected - to date, or everything
+   booked this month, following the basis switch - with the same bar and pace mark as the team.
+   Revenue sits beside it, smaller. Best progress first; coaches with no projection last. */
+function coachRows(p,target,tip){
+  var basis=runningTo(p)?"sessions to date / projected":(rangeTo(p)!==currentPeriod()?"sessions delivered / projected":"sessions booked / projected");
+  var rows=coachesIn(p).map(function(c){ return {c:c, q:projOf(p,c)}; }).filter(function(x){ return x.q; });
+  rows.forEach(function(x){ var q=x.q; x.pct=!q.set?null:(q.pctS!=null?q.pctS:q.pctR); });
+  rows.sort(function(a,b){
+    if(a.pct==null&&b.pct==null) return a.c<b.c?-1:1;
+    if(a.pct==null) return 1; if(b.pct==null) return -1;
+    return b.pct-a.pct;
+  });
+  // The month so far: only while it is running and counted to date (a closed month is all of it).
+  var running=runningTo(p)&&target<99.5;
+  var head=!running?basis:isV(p)?basis+" \u00b7 due by today: "+target.toFixed(0)+"% of the window's projection":basis+" \u00b7 month so far: "+target.toFixed(0)+"% (day "+daysUsed(p)+" of "+monthDays(p)+")";
+  var pm=function(pct){
+    if(!running||pct==null) return "<span></span>";
+    return isV(p)?'<span class="pm" title="Share of the window\'s projection due by today">due '+target.toFixed(0)+"%</span>"
+      :'<span class="pm" title="How far through the month we are: day '+daysUsed(p)+" of "+monthDays(p)+'">month '+target.toFixed(0)+"%</span>";
+  };
+  return '<div class="pc-head"><span>By coach</span><span>'+head+"</span></div>"+rows.map(function(x){
+    var q=x.q;
+    if(!q.set){
+      var why=q.has?"The projection columns are on this sheet but empty":"This sheet has no projection columns";
+      return '<div class="pc-row unset"><span class="nm">'+x.c+'</span><span class="pj-track"></span>'+
+        '<span class="ss"><span class="dim">'+fmtSess(q.s)+" / \u2014</span></span><span></span><span></span>"+
+        '<span class="rv"><span class="notset" title="'+why+'">not set</span></span></div>';
+    }
+    var st=projState(x.pct,target), bySess=(q.pctS!=null);
+    var flag=q.pm>0?'<span class="near" title="Clients with sessions this month but nothing projected for them, so the projection reads low">partly set \u00b7 '+q.pm+" missing</span>":"";
+    return '<div class="pc-row"><span class="nm">'+x.c+(q.mtdMissing?' <span class="nomtd" title="This sheet has no day-by-day counts, so this row is the whole month, bookings ahead included">\u25cf</span>':"")+"</span>"+
+      projBar(x.pct,target,st,false,tip)+
+      '<span class="ss">'+(bySess?fmtSess(q.s)+' <span class="dim">/ '+fmtSess(q.ps)+"</span>":fmtInt(q.r)+' <span class="dim">/ '+fmtInt(q.pr)+"</span>")+"</span>"+
+      '<span class="pp '+st+'">'+x.pct.toFixed(0)+"%</span>"+pm(x.pct)+
+      '<span class="rv">'+(q.pr>0&&bySess?fmtInt(q.r)+" / "+fmtInt(q.pr)+" AED \u00b7 "+(q.pctR!=null?q.pctR.toFixed(0)+"%":""):(bySess?"":"revenue \u2014 no session projection"))+flag+"</span></div>";
+  }).join("");
+}
+/* ---------- formatting ---------- */
+function fmtInt(v){ return v==null?"—":Math.round(v).toLocaleString("en-US"); }
+/* ---------- client-level panels ----------
+   Worked out from each client's row on the coach sheets, day by day (cl in the live data):
+   one character a day - "1" a session, "h" an online half, "2"-"9" that many, "x" anything else
+   positive, "0" cancelled, "." nothing. Kept for the month running and the twelve before it. */
+// Sessions a week, one band per whole number: under 1, 1, 2, 3, 4, 5 or more.
+var FREQ=[["under 1","#e14b4b","#1a0505"],["1","#e0a63c","#120800"],["2","#6f9fd8","#06101c"],["3","#5eb87a","#06140a"],["4","#3a9a5e","#e8f5ec"],["5 or more","#24713f","#e8f5ec"]];
+function dEsc(t){ return String(t==null?"":t).replace(/[&<>"']/g,function(ch){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]; }); }
+function clOf(p,c){ var v=LIVE&&LIVE.periods&&LIVE.periods[p]&&LIVE.periods[p][c]; return (v&&v.cl)||null; }
+function hasCl(p){ if(isV(p)) return rangeOf(p).some(hasCl); return !!(LIVE&&LIVE.periods&&LIVE.periods[p]&&Object.keys(LIVE.periods[p]).some(function(c){ return LIVE.periods[p][c].cl; })); }
+// The last day that has happened: today for the month running (bookings ahead left out), else the month's end.
+function lastDay(p){
+  if(p!==currentPeriod()) return monthDays(p);
+  var md=null; Object.keys(DATA[p]||{}).forEach(function(c){ var d=DATA[p][c]; if(d&&d.md!=null) md=d.md; });
+  return md||dayOfMonth();
+}
+function wOf(ch){ return ch==="1"||ch==="x"?1:ch==="h"?0.5:(ch>="2"&&ch<="9")?+ch:0; }
+// The same client across months: the name without package notes in brackets or punctuation.
+function nameKey(n){ return String(n).toLowerCase().replace(/\([^)]*\)/g," ").replace(/[^a-z0-9؀-ۿ]+/g," ").trim(); }
+// cm = months the client trained in, cw = the weeks of those months (so a client who joined
+// part-way through a stretch is measured over the time they were training, not the whole stretch).
+function clientsIn(p,c){
+  if(isV(p)){
+    var by={}, any=false;
+    rangeOf(p).forEach(function(q){ var l=clientsIn(q,c); if(!l) return; any=true;
+      l.forEach(function(x){ var o=by[x.key]||(by[x.key]={name:x.name,key:x.key,price:x.price,s:0,r:0,cm:0,cw:0}); o.name=x.name; o.price=x.price; o.s+=x.s; o.r+=x.s*(x.price||0); o.cm+=x.cm; o.cw+=x.cw; }); });
+    return any?Object.keys(by).map(function(k){ return by[k]; }):null;
+  }
+  var rows=clOf(p,c); if(!rows) return null;
+  var upto=lastDay(p);
+  return rows.map(function(r){
+    var s=0, m=String(r[2]||""); for(var i=0;i<Math.min(upto,m.length);i++) s+=wOf(m[i]);
+    return {name:r[0], key:nameKey(r[0]), price:r[1], s:s, r:s*(r[1]||0), m:m, cm:s>0?1:0, cw:s>0?upto/7:0};
+  });
+}
+function pIso(p,d){ return p+"-"+(d<10?"0":"")+d; }
+function addDaysIso(iso,n){ var t=Date.UTC(+iso.slice(0,4),+iso.slice(5,7)-1,+iso.slice(8,10))+n*864e5; return new Date(t).toISOString().slice(0,10); }
+function prevP(p,n){ var y=+p.slice(0,4), m=+p.slice(5,7)-n; while(m<1){ m+=12; y--; } while(m>12){ m-=12; y++; } return y+"-"+(m<10?"0":"")+m; }
+
+/* tooltip */
+var dtip=null;
+function dShow(host,html,x,y){
+  if(!dtip){ dtip=document.createElement("div"); dtip.className="dtip"; document.body.appendChild(dtip); }
+  dtip.innerHTML=html; dtip.style.opacity="1";
+  var r=host.getBoundingClientRect(), tw=dtip.offsetWidth, th=dtip.offsetHeight;
+  var left=r.left+window.scrollX+x-tw/2, top=r.top+window.scrollY+y-th-12;
+  left=Math.max(8,Math.min(left,window.scrollX+document.documentElement.clientWidth-tw-8));
+  if(top<window.scrollY+8) top=r.top+window.scrollY+y+16;
+  dtip.style.left=left+"px"; dtip.style.top=top+"px";
+}
+function dHide(){ if(dtip) dtip.style.opacity="0"; }
+function dRow(l,v,col){ return '<div class="row"><span>'+(col?'<i style="background:'+col+'"></i>':"")+l+"</span><span>"+v+"</span></div>"; }
+function dHits(host,areas){
+  var svg=host.querySelector("svg"), NS="http://www.w3.org/2000/svg";
+  areas.forEach(function(a){
+    var r=document.createElementNS(NS,"rect");
+    ["x","y","width","height"].forEach(function(k,i){ r.setAttribute(k,[a.x,a.y,a.w,a.h][i]); }); r.setAttribute("fill","transparent");
+    function on(){ dShow(host,a.html,a.ax,a.ay); }
+    r.addEventListener("mouseenter",on); r.addEventListener("mousemove",on); r.addEventListener("touchstart",on,{passive:true});
+    r.addEventListener("mouseleave",dHide);
+    svg.appendChild(r);
+  });
+}
+function dTxt(x,y,t,o){ o=o||{}; return '<text x="'+x+'" y="'+y+'" text-anchor="'+(o.a||"start")+'" style="font-size:'+(o.s||11)+"px;fill:"+(o.c||"var(--ink-soft)")+'">'+t+"</text>"; }
+function dCard(k,t,u,body){ return '<div class="dcard"><div class="dcard-h"><div><div class="k">'+k+'</div><div class="t">'+t+'</div></div><span class="u">'+(u||"")+'</span></div>'+body+"</div>"; }
+
+/* 1. How often each coach's clients train */
+function freqData(p){
+  return coachesIn(p).map(function(c){
+    var cl=clientsIn(p,c); if(!cl) return null;
+    var tr=cl.filter(function(x){ return x.s>0; }), b=[[],[],[],[],[],[]], tot=0, wk=0;
+    tr.forEach(function(x){ var w=x.s/x.cw; x.pw=w; tot+=x.s; wk+=x.cw; b[Math.min(5,Math.floor(w))].push(x); });
+    return {c:c, n:tr.length, b:b, avg:wk?tot/wk:null, list:tr};
+  }).filter(function(x){ return x&&x.n; }).sort(function(a,b){ return b.avg-a.avg; });
+}
+function panelFreq(p){
+  var rows=freqData(p), upto=lastDay(p), host;
+  if(!rows.length) return "";
+  var id="dFreq";
+  var html=dCard("Training frequency","How often each coach's clients train",(p===currentPeriod()?"day 1 to "+upto+" of "+label(p):label(p))+" · clients, by sessions a week",
+    '<div class="dcard-b"><div class="dleg">'+FREQ.map(function(f){ return '<span><i style="background:'+f[1]+'"></i>'+f[0]+"</span>"; }).join("")+
+    '<span class="r">sessions a week · right: average per client</span></div><div class="dchart" id="'+id+'"></div>'+
+    '<p class="dnote">Sessions a week = the client\'s sessions this month ÷ the weeks that have passed ('+(upto/7).toFixed(1)+'). 3 a week is the standard. A client who joined or stopped part-way through the month reads lower than they train.'+
+    (upto<10?" Only "+upto+" days of this month have passed, so these are rough until the second week.":"")+" Hover a bar for the clients in it.</p></div>");
+  setTimeout(function(){ drawFreq(p,rows,id); },0);
+  return html;
+}
+function drawFreq(p,rows,id){
+  var host=document.getElementById(id); if(!host) return;
+  var W=Math.max(320,host.clientWidth||600), narrow=W<600, rh=32, H=rows.length*rh+6, L=narrow?76:100, R=narrow?78:210, mx=Math.max.apply(null,rows.map(function(r){ return r.n; }));
+  var sx=function(v){ return (W-L-R)*v/mx; }, s='<svg viewBox="0 0 '+W+" "+H+'" role="img" aria-label="Clients by sessions a week">', areas=[];
+  rows.forEach(function(r,i){
+    var y0=i*rh+3, bh=18, yb=y0+(rh-bh)/2, x=L;
+    s+=dTxt(L-10,y0+rh/2+4,dEsc(r.c),{a:"end",s:12});
+    r.b.forEach(function(list,j){
+      if(!list.length) return; var w=sx(list.length);
+      s+='<rect x="'+x+'" y="'+yb+'" width="'+Math.max(1,w-2)+'" height="'+bh+'" rx="3" fill="'+FREQ[j][1]+'"/>';
+      if(w>=18) s+=dTxt(x+w/2-1,yb+bh/2+4,list.length,{a:"middle",s:11,c:FREQ[j][2]});
+      areas.push({x:x,y:y0,w:w,h:rh,ax:x+w/2,ay:yb,html:"<b>"+dEsc(r.c)+" · "+(j===0||j===5?FREQ[j][0]:FREQ[j][0]+" to "+(j+1))+" a week</b>"+list.slice().sort(function(a,b){ return b.pw-a.pw; }).map(function(cx){
+        return dRow(dEsc(cx.name),cx.pw.toFixed(1)+" a week · "+(cx.s%1?cx.s.toFixed(1):cx.s)+" sessions"); }).join("")});
+      x+=w;
+    });
+    s+=dTxt(W-R+10,y0+rh/2+4,r.avg.toFixed(1)+(narrow?"/wk":" a week"),{s:12,c:r.avg>=3?"var(--up)":r.avg<2?"var(--down)":"var(--ink)"});
+    if(!narrow) s+=dTxt(W-6,y0+rh/2+4,(r.b[3].length+r.b[4].length+r.b[5].length)+" of "+r.n+" at 3+",{a:"end",s:10.5,c:"var(--ink-faint)"});
+  });
+  host.innerHTML=s+"</svg>"; dHits(host,areas);
+}
+
+/* 2. Load: sessions this month against the coach's own best and recent average */
+function panelLoad(p){
+  if(isV(p)) return panelLoadRange(p);
+  var now=(p===currentPeriod()), md=lastDay(p), days=monthDays(p);
+  var rows=coachesIn(p).map(function(c){
+    var d=(DATA[p]||{})[c]; if(!d) return null;
+    var cur=now?(d.ms!=null&&md?d.ms/md*days:null):d.s;
+    var past=prevPeriods(p,12).map(function(q){ var x=(DATA[q]||{})[c]; return x&&x.s!=null?{q:q,s:x.s}:null; }).filter(Boolean);
+    if(cur==null||!past.length) return null;
+    var best=past.reduce(function(a,b){ return b.s>a.s?b:a; }), last3=past.slice(-3), avg3=last3.reduce(function(t,x){ return t+x.s; },0)/last3.length;
+    return {c:c, cur:cur, sofar:now?d.ms:null, best:best, avg3:avg3, n3:last3.length};
+  }).filter(Boolean).sort(function(a,b){ return b.cur/b.best.s-a.cur/a.best.s; });
+  if(!rows.length) return "";
+  setTimeout(function(){ drawLoad(rows,now,md,days); },0);
+  return dCard("Load","Sessions this month against what each coach has already shown they can do",now?"on pace for the month, from day "+md:"sessions",
+    '<div class="dcard-b"><div class="dleg"><span><i style="background:var(--accent)"></i>'+(now?"this month, on pace":"this month")+'</span><span><i style="background:var(--panel-3);outline:1px solid var(--line)"></i>best month in the 12 before</span><span><i style="background:var(--ink);width:3px"></i>average of the 3 months before</span></div>'+
+    '<div class="dchart" id="dLoad"></div><p class="dnote">A coach well under their own best month has room for more sessions with the clients they already have. '+
+    (now?"On pace = sessions so far ÷ "+md+" days × "+days+". ":"")+"Leave and holidays are not taken out: read a low month with that in mind.</p></div>");
+}
+// Over a stretch: the coach's average month in it (the month running on pace), against their
+// best month and their average in the twelve and three months before the stretch.
+function panelLoadRange(p){
+  var ms=rangeOf(p), first=p.split(":")[1], cur=currentPeriod();
+  var rows=coachesIn(p).map(function(c){
+    var vals=ms.map(function(q){ var d=(DATA[q]||{})[c]; if(!d) return null;
+      if(q===cur){ var md=lastDay(q); return d.ms!=null&&md?d.ms/md*monthDays(q):d.s; } return d.s; }).filter(function(v){ return v!=null; });
+    if(!vals.length) return null;
+    var avg=vals.reduce(function(t,v){ return t+v; },0)/vals.length;
+    var past=PERIODS.filter(function(q){ return q<first&&q>=prevP(first,12); }).map(function(q){ var x=(DATA[q]||{})[c]; return x&&x.s!=null?{q:q,s:x.s}:null; }).filter(Boolean);
+    if(!past.length) return null;
+    var best=past.reduce(function(a,b){ return b.s>a.s?b:a; }), last3=past.slice(-3), avg3=last3.reduce(function(t,x){ return t+x.s; },0)/last3.length;
+    return {c:c, cur:avg, sofar:null, best:best, avg3:avg3, n3:last3.length, months:vals.length};
+  }).filter(Boolean).sort(function(a,b){ return b.cur/b.best.s-a.cur/a.best.s; });
+  if(!rows.length) return "";
+  setTimeout(function(){ drawLoad(rows,false,null,null,true); },0);
+  return dCard("Load","Each coach's average month against what they have already shown they can do","sessions in an average month of "+label(p),
+    '<div class="dcard-b"><div class="dleg"><span><i style="background:var(--accent)"></i>average month in the stretch</span><span><i style="background:var(--panel-3);outline:1px solid var(--line)"></i>best month in the 12 before it</span><span><i style="background:var(--ink);width:3px"></i>average of the 3 months before it</span></div>'+
+    '<div class="dchart" id="dLoad"></div><p class="dnote">The month running counts on pace. Leave and holidays are not taken out.</p></div>');
+}
+function drawLoad(rows,now,md,days,range){
+  var host=document.getElementById("dLoad"); if(!host) return;
+  var W=Math.max(320,host.clientWidth||600), rh=32, H=rows.length*rh+6, L=W<600?76:100, R=W<600?120:150;
+  var mx=Math.max.apply(null,rows.map(function(r){ return Math.max(r.cur,r.best.s); }))*1.04;
+  var sx=function(v){ return (W-L-R)*v/mx; }, s='<svg viewBox="0 0 '+W+" "+H+'" role="img" aria-label="Sessions against best month">', areas=[];
+  rows.forEach(function(r,i){
+    var y0=i*rh+3, c=y0+rh/2, ratio=r.cur/r.best.s;
+    s+=dTxt(L-10,c+4,dEsc(r.c),{a:"end",s:12});
+    s+='<rect x="'+L+'" y="'+(c-10)+'" width="'+sx(r.best.s)+'" height="20" rx="4" fill="var(--panel-3)"/>';
+    s+='<rect x="'+L+'" y="'+(c-5)+'" width="'+sx(r.cur)+'" height="10" rx="3" fill="var(--accent)"/>';
+    s+='<rect x="'+(L+sx(r.avg3)-1)+'" y="'+(c-12)+'" width="2.5" height="24" rx="1" fill="var(--ink)"/>';
+    s+=dTxt(L+Math.max(sx(r.best.s),sx(r.cur))+10,c+4,Math.round(r.cur)+" of "+Math.round(r.best.s)+" · "+Math.round(ratio*100)+"%",{s:11.5,c:ratio<.75?"var(--down)":ratio>=.95?"var(--up)":"var(--ink)"});
+    areas.push({x:0,y:y0,w:W,h:rh,ax:L+sx(r.cur),ay:c-10,html:"<b>"+dEsc(r.c)+"</b>"+
+      (range?dRow("Average month in the stretch",Math.round(r.cur)+" ("+r.months+" months)"):now?dRow("So far, to day "+md,fmtSess(r.sofar))+dRow("On pace for the month",Math.round(r.cur)):dRow("This month",fmtSess(r.cur)))+
+      dRow("Best month: "+label(r.best.q),fmtSess(r.best.s))+dRow("Average of the "+r.n3+" months before",Math.round(r.avg3))});
+  });
+  host.innerHTML=s+"</svg>"; dHits(host,areas);
+}
+
+/* 3. Revenue per client */
+function panelRpc(p){
+  var upto=lastDay(p), now=(p===currentPeriod()), V=isV(p), T={n:0,s:0,r:0,cm:0,cw:0};
+  var rows=coachesIn(p).map(function(c){
+    var cl=clientsIn(p,c); if(!cl) return null;
+    var tr=cl.filter(function(x){ return x.s>0; }); if(!tr.length) return null;
+    var o={c:c,n:tr.length,s:0,r:0,cm:0,cw:0}; tr.forEach(function(x){ o.s+=x.s; o.r+=x.r; o.cm+=x.cm; o.cw+=x.cw; });
+    ["n","s","r","cm","cw"].forEach(function(k){ T[k]+=o[k]; });
+    return o;
+  }).filter(Boolean).sort(function(a,b){ return b.r/b.cm-a.r/a.cm; });
+  if(!rows.length) return "";
+  // Over a stretch, "per client" is per client per month they trained (so a client who trained
+  // three months counts three times), which keeps a stretch comparable with a single month.
+  function line(x,cls){
+    var spw=x.s/x.cw;
+    return '<tr'+(cls?' class="'+cls+'"':"")+"><td>"+x.c+"</td><td>"+x.n+"</td><td>"+(x.s/x.cm).toFixed(1)+'</td><td class="'+(spw>=3?"up":spw<2?"down":"")+'">'+spw.toFixed(1)+"</td><td>"+(x.s?fmtInt(x.r/x.s):"—")+'</td><td class="big">'+fmtInt(x.r/x.cm)+"</td></tr>";
+  }
+  var body=rows.map(function(x){ return line(x); }).join("")+line({c:"Team",n:T.n,s:T.s,r:T.r,cm:T.cm,cw:T.cw},"total");
+  return dCard("Revenue per client","What each client is worth to the coach"+(V?", a month":""),(now?"day 1 to "+upto+" of "+label(p):label(p))+" · AED without VAT",
+    '<div style="overflow-x:auto"><table class="dtbl"><thead><tr><th>Coach</th><th>Clients<br>trained</th><th>Sessions per<br>client'+(V?" a month":"")+'</th><th>Sessions a week<br>per client</th><th>Average<br>rate</th><th>Revenue per<br>client'+(V?" a month":"")+'</th></tr></thead><tbody>'+body+
+    '</tbody></table></div><div class="dcard-b" style="padding-top:4px"><p class="dnote" style="margin:0">Revenue per client = the revenue from client sessions ÷ the clients who trained at least once. High means fewer clients training often or at a higher rate; low means many light clients. '+
+    "The two columns before it show which."+(now?" The month is still running, so these grow until it ends.":"")+"</p></div>");
+}
+
+/* 4. Training less often: clients well below their own usual */
+function lessData(p){
+  var upto=lastDay(p), anchor=pIso(p,upto), from=addDaysIso(anchor,-76), out=[];
+  var months=[prevP(p,3),prevP(p,2),prevP(p,1),p];
+  coachesIn(p).forEach(function(c){
+    var cur=clientsIn(p,c); if(!cur) return;
+    var onSheet={}; cur.forEach(function(x){ onSheet[x.key]=x.name; });
+    var days={};
+    months.forEach(function(q){
+      var cl=clOf(q,c); if(!cl) return;
+      var last=(q===p)?upto:monthDays(q);
+      cl.forEach(function(r){
+        var k=nameKey(r[0]); if(!(k in onSheet)) return;
+        var m=String(r[2]||""), d=days[k]||(days[k]={});
+        for(var i=0;i<Math.min(last,m.length);i++){ var w=wOf(m[i]); if(w){ var iso=pIso(q,i+1); if(iso>=from&&iso<=anchor) d[iso]=(d[iso]||0)+w; } }
+      });
+    });
+    var flagged=[], watched=0;
+    Object.keys(onSheet).forEach(function(k){
+      var d=days[k]||{}, ds=Object.keys(d).sort(); if(!ds.length) return;
+      var cut=addDaysIso(anchor,-20), recent=0, base=0;
+      ds.forEach(function(iso){ if(iso>=cut) recent+=d[iso]; else base+=d[iso]; });
+      var usual=base/8, nowW=recent/3;
+      // At least six weeks on record before the last three, and a usual of 1.5 a week or more.
+      if(ds[0]>addDaysIso(anchor,-62)||usual<1.5) return;
+      watched++;
+      if(nowW<=usual*0.5) flagged.push({name:onSheet[k],usual:usual,now:nowW,last:ds.filter(function(x){ return d[x]>0; }).pop()});
+    });
+    out.push({c:c,list:flagged.sort(function(a,b){ return a.now/a.usual-b.now/b.usual; }),watched:watched});
+  });
+  return out.sort(function(a,b){ return b.list.length-a.list.length||a.c.localeCompare(b.c); });
+}
+function panelLess(p){
+  var rows=lessData(p), upto=lastDay(p), anchor=pIso(p,upto);
+  if(!rows.length) return "";
+  var total=rows.reduce(function(t,r){ return t+r.list.length; },0);
+  var body=rows.map(function(r){
+    var n=r.list.length;
+    if(!n) return '<details class="none"><summary><span class="nm">'+r.c+'</span><span class="n">none · '+r.watched+" watched</span></summary></details>";
+    return '<details><summary><span class="nm">'+r.c+'</span><span class="n'+(n>=3?" hi":"")+'">'+n+(n===1?" client":" clients")+" · "+r.watched+' watched</span></summary>'+
+      '<div class="lrow h"><span>Client</span><span>Usual a week</span><span>Last 3 weeks</span><span>Last session</span></div>'+
+      r.list.map(function(x){ return '<div class="lrow"><span>'+dEsc(x.name)+"</span><span>"+x.usual.toFixed(1)+'</span><span class="nw">'+x.now.toFixed(1)+"</span><span>"+(x.last?fmtDay(x.last):"—")+"</span></div>"; }).join("")+"</details>";
+  }).join("");
+  return dCard("Training less often",total+(total===1?" client is":" clients are")+" training well below their own usual","the 3 weeks to "+fmtDay(anchor)+" against the 8 weeks before",
+    '<div class="dcard-b less">'+body+'<p class="dnote">Each client is compared with themselves, not with a fixed number, so a client who always trains once a week is never listed. '+
+    "Listed: a usual of 1.5 a week or more, at least 6 weeks on record, and the last 3 weeks at half their usual or less. Only clients still on this month's sheet; names as the coach typed them. "+
+    "Watched = clients with enough history to judge. Holidays and travel are not taken out, so ask before reading a drop as a problem.</p></div>");
+}
+function fmtDay(iso){ return +iso.slice(8,10)+" "+MONTHS[+iso.slice(5,7)-1]; }
+
+// Notes under the client panels are hidden unless asked for; one switch, remembered on the device.
+(function(){ var b=document.getElementById("btnNotes"); if(!b) return; var on=false; try{ on=localStorage.getItem("iam:notes")==="1"; }catch(e){}
+  function set(){ document.body.classList.toggle("notes",on); b.classList.toggle("on",on); }
+  b.addEventListener("click",function(){ on=!on; try{ localStorage.setItem("iam:notes",on?"1":"0"); }catch(e){} set(); }); set(); })();
+var deepT; window.addEventListener("resize",function(){ clearTimeout(deepT); deepT=setTimeout(function(){ if(ui.month&&DATA[ui.month]) renderDeep(viewKey()); },200); });
+document.addEventListener("scroll",function(){ dHide(); },{passive:true});
+function renderDeep(p){
+  var el=document.getElementById("deep"); if(!el) return;
+  if(!p){ el.innerHTML=""; return; }
+  var load=panelLoad(p);
+  if(!hasCl(p)){
+    var oldest=prevP(currentPeriod(),12);
+    el.innerHTML=load+dCard("Clients","Training frequency, revenue per client and training less often","",
+      '<div class="dempty">'+(p<oldest?"Each client's day-by-day row is kept for the last 13 months only, so these panels start at "+label(oldest)+".":
+        "These panels need each client's day-by-day row, which the next refresh reads. Press Refresh now, or wait for the next scheduled read.")+"</div>");
+    return;
+  }
+  el.innerHTML=panelFreq(p)+load+'<div class="dgrid">'+panelRpc(p)+panelLess(rangeTo(p))+"</div>";
+}
+
+// Online 1+1 sessions are counted as a half, so a session count can legitimately end in .5.
+// Rounding it away loses real work: 133.5 is not 134. Whole numbers still print whole.
+function fmtSess(v){
+  if(v==null) return "—";
+  return (Math.abs(v-Math.round(v))<0.005)
+    ? Math.round(v).toLocaleString("en-US")
+    : v.toLocaleString("en-US",{minimumFractionDigits:1,maximumFractionDigits:1});
+}
+// Half sessions pull the rate off round numbers, and the first decimal is the part that moves.
+function fmtRate(v){ return v==null?"—":v.toLocaleString("en-US",{minimumFractionDigits:1,maximumFractionDigits:1}); }
+// Fewer cancellations is the good direction, so that column inverts the colour.
+function delta(now,was,invert){
+  if(now==null||was==null||!isFinite(was)) return "";
+  if(was===0&&(now===0||now==null)) return '<span class="d flat">—</span>';
+  if(was===0) return '<span class="d '+(invert?"down":"up")+'">new</span>';
+  var pct=(now-was)/Math.abs(was)*100;
+  if(Math.abs(pct)<0.5) return '<span class="d flat">—</span>';
+  var cls=(pct>0)!==!!invert?"up":"down";
+  return '<span class="d '+cls+'">'+(pct>0?"+":"")+pct.toFixed(0)+"%</span>";
+}
+
+/* ---------- rendering ---------- */
+function renderTiles(p){
+  var now=teamTotals(p,false), was=(ui.compare==="none")?null:teamTotals(p,true);
+  var cmp=function(a,b,inv){ return was&&was.n?delta(a,b,inv):""; };
+  var tiles=[
+    {k:"Team sessions", v:fmtSess(now.s),
+     d:cmp(now.s,was&&was.s,false)+(now.spd==null?"":'<span class="d flat">'+now.spd.toFixed(1)+" a day over "+daysUsed(p)+" days</span>")},
+    {k:"Team revenue AED", v:fmtInt(now.r), d:cmp(now.r,was&&was.r,false), lead:true},
+    {k:"Rate / session", v:fmtRate(now.rate), d:cmp(now.rate,was&&was.rate,false)},
+    PAGE==="fin"?null:{k:"Assessments", v:now.a==null?"—":fmtInt(now.a),
+     d:(now.conv==null?"":'<span class="d '+(was&&was.conv!=null?(now.conv>=was.conv?"up":"down"):"flat")+'">'+now.conv.toFixed(0)+"% converted</span>")},
+    {k:"Cancelled", v:now.x==null?"—":fmtInt(now.x),
+     d:(now.cpc==null?"":'<span class="d '+(was&&was.cpc!=null?(now.cpc<=was.cpc?"up":"down"):"flat")+'">'+now.cpc.toFixed(1)+"% of booked</span>")}
+  ];
+  document.getElementById("tiles").innerHTML=tiles.filter(Boolean).map(function(t){
+    return '<div class="tile'+(t.lead?" lead":"")+'"><div class="k">'+t.k+'</div><div class="v">'+t.v+"</div>"+
+      '<div class="sub">'+(t.d||'<span class="d flat">&nbsp;</span>')+"</div></div>";
+  }).join("");
+}
+
+// 100% is an equal share. The bar runs to a 200% scale so the even line sits in the middle
+// and both sides of it are readable.
+function attCell(att){
+  if(att==null) return '<span class="dim">\u2014</span>';
+  var over=att>=99.5, w=Math.max(2,Math.min(100,att/200*100));
+  return '<span class="att"><span class="att-track">'+
+    '<span class="att-fill '+(over?"over":"under")+'" style="width:'+w.toFixed(0)+'%"></span>'+
+    '<span class="att-mark"></span></span>'+
+    '<span class="att-pct '+(over?"over":"under")+'">'+att.toFixed(0)+"%</span></span>";
+}
+
+var COLS=PAGE==="fin"
+  ? [{k:"coach",t:"Coach"},{k:"sessions",t:"Sessions"},{k:"spd",t:"Sessions / day"},{k:"rate",t:"Rate / session"},
+     {k:"revenue",t:"Revenue AED"},{k:"share",t:"Share of revenue"},{k:"cancelled",t:"Cancelled"},{k:"cpc",t:"Cancelled %"}]
+  : [{k:"coach",t:"Coach"},{k:"sessions",t:"Sessions"},{k:"spd",t:"Sessions / day"},{k:"rate",t:"Rate / session"},
+     {k:"revenue",t:"Revenue AED"},{k:"cancelled",t:"Cancelled"},{k:"cpc",t:"Cancelled %"},{k:"assess",t:"Assessments"},{k:"conv",t:"Converted"},{k:"attain",t:"Even share"}];
+// A coach's share of the team's revenue in the window, and the change in points against the comparison.
+function shareCell(now,was){
+  if(now==null) return '<span class="dim">\u2014</span>';
+  var d="";
+  if(was!=null){ var pts=now-was; d=Math.abs(pts)<0.05?'<span class="d flat">\u2014</span>':'<span class="d '+(pts>0?"up":"down")+'">'+(pts>0?"+":"")+pts.toFixed(1)+" pts</span>"; }
+  return now.toFixed(1)+"%"+d;
+}
+// Green through amber to red across the order. A coach with no revenue this month gets a
+// neutral mark rather than a place in the ranking.
+function rankMark(r,span){
+  if(r.rank==null) return '<span class="rk" style="background:var(--line)"></span>';
+  var h=Math.round(140-140*(r.rank/span));
+  return '<span class="rk" style="background:linear-gradient(180deg,hsl('+h+',72%,56%),hsl('+h+',64%,36%));'+
+         'box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 0 7px hsla('+h+',72%,46%,.4)"></span>';
+}
+function render(){
+  var p=viewKey(), tbl=document.getElementById("tbl"), empty=document.getElementById("empty");
+  var isNow=(p===currentPeriod()), chip=document.getElementById("chipMtd");
+  relabelCompare(p);
+  chip.style.display=(isNow||isV(p))?"":"none";
+  if(isV(p)) chip.textContent=rangeOf(p).length+" months, "+label(p)+(rangeTo(p)===currentPeriod()?(ui.basis==="mtd"?" · "+MONTHS[+rangeTo(p).slice(5,7)-1]+" to day "+(cutoffDay(rangeTo(p))||dayOfMonth()):" · "+MONTHS[+rangeTo(p).slice(5,7)-1]+" whole month"):"");
+  else if(isNow) chip.textContent=(ui.basis==="mtd")
+    ? ("Day "+(cutoffDay(p)||dayOfMonth())+" of "+monthDays(p))
+    : ("Whole month \u00b7 includes bookings ahead");
+
+  var list=coachesIn(p);
+  if(!list.length){ tbl.innerHTML=""; empty.style.display=""; renderTiles(p); renderProj(p); renderDeep(p); return; }
+  empty.style.display="none";
+
+  var team=teamTotals(p,false);
+  // An equal split of this month's team revenue. A coach at 100% is carrying exactly their
+  // share of it. It describes how evenly revenue has fallen across the coaches counted,
+  // nothing more - a coach can sit below it on a month of leave.
+  var evenList=list.filter(inEven);
+  var evenRevenue=evenList.reduce(function(t,c){ var m=metrics(p,c); return t+((m&&m.r)||0); },0);
+  var evenShare=evenList.length?evenRevenue/evenList.length:0;
+  var cols=COLS;
+  var wasT=(ui.compare==="none")?null:teamTotals(p,true);
+  var rows=list.map(function(c){
+    var m=metrics(p,c), b=basis(p,c);
+    return {coach:c, sessions:m.s, spd:m.spd, rate:m.rate, revenue:m.r, cancelled:m.x, cpc:m.cpc,
+            assess:m.a, conv:m.conv, cv:m.cv, mtdMissing:m.mtdMissing,
+            share:(team.r&&m.r!=null)?m.r/team.r*100:null,
+            shareWas:(b&&b.r!=null&&wasT&&wasT.r)?b.r/wasT.r*100:null,
+            attain:(evenShare&&m.r!=null&&inEven(c))?m.r/evenShare*100:null, b:b};
+  });
+
+  // Ranked on revenue regardless of how the table is sorted, so the colour always means
+  // the same thing.
+  var ranked=rows.filter(function(r){ return r.revenue!=null; })
+                 .sort(function(a,b){ return b.revenue-a.revenue; });
+  ranked.forEach(function(r,i){ r.rank=i; });
+  var rankSpan=Math.max(1,ranked.length-1);
+
+  rows.sort(function(a,b){
+    if(ui.sort==="coach") return a.coach.localeCompare(b.coach)*(ui.dir<0?1:-1);
+    var av=a[ui.sort], bv=b[ui.sort];
+    if(av==null&&bv==null) return 0;
+    if(av==null) return 1;
+    if(bv==null) return -1;
+    return (av-bv)*ui.dir;
+  });
+
+  var head="<thead><tr>"+cols.map(function(c){
+    return '<th class="'+(ui.sort===c.k?"on":"")+'" data-k="'+c.k+'">'+c.t+" "+(ui.sort===c.k?(ui.dir<0?"↓":"↑"):"")+"</th>";
+  }).join("")+"</tr></thead>";
+
+  var dash='<span class="dim">\u2014</span>';
+  // One function per column, so each view lists only the columns it shows.
+  var CELL={
+    sessions:function(r,b){ return fmtSess(r.sessions)+delta(r.sessions,b.s,false); },
+    spd:function(r,b){ return r.spd==null?dash:r.spd.toFixed(1)+delta(r.spd,b.spd,false); },
+    rate:function(r,b){ return fmtRate(r.rate)+delta(r.rate,b.rate,false); },
+    revenue:function(r,b){ return fmtInt(r.revenue)+delta(r.revenue,b.r,false); },
+    share:function(r){ return shareCell(r.share,r.shareWas); },
+    cancelled:function(r,b){ return r.cancelled==null?dash:fmtInt(r.cancelled)+delta(r.cancelled,b.x,true); },
+    cpc:function(r,b){ return r.cpc==null?dash:r.cpc.toFixed(1)+"%"+delta(r.cpc,b.cpc,true); },
+    assess:function(r,b){ return r.assess==null?dash:fmtInt(r.assess)+delta(r.assess,b.a,false); },
+    conv:function(r){ return r.conv==null?dash:r.conv.toFixed(0)+"%"+'<span class="d flat">'+fmtInt(r.cv)+" of "+fmtInt(r.assess)+"</span>"; },
+    attain:function(r){ return attCell(r.attain); }
+  };
+  var body="<tbody>"+rows.map(function(r){
+    var b=r.b||{};
+    return '<tr class="'+(r.coach===DIRECTOR?"me":"")+'">'+
+      "<td>"+rankMark(r,rankSpan)+r.coach+
+        (r.mtdMissing?'<span class="nomtd" title="This sheet has no day-by-day counts, so this row is the whole month, bookings ahead included">\u25cf</span>':"")+"</td>"+
+      cols.slice(1).map(function(c){ return "<td>"+CELL[c.k](r,b)+"</td>"; }).join("")+"</tr>";
+  }).join("")+"</tbody>";
+
+  var was=wasT;
+  var tcmp=function(a,b,inv){ return was&&was.n?delta(a,b,inv):""; };
+  var FOOT={
+    sessions:function(){ return fmtSess(team.s)+tcmp(team.s,was&&was.s,false); },
+    spd:function(){ return team.spd==null?dash:team.spd.toFixed(1)+tcmp(team.spd,was&&was.spd,false); },
+    rate:function(){ return fmtRate(team.rate)+tcmp(team.rate,was&&was.rate,false); },
+    revenue:function(){ return fmtInt(team.r)+tcmp(team.r,was&&was.r,false); },
+    share:function(){ return team.r?"100%":dash; },
+    cancelled:function(){ return team.x==null?dash:fmtInt(team.x)+tcmp(team.x,was&&was.x,true); },
+    cpc:function(){ return team.cpc==null?dash:team.cpc.toFixed(1)+"%"+tcmp(team.cpc,was&&was.cpc,true); },
+    assess:function(){ return team.a==null?dash:fmtInt(team.a)+tcmp(team.a,was&&was.a,false); },
+    conv:function(){ return team.conv==null?dash:team.conv.toFixed(0)+"%"+'<span class="d flat">'+fmtInt(team.cv)+" of "+fmtInt(team.a)+"</span>"; },
+    attain:function(){ return evenSummary(rows); }
+  };
+  var foot="<tfoot><tr><td>"+(ui.scope==="all"?"Team":"Team ex. FD")+" · "+rows.length+"</td>"+
+    cols.slice(1).map(function(c){ return "<td>"+FOOT[c.k]()+"</td>"; }).join("")+"</tr></tfoot>";
+
+  // Said out loud: a figure that is not to date must never sit silently under that heading.
+  var noMtd=rows.filter(function(r){ return r.mtdMissing; }).map(function(r){ return r.coach; });
+  var warn=document.getElementById("chipWhole");
+  if(noMtd.length){
+    warn.style.display="";
+    warn.textContent=noMtd.length+(noMtd.length===1?" coach":" coaches")+" counted whole-month: "+noMtd.join(", ");
+  } else warn.style.display="none";
+
+  tbl.innerHTML=head+body+foot;
+  Array.prototype.forEach.call(tbl.querySelectorAll("th"),function(th){
+    th.addEventListener("click",function(){
+      var k=th.getAttribute("data-k");
+      if(ui.sort===k) ui.dir=-ui.dir; else { ui.sort=k; ui.dir=-1; }
+      saveUi(); render();
+    });
+  });
+  renderTiles(p);
+  if(PAGE!=="fin") renderProj(p);
+  if(PAGE==="full") renderDeep(p);
+}
+// How much of the team is carrying its equal share: how many coaches sit at or above 100%,
+// as a percentage of those with revenue this month.
+function evenSummary(rows){
+  var withRev=rows.filter(function(r){ return r.attain!=null; });
+  if(!withRev.length) return '<span class="dim">\u2014</span>';
+  var at=withRev.filter(function(r){ return r.attain>=99.5; }).length;
+  return Math.round(at/withRev.length*100)+'%<span class="even-note">'+at+" of "+withRev.length+" at or above even</span>";
+}
+// Which months each file actually produced, and which it could not. A month that failed to
+// parse is otherwise indistinguishable from a month that never happened, which is the one
+// way this dashboard could mislead without anyone noticing.
+function renderCoverage(){
+  var tbl=document.getElementById("coverage"), sum=document.getElementById("coverageSummary");
+  var files=(LIVE&&LIVE.files)||[];
+  if(!files.length){ tbl.innerHTML=""; sum.textContent="Coverage"; return; }
+  var totalGaps=0;
+  var rows=files.slice().sort(function(a,b){ return a.coach.localeCompare(b.coach); }).map(function(f){
+    var months=(f.months||[]).slice().sort();
+    var failed=(f.errors||[]).map(function(e){ var m=e.match(/^(\d{4}-\d{2})/); return m?m[1]:null; }).filter(Boolean);
+    var other=(f.errors||[]).filter(function(e){ return !/^\d{4}-\d{2}/.test(e); });
+    totalGaps+=failed.length;
+    var range=months.length?(months[0]+(months.length>1?" \u2192 "+months[months.length-1]:"")):"\u2014";
+    var note=[];
+    if(failed.length) note.push('<span class="gap">'+failed.length+" could not be read: "+failed.join(", ")+"</span>");
+    if(other.length) note.push('<span class="gap">'+other.join("; ")+"</span>");
+    if(f.ignoredDuplicate) note.push('<span class="dim">ignored: this coach also has a file in the main folder</span>');
+    if(f.empty&&f.empty.length) note.push('<span class="dim">'+f.empty.length+" month(s) still empty</span>");
+    // Warnings are not failures, but they are the reason a figure might look wrong.
+    (f.warnings||[]).slice(0,4).forEach(function(w){ note.push('<span style="color:var(--watch)">'+w+"</span>"); });
+    if((f.warnings||[]).length>4) note.push('<span class="dim">and '+((f.warnings.length)-4)+" more notes</span>");
+    return "<tr><td>"+f.coach+(f.folder?' <span class="dim">('+f.folder+")</span>":"")+"</td>"+
+      "<td>"+months.length+"</td><td>"+range+"</td>"+
+      '<td style="white-space:normal">'+(note.join("<br>")||'<span class="dim">\u2014</span>')+"</td></tr>";
+  }).join("");
+  // Files the job did not even try: a renamed coach file lands here rather than vanishing.
+  var skipped=(LIVE&&LIVE.skipped)||[];
+  var skipRows=skipped.map(function(f){
+    return '<tr><td><span class="dim">'+f.name+(f.folder?" ("+f.folder+")":"")+"</span></td>"+
+      '<td>0</td><td>\u2014</td><td style="white-space:normal"><span class="gap">not read \u2014 the file name does not look like a coach performance sheet</span></td></tr>';
+  }).join("");
+  tbl.innerHTML="<thead><tr><th>Coach</th><th>Months</th><th>Range</th><th>Notes</th></tr></thead><tbody>"+rows+skipRows+"</tbody>";
+  var a=LIVE&&LIVE.assessReport;
+  var bits=[files.length+" files"];
+  if(skipped.length) bits.push(skipped.length+" file(s) not read");
+  if(totalGaps) bits.push(totalGaps+" month(s) unread");
+  if(a&&a.error) bits.push("tracker failed");
+  else if(a&&a.counted!=null) bits.push(a.counted+" assessments");
+  sum.textContent="Coverage \u00b7 "+bits.join(" \u00b7 ");
+}
+function renderCoachPanel(){
+  var grid=document.getElementById("coachGrid");
+  var list=recentCoaches();
+  grid.innerHTML=list.map(function(c){
+    var p=pref(c);
+    return '<div class="coach-row"><span class="nm">'+c+"</span>"+
+      '<label><input type="checkbox" data-c="'+c+'" data-k="off"'+(p.off?"":" checked")+"> Show</label>"+
+      '<label><input type="checkbox" data-c="'+c+'" data-k="noEven"'+(p.noEven?"":" checked")+"> Even share</label></div>";
+  }).join("");
+  Array.prototype.forEach.call(grid.querySelectorAll("input"),function(inp){
+    inp.addEventListener("change",function(){
+      // Both boxes read as "include", so an unticked box is what gets stored.
+      setPref(inp.getAttribute("data-c"), inp.getAttribute("data-k"), !inp.checked);
+      render(); updateCoachSummary();
+    });
+  });
+  updateCoachSummary();
+}
+function updateCoachSummary(){
+  var hidden=[], outOfEven=[];
+  recentCoaches().forEach(function(c){
+    if(pref(c).off) hidden.push(c);
+    else if(pref(c).noEven) outOfEven.push(c);
+  });
+  var bits=[];
+  if(hidden.length) bits.push(hidden.length+" hidden");
+  if(outOfEven.length) bits.push(outOfEven.length+" out of even share");
+  document.getElementById("coachSummary").textContent="Coaches"+(bits.length?" \u00b7 "+bits.join(" \u00b7 "):"");
+}
+function fillMonths(){
+  var sel=document.getElementById("selMonth");
+  sel.innerHTML=PERIODS.slice().reverse().map(function(p){ return '<option value="'+p+'">'+label(p)+"</option>"; }).join("");
+  if(!ui.month||PERIODS.indexOf(ui.month)<0) ui.month=PERIODS[PERIODS.length-1]||null;
+  sel.value=ui.month;
+  var from=document.getElementById("selFrom");
+  from.innerHTML=PERIODS.filter(function(q){ return q<ui.month; }).reverse().map(function(q){ return '<option value="'+q+'">from '+label(q)+"</option>"; }).join("");
+  if(!ui.from||ui.from>=ui.month||PERIODS.indexOf(ui.from)<0) ui.from=prevP(ui.month,2);
+  from.value=ui.from;
+  document.getElementById("selSpan").value=ui.span;
+  from.style.display=ui.span==="custom"?"":"none";
+}
+// Over a stretch, "last month" means the stretch of the same length before it.
+function relabelCompare(p){
+  var V=isV(p), sel=document.getElementById("selCompare");
+  var T={pace:["vs last month, same point","vs the stretch before, same point"],prev:["vs last month, full","vs the stretch before, full"],
+         yoy:["vs same month last year, same point","vs same stretch last year, same point"],yoyfull:["vs same month last year, full","vs same stretch last year, full"]};
+  Array.prototype.forEach.call(sel.options,function(o){
+    if(T[o.value]) o.textContent=T[o.value][V?1:0];
+    else if(o.value!=="none") o.hidden=V;
+  });
+  if(V&&!T[ui.compare]&&ui.compare!=="none"){ ui.compare="pace"; sel.value="pace"; }
+}
+function stampText(){
+  if(!LIVE||!LIVE.generated) return "";
+  var d=new Date(LIVE.generated), mins=Math.round((Date.now()-d.getTime())/60000);
+  var ago=mins<1?"just now":mins<60?(mins+" min ago"):mins<1440?(Math.round(mins/60)+" h ago"):(Math.round(mins/1440)+" d ago");
+  return "Last read "+d.toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"})+"<br>"+ago;
+}
+function paint(){
+  fillMonths();
+  document.getElementById("stamp").innerHTML=stampText();
+  document.getElementById("selCompare").value=ui.compare;
+  Array.prototype.forEach.call(document.querySelectorAll("#segScope button"),function(b){
+    b.classList.toggle("on",b.getAttribute("data-v")===ui.scope);
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("#segBasis button"),function(b){
+    b.classList.toggle("on",b.getAttribute("data-v")===ui.basis);
+  });
+  // The choice only bites on the month still running.
+  document.getElementById("segBasis").style.opacity=(ui.month===currentPeriod())?"1":".45";
+  // A file counts as unread only when it yielded no month at all. A coach whose current
+  // months are fine but whose oldest tabs use a layout the parser will not guess at is not
+  // a problem to flag on a page someone else reads.
+  var bad=(LIVE&&LIVE.files)?LIVE.files.filter(function(f){
+    return f.errors&&f.errors.length&&!(f.months&&f.months.length);
+  }):[];
+  renderCoachPanel();
+  renderCoverage();
+  var gaps=0;
+  ((LIVE&&LIVE.files)||[]).forEach(function(f){
+    gaps+=((f.errors||[]).filter(function(e){ return /^\d{4}-\d{2}/.test(e); })).length;
+  });
+  var msg=[];
+  if(bad.length) msg.push(bad.length+" sheet(s) could not be read: "+bad.map(function(f){return f.coach;}).join(", "));
+  if(gaps) msg.push(gaps+" month(s) could not be read \u2014 see Coverage");
+  var skippedCount=((LIVE&&LIVE.skipped)||[]).length;
+  if(skippedCount) msg.push(skippedCount+" file(s) skipped on their name \u2014 see Coverage");
+  document.getElementById("note").textContent=msg.join(" \u00b7 ");
+  render();
+}
+
+/* ---------- loading and refresh ---------- */
+function loadAll(pass){
+  return loadEnc("history.enc.json",false)
+    .then(function(env){ return decrypt(env,pass); })
+    .then(function(h){
+      HIST=h;
+      return loadEnc("live.enc.json",true)
+        .then(function(env){ return decrypt(env,pass); })
+        .then(function(l){ LIVE=l; }, function(){ LIVE=null; })
+        .then(build);
+    });
+}
+// Shows progress on the button itself, so a slow read never looks like a dead click.
+function busy(id,on,text){
+  var b=document.getElementById(id); if(!b) return;
+  if(on){ b.dataset.label=b.dataset.label||b.textContent; b.textContent=text; b.disabled=true; }
+  else { b.textContent=b.dataset.label||b.textContent; b.disabled=false; }
+}
+// newerThan: after a forced refresh, the figures that come back must actually be newer than
+// the ones on screen. Showing the previous read and calling it done is the bug this fixes, so
+// where the file has not caught up yet the page waits for it rather than reporting success.
+function reload(newerThan){
+  busy("btnReload",true,"Reading…");
+  setStat("status","Reading the latest figures…","");
+  var waited=0;
+  function attempt(){
+    return loadEnc("live.enc.json",true)
+      .then(function(env){ return decrypt(env,PASS); })
+      .then(function(l){
+        var gen=l.generated?new Date(l.generated).getTime():0;
+        if(newerThan&&gen&&gen<=newerThan&&waited<180000){
+          waited+=5000;
+          setStat("status","Waiting for the new figures to publish… ("+Math.round(waited/1000)+"s)","");
+          return new Promise(function(r){ setTimeout(r,5000); }).then(attempt);
+        }
+        LIVE=l; build(); paint();
+        if(newerThan&&gen&&gen<=newerThan){
+          setStat("status","The read finished but the published figures have not changed — try Reload in a minute.","err");
+          return;
+        }
+        checkLastRun();
+        setStat("status","Up to date — last read "+(LIVE.generated?new Date(LIVE.generated).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"}):"unknown"),"ok");
+      });
+  }
+  return attempt()
+    .catch(function(e){ setStat("status","Could not read the latest figures: "+e.message,"err"); })
+    .then(function(){ busy("btnReload",false); });
+}
+/* ---------- a failed read ----------
+   When the scheduled read fails, the figures on screen stay as they were and only the "Last
+   read" time gives it away. On opening, the newest finished read is checked: if it failed
+   after these figures were written, the reason the job pinned to its run is shown above the
+   figures. Public information on a public repository, so no token is needed to look. */
+function apiHeaders(){ var c=cfg(); return (c&&c.pat)?ghHeaders(c.pat):{Accept:"application/vnd.github+json"}; }
+function runReason(run){
+  var h=apiHeaders();
+  return getJson(run.jobs_url+"?t="+Date.now(),h).then(function(j){
+    var job=(j.jobs||[])[0]; if(!job) return null;
+    return getJson("https://api.github.com/repos/"+GH_OWNER+"/"+GH_REPO+"/check-runs/"+job.id+"/annotations?t="+Date.now(),h)
+      .then(function(a){
+        var hit=(a||[]).filter(function(x){ return /read failed/i.test(x.title||""); })[0];
+        return hit?hit.message:null;
+      });
+  }).catch(function(){ return null; });
+}
+// The reason comes from outside the page, so it is shown as text, never as markup.
+function escapeHtml(t){ return String(t).replace(/[&<>"']/g,function(ch){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]; }); }
+function fmtWhen(d){ return new Date(d).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"}); }
+function showReadFail(run,reason){
+  var el=document.getElementById("readFail"); if(!el) return;
+  if(!run){ el.style.display="none"; el.innerHTML=""; return; }
+  el.innerHTML='<span><b>The last read failed.</b> '+escapeHtml(reason||"The Actions tab on GitHub has the details.")+
+    '<span class="when">Failed '+fmtWhen(run.updated_at)+(LIVE&&LIVE.generated?" \u00b7 the figures below are from "+fmtWhen(LIVE.generated):"")+"</span></span>";
+  el.style.display="";
+}
+function checkLastRun(){
+  getJson("https://api.github.com/repos/"+GH_OWNER+"/"+GH_REPO+"/actions/workflows/"+GH_WORKFLOW+"/runs?per_page=1&status=completed&t="+Date.now(),apiHeaders())
+    .then(function(j){
+      var run=(j.workflow_runs||[])[0];
+      var gen=(LIVE&&LIVE.generated)?new Date(LIVE.generated).getTime():0;
+      if(!run||run.conclusion==="success"||new Date(run.updated_at).getTime()<=gen){ showReadFail(null); return; }
+      return runReason(run).then(function(reason){ showReadFail(run,reason); });
+    })
+    .catch(function(){});
+}
+function ghHeaders(t){ return {Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28",Authorization:"Bearer "+t}; }
+function refreshNow(){
+  var c=cfg();
+  if(!c.pat){
+    setStat("status","Refresh access isn’t set on this device — open Refresh access below and save a token. The scheduled read still runs every three hours.","err");
+    var tp=document.getElementById("tokenPanel"); if(tp) tp.open=true;
+    return;
+  }
+  busy("btnRefresh",true,"Reading…");
+  var tries=0;
+  // The figures on screen now. The reload at the end must come back newer than this.
+  var prevGen=(LIVE&&LIVE.generated)?new Date(LIVE.generated).getTime():0;
+  // Only runs this button started. The old code took the newest run created in the last
+  // minute, so a scheduled read already in flight could be mistaken for this one and the
+  // page would stop waiting too early.
+  var runsUrl="https://api.github.com/repos/"+GH_OWNER+"/"+GH_REPO+"/actions/workflows/"+GH_WORKFLOW+"/runs?per_page=1&event=workflow_dispatch";
+  var beforeId=null;
+  setStat("status","Asking for a fresh read of the folder…","");
+  getJson(runsUrl+"&t="+Date.now(),ghHeaders(c.pat))
+    .then(function(j){ var r=(j.workflow_runs||[])[0]; beforeId=r?r.id:null; })
+    .catch(function(){})
+    .then(function(){
+      return fetch("https://api.github.com/repos/"+GH_OWNER+"/"+GH_REPO+"/actions/workflows/"+GH_WORKFLOW+"/dispatches",
+        {method:"POST",headers:ghHeaders(c.pat),body:JSON.stringify({ref:GH_BRANCH})});
+    })
+  .then(function(r){
+    if(r.status===204) return;
+    if(r.status===401||r.status===403) throw new Error("the saved token was refused");
+    if(r.status===404) throw new Error("the repository or workflow wasn’t found");
+    throw new Error("GitHub replied "+r.status);
+  })
+  .then(function(){
+    return new Promise(function(res,rej){
+      (function poll(){
+        // A cold run installs the browser before it opens the folder, which alone takes about
+        // six minutes, so five was never long enough. This waits 15 and says where to look.
+        if(++tries>180) return rej(new Error("still running after 15 minutes — open the Actions tab to see where it has got to"));
+        var secs=tries*5;
+        setStat("status","Reading the coach sheets… ("+(secs<90?secs+"s":Math.floor(secs/60)+"m "+(secs%60)+"s")+")","");
+        getJson(runsUrl+"&t="+Date.now(),ghHeaders(c.pat))
+          .then(function(j){
+            var run=(j.workflow_runs||[])[0];
+            if(run&&run.id!==beforeId&&run.status==="completed"){
+              if(run.conclusion!=="success") return runReason(run).then(function(reason){
+                showReadFail(run,reason);
+                rej(new Error(reason||("the read finished with “"+run.conclusion+"”")));
+              });
+              return res();
+            }
+            setTimeout(poll,5000);
+          }).catch(function(){ setTimeout(poll,5000); });
+      })();
+    });
+  })
+  .then(function(){ return reload(prevGen); })
+  .catch(function(e){ setStat("status","Refresh failed — "+e.message,"err"); })
+  .then(function(){ busy("btnRefresh",false); });
+}
+
+/* ---------- gate ---------- */
+function wireToken(){
+  var input=document.getElementById("liveToken");
+  function show(){
+    var has=!!cfg().pat;
+    document.getElementById("tokenSummary").textContent="Refresh access"+(has?" \u00b7 saved on this device":" \u00b7 not set");
+    setStat("tokenStatus",has?"Refresh now will work on this device.":"Without a token, Refresh now cannot start a read. Reload still works.",has?"ok":"");
+  }
+  document.getElementById("btnSaveToken").addEventListener("click",function(){
+    var v=(input.value||"").trim();
+    if(!v){ setStat("tokenStatus","Paste the token first.","err"); return; }
+    var c=cfg(); c.pat=v;
+    try{ localStorage.setItem(CFG_KEY,JSON.stringify(c)); }catch(e){}
+    input.value=""; show();
+  });
+  document.getElementById("btnClearToken").addEventListener("click",function(){
+    var c=cfg(); delete c.pat;
+    try{ localStorage.setItem(CFG_KEY,JSON.stringify(c)); }catch(e){}
+    show();
+  });
+  show();
+}
+function unlock(){
+  var gate=document.getElementById("gate"), form=document.getElementById("gateForm"),
+      input=document.getElementById("gatePass"), rem=document.getElementById("gateRemember"),
+      btn=document.getElementById("gateBtn");
+  return new Promise(function(resolve){
+    function attempt(pass,keep,fromStore){
+      setStat("gateStatus","Decrypting…","");
+      btn.disabled=true;
+      loadAll(pass).then(function(){
+        PASS=pass;
+        if(keep){ try{ localStorage.setItem(PASS_KEY,pass); }catch(e){} }
+        gate.style.display="none";
+        document.body.classList.remove("locked");
+        document.getElementById("app").style.display="";
+        setStat("gateStatus","","");
+        resolve();
+        checkLastRun();
+      }).catch(function(e){
+        btn.disabled=false;
+        if(fromStore){ try{ localStorage.removeItem(PASS_KEY); }catch(e2){} }
+        var wrong=e&&(e.name==="OperationError"||/decrypt/i.test(e.message||""));
+        setStat("gateStatus",wrong?"That passphrase doesn’t open the data.":("Could not load the data: "+e.message),"err");
+      });
+    }
+    form.addEventListener("submit",function(ev){
+      ev.preventDefault();
+      var v=(input.value||"").trim();
+      if(!v){ setStat("gateStatus","Enter the passphrase.","err"); return; }
+      attempt(v,!!rem.checked,false);
+    });
+    var saved=null; try{ saved=localStorage.getItem(PASS_KEY); }catch(e){}
+    if(saved) attempt(saved,true,true); else input.focus();
+  });
+}
+
+unlock().then(function(){
+  paint();
+  document.getElementById("selMonth").addEventListener("change",function(e){ ui.month=e.target.value; fillMonths(); render(); });
+  document.getElementById("selSpan").addEventListener("change",function(e){ ui.span=e.target.value; saveUi(); fillMonths(); render(); });
+  document.getElementById("selFrom").addEventListener("change",function(e){ ui.from=e.target.value; saveUi(); render(); });
+  document.getElementById("selCompare").addEventListener("change",function(e){ ui.compare=e.target.value; saveUi(); render(); });
+  Array.prototype.forEach.call(document.querySelectorAll("#segScope button"),function(b){
+    b.addEventListener("click",function(){
+      ui.scope=b.getAttribute("data-v"); saveUi();
+      Array.prototype.forEach.call(document.querySelectorAll("#segScope button"),function(o){ o.classList.toggle("on",o===b); });
+      render();
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("#segBasis button"),function(b){
+    b.addEventListener("click",function(){
+      ui.basis=b.getAttribute("data-v"); saveUi();
+      Array.prototype.forEach.call(document.querySelectorAll("#segBasis button"),function(o){ o.classList.toggle("on",o===b); });
+      paint();
+    });
+  });
+  // Wrapped, not passed directly: as a listener the click Event would arrive as reload's
+  // "newerThan" argument, and a plain Reload must not wait for anything.
+  document.getElementById("btnReload").addEventListener("click",function(){ reload(); });
+  document.getElementById("btnRefresh").addEventListener("click",refreshNow);
+  wireToken();
+  if(!LIVE) setStat("status","No live figures have been written yet — run the refresh job once.","err");
+});
+})();
+</script>
+<script>
+// Check for a newer page on every load, and never let the browser serve a cached copy of
+// the worker itself. When a new worker takes over, reload once so the page on screen is the
+// new one - otherwise a phone keeps showing the version it first installed.
+if("serviceWorker" in navigator) window.addEventListener("load",function(){
+  navigator.serviceWorker.register("./sw.js",{updateViaCache:"none"}).then(function(reg){
+    reg.update();
+    setInterval(function(){ reg.update(); }, 60*60*1000);
+  }).catch(function(){});
+  var reloading=false;
+  navigator.serviceWorker.addEventListener("controllerchange",function(){
+    if(reloading) return; reloading=true; location.reload();
+  });
+});
+</script>
+</body>
+</html>
