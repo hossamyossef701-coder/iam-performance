@@ -58,6 +58,8 @@ jobs:
           ASSESS_SHARE_URL: ${{ secrets.ASSESS_SHARE_URL }}
           CLIENTS_SHARE_URL: ${{ secrets.CLIENTS_SHARE_URL }}
           CLIENTS_PASSPHRASE: ${{ secrets.CLIENTS_PASSPHRASE }}
+          FINANCE_PASSPHRASE: ${{ secrets.FINANCE_PASSPHRASE }}
+          CEO_PASSPHRASE: ${{ secrets.CEO_PASSPHRASE }}
         run: node scripts/refresh.mjs
 
       - name: Save changes
@@ -68,6 +70,8 @@ jobs:
           [ -f history.enc.json ] && git add history.enc.json || true
           [ -f clients.enc.json ] && git add clients.enc.json || true
           [ -f overview.enc.json ] && git add overview.enc.json || true
+          [ -f finance.enc.json ] && git add finance.enc.json || true
+          [ -f ceo.enc.json ] && git add ceo.enc.json || true
           if git diff --cached --quiet; then
             echo "Nothing new to save."
           else

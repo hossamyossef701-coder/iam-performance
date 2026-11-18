@@ -34,7 +34,7 @@ body{background:var(--ground);color:var(--ink);font-family:var(--f-display);font
 body.v-ceo #tiles,body.v-ceo #mainCard,body.v-ceo #deep,body.v-ceo #selCompare,body.v-ceo #chipWhole,
 body.v-fin #proj,body.v-fin #deep,
 body.v-ceo #btnRefresh,body.v-fin #btnRefresh,body.v-ceo #tokenPanel,body.v-fin #tokenPanel,
-body.v-ceo #coveragePanel,body.v-fin #coveragePanel,body.v-ceo #coachPanel,body.v-fin #coachPanel{display:none !important;}
+body.v-ceo #coveragePanel,body.v-fin #coveragePanel,body.v-ceo #note,body.v-fin #note,body.v-ceo #coachPanel,body.v-fin #coachPanel{display:none !important;}
 @media(max-width:640px){.wrap{padding:18px 14px 50px;}}
 ::selection{background:rgba(239,105,29,.3);}
 
@@ -365,18 +365,27 @@ var GH_OWNER="hossamyossef701-coder", GH_REPO="iam-performance", GH_BRANCH="main
 // Which view: the file name decides (finance.html, overview.html; anything else is Performance).
 var PAGE=/finance\.html$/i.test(location.pathname)?"fin":/overview\.html$/i.test(location.pathname)?"ceo":"full";
 var PAGE_NAME={full:"Coach Performance",fin:"Finance",ceo:"Overview"}[PAGE];
-var PASS_KEY="iamlive:pass", CFG_KEY="iamlive:cfg", UI_KEY="iamreport:ui"+(PAGE==="full"?"":":"+PAGE);
+// Finance and Overview remember their passphrase under their own key, so typing the Finance one
+// on a device never replaces the Performance one the other pages use.
+var PASS_KEY="iamlive:pass"+(PAGE==="full"?"":":"+PAGE), CFG_KEY="iamlive:cfg", UI_KEY="iamreport:ui"+(PAGE==="full"?"":":"+PAGE);
 (function(){
   document.body.classList.add("v-"+PAGE);
   document.title=PAGE_NAME+" — I AM Performance";
   Array.prototype.forEach.call(document.querySelectorAll("h1"),function(h){ h.textContent=PAGE_NAME; });
-  // The full menu shows where the Performance page has been opened on this device (Hossam's).
-  // On a device that only ever opens Finance or Overview, the menu is that page alone.
+})();
+// Who unlocked the page. The Performance passphrase opens every page, with the full menu.
+// Finance and Overview also open with their own passphrase (FINANCE_PASSPHRASE, CEO_PASSPHRASE),
+// which decrypts only that page's file: the menu is then that page alone, and the other pages'
+// data cannot be read with it.
+var ROLE=PAGE==="full"?"director":null;
+var AUD_FILE=PAGE==="fin"?"finance.enc.json":PAGE==="ceo"?"ceo.enc.json":null;
+function drawNav(){
   var NAV=[["report.html","Performance","full"],["finance.html","Finance","fin"],["overview.html","Overview","ceo"],["business.html","Business"],["clients.html","Clients"],["coach.html","Coach review"]];
-  var full=PAGE==="full"; try{ if(full) localStorage.setItem("iam:director","1"); else full=localStorage.getItem("iam:director")==="1"; }catch(e){}
+  var full=ROLE==="director";
   document.getElementById("nav").innerHTML=NAV.filter(function(n){ return full||n[2]===PAGE; }).map(function(n){
     return '<a'+(n[2]===PAGE?' class="on"':"")+' href="./'+n[0]+'">'+n[1]+"</a>"; }).join("");
-})();
+}
+drawNav();
 var DIRECTOR="Hossam";
 var MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 var PASS=null, LIVE=null, HIST=null, DATA={}, PERIODS=[];
@@ -1403,15 +1412,26 @@ function paint(){
 
 /* ---------- loading and refresh ---------- */
 function loadAll(pass){
-  return loadEnc("history.enc.json",false)
+  var master=loadEnc("history.enc.json",false)
     .then(function(env){ return decrypt(env,pass); })
     .then(function(h){
-      HIST=h;
+      HIST=h; ROLE="director";
       return loadEnc("live.enc.json",true)
         .then(function(env){ return decrypt(env,pass); })
         .then(function(l){ LIVE=l; }, function(){ LIVE=null; })
-        .then(build);
+        .then(function(){ drawNav(); build(); });
     });
+  if(!AUD_FILE) return master;
+  // Not the Performance passphrase: try this page's own.
+  return master.catch(function(){
+    return loadEnc(AUD_FILE,true).then(function(env){ return decrypt(env,pass); })
+      .then(function(d){ HIST=d.hist; LIVE=d.live; ROLE=PAGE; drawNav(); build(); });
+  });
+}
+// The figures again, from whichever file this passphrase opens.
+function readLive(){
+  if(ROLE!=="director"&&AUD_FILE) return loadEnc(AUD_FILE,true).then(function(env){ return decrypt(env,PASS); }).then(function(d){ HIST=d.hist; return d.live; });
+  return loadEnc("live.enc.json",true).then(function(env){ return decrypt(env,PASS); });
 }
 // Shows progress on the button itself, so a slow read never looks like a dead click.
 function busy(id,on,text){
@@ -1427,8 +1447,7 @@ function reload(newerThan){
   setStat("status","Reading the latest figures…","");
   var waited=0;
   function attempt(){
-    return loadEnc("live.enc.json",true)
-      .then(function(env){ return decrypt(env,PASS); })
+    return readLive()
       .then(function(l){
         var gen=l.generated?new Date(l.generated).getTime():0;
         if(newerThan&&gen&&gen<=newerThan&&waited<180000){
@@ -1597,7 +1616,7 @@ function unlock(){
       if(!v){ setStat("gateStatus","Enter the passphrase.","err"); return; }
       attempt(v,!!rem.checked,false);
     });
-    var saved=null; try{ saved=localStorage.getItem(PASS_KEY); }catch(e){}
+    var saved=null; try{ saved=localStorage.getItem(PASS_KEY)||(PAGE!=="full"?localStorage.getItem("iamlive:pass"):null); }catch(e){}
     if(saved) attempt(saved,true,true); else input.focus();
   });
 }

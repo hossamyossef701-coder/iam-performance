@@ -1,6 +1,7 @@
 // Pulls every coach workbook from the shared OneDrive folder, parses the monthly sheets,
 // encrypts the result and writes live.enc.json (+ history.enc.json when HISTORY_JSON is set).
 // Env: SHARE_URL, DATA_PASSPHRASE (required) · HISTORY_JSON
+//      FINANCE_PASSPHRASE / CEO_PASSPHRASE (optional: the Finance and Overview pages' own files) ·
 //      ASSESS_SHARE_URL (the assessment tracker) · CLIENTS_SHARE_URL + CLIENTS_PASSPHRASE (the Clients page) · LIVE_FROM (default "1900-01": every month the files hold) · COACH_FILE_PATTERN (default "performance sheet") · FETCH_STRATEGIES (default "badger,od,odkey,spshares,zip,rest,browser") · OUT_DIR (default ".") · MIN_AGE_HOURS (default 12)
 import fs from "node:fs";
 import path from "node:path";
@@ -405,6 +406,32 @@ async function main() {
     }
   } else L.log("The Clients file was not read, so the Overview and Coach review pages were not updated.");
 
+  // 3b. The Finance and Overview pages, each with its own passphrase and only what it shows:
+  //     coach totals by month (sessions, revenue, cancelled; Overview also the projection). No
+  //     client names, no file report. Without the secret, that file is simply not written.
+  let histPlain = null;
+  try { histPlain = env.HISTORY_JSON && env.HISTORY_JSON.trim() ? JSON.parse(env.HISTORY_JSON) : await decryptJSON(JSON.parse(fs.readFileSync(path.join(OUT, "history.enc.json"), "utf8")), PASS); } catch {}
+  const AUD = [
+    { file: "finance.enc.json", pass: (env.FINANCE_PASSPHRASE || "").trim(), keys: ["s", "r", "x", "ms", "mr", "mx", "md"] },
+    { file: "ceo.enc.json", pass: (env.CEO_PASSPHRASE || "").trim(), keys: ["s", "r", "x", "ms", "mr", "mx", "md", "ps", "pr", "pm"] },
+  ];
+  const writeAudience = async (onlyMissing) => {
+    for (const a of AUD) {
+      if (!a.pass) { L.log(`No ${a.file === "finance.enc.json" ? "FINANCE" : "CEO"}_PASSPHRASE secret, so ${a.file} was not written.`); continue; }
+      if (a.pass === PASS) { console.log(`::warning title=Same passphrase::${a.file} would use the Performance passphrase - give it its own, so it opens that page only.`); continue; }
+      const fp = path.join(OUT, a.file);
+      if (onlyMissing && fs.existsSync(fp)) continue;
+      const per = {};
+      for (const [p, cs] of Object.entries(periods)) for (const [c, v] of Object.entries(cs)) {
+        const o = {}; for (const k of a.keys) if (v[k] !== undefined) o[k] = v[k];
+        (per[p] || (per[p] = {}))[c] = o;
+      }
+      const H = histPlain ? { HIST: histPlain.HIST || {}, SEED: histPlain.SEED || {} } : { HIST: {}, SEED: {} };
+      fs.writeFileSync(fp, JSON.stringify(await encryptJSON({ hist: H, live: { v: 1, generated: new Date().toISOString(), cutoffDay: today, cutoffPeriod: now, periods: per } }, a.pass)));
+      L.log(`${a.file} written`);
+    }
+  };
+
   // 4. Skip the write when nothing changed and the last write is recent (avoids commit noise).
   //    A read somebody asked for by hand is different: they pressed the button to find out
   //    where things stand now, so the file is always rewritten and the timestamp always moves.
@@ -419,7 +446,7 @@ async function main() {
       const ageH = (Date.now() - Date.parse(prev.generated)) / 36e5;
       if (prev.digest === digest) {
         if (FORCED) L.log(`The figures are unchanged since the last read ${ageH.toFixed(1)}h ago, but this read was asked for by hand - rewriting so the dashboard can see it ran.`);
-        else if (ageH < MIN_AGE_H) { L.log(`No change (last write ${ageH.toFixed(1)}h ago) - live.enc.json left as is.`); return; }
+        else if (ageH < MIN_AGE_H) { L.log(`No change (last write ${ageH.toFixed(1)}h ago) - live.enc.json left as is.`); await writeAudience(true); return; }
       }
     } catch { L.log("Previous live.enc.json could not be read (new passphrase?) - rewriting."); }
   }
@@ -428,6 +455,7 @@ async function main() {
                  skipped: skipped.map((f) => ({ name: f.name, folder: f.folder || null })) };
   fs.writeFileSync(livePath, JSON.stringify(await encryptJSON(live, PASS)));
   L.log("live.enc.json written");
+  await writeAudience(false);
 }
 
 // A one-line reason pinned to the run, which the dashboard reads and shows. GitHub's own
