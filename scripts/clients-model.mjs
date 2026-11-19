@@ -479,7 +479,8 @@ export function buildClientsModel(sheets, opts = {}) {
       const W1 = withUs(e);
       for (const [id, x] of withUs(s0 - 1)) { const o = cell(x.coach); o.ks++; if (W1.has(id)) o.kk++; }
       // Counted as the Clients page counts them: each New package in the month.
-      for (const pk of packages) if (pk.type === "New" && pk.date >= s0 && pk.date <= e && own(pk)) cell(pk.coach).nw++;
+      // nd: the day of the month of each, so a month running can be set against the same day before.
+      for (const pk of packages) if (pk.type === "New" && pk.date >= s0 && pk.date <= e && own(pk)) { const o = cell(pk.coach); o.nw++; (o.nd || (o.nd = [])).push(pk.date - s0 + 1); }
       for (const x of decisions) if (x.E >= s0 && x.E <= e && (x.outcome === "kept" || x.outcome === "moved")) { const o = cell(x.coach); o.rn++; if (x.at <= x.E) o.re++; }
       if (m === 12) { y++; m = 1; } else m++;
     }

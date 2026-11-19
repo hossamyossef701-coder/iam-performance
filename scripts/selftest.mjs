@@ -4,7 +4,7 @@
 import { buildClientsModel } from "./clients-model.mjs";
 import { parseCoachSheet, sheetNameToPeriod, colourFamily } from "./parse.mjs";
 import { parseAssessments, monthToPeriod } from "./assess.mjs";
-import { buildOverview } from "./join.mjs";
+import { buildOverview, convWithoutPackage } from "./join.mjs";
 import { guardProjections } from "./projection.mjs";
 
 const W = 48;
@@ -456,6 +456,16 @@ check("sheet names", ["Oct 2026", "Sept 2026", "October 2026", " October 2022", 
   ]);
   check("assessment tracker", r.periods, { "2026-07": { Shayla: { a: 2, c: 1 } }, "2026-08": { Sue: { a: 1, c: 1 } } });
   check("tracker month forms", ["Jul-26", "July 2026", "2026-07"].map(monthToPeriod), ["2026-07", "2026-07", "2026-07"]);
+}
+
+/* 9t. Converted on the Assessments tab with no package logged: listed; with one, not. */
+{
+  const ser = (y, m, d) => Math.round((Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 864e5);
+  const inner = { clients: [{ name: "Deep Sajnani", pk: [{ date: ser(2026, 11, 14) }] }, { name: "Old Client", pk: [{ date: ser(2025, 1, 5) }] }] };
+  const rows = [{ p: "2026-11", coach: "Jo", client: "Deep Sajnani", conv: true }, { p: "2026-11", coach: "Jo", client: "Lilan", conv: true },
+    { p: "2026-11", coach: "Jo", client: "Old Client", conv: true }, { p: "2026-11", coach: "Jo", client: "Nope", conv: false }, { p: "2026-06", coach: "Jo", client: "Gone", conv: true }];
+  check("converted, no package: listed; logged: not; not converted or older than 3 months: left out",
+    convWithoutPackage(rows, inner, "2026-11").map((x) => x.name), ["Lilan", "Old Client"]);
 }
 
 /* 9s. The projection that counts: locked on the 3rd, never below the floor, overrides win,

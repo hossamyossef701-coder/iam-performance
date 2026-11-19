@@ -12,7 +12,7 @@ import { parseCoachSheet, probeSheet, sheetNameToPeriod, coachFromFilename } fro
 import { parseAssessments } from "./assess.mjs";
 import { encryptJSON, decryptJSON } from "./crypto.mjs";
 import { buildClientsModel } from "./clients-model.mjs";
-import { buildOverview } from "./join.mjs";
+import { buildOverview, convWithoutPackage } from "./join.mjs";
 import { colourFamily } from "./parse.mjs";
 import { guardProjections } from "./projection.mjs";
 
@@ -319,7 +319,7 @@ async function main() {
 
   // 3. The assessment tracker, when a link for it is configured. A failure here never
   //    stops the run: the coach figures are the point, assessments are an addition.
-  let assess = null, assessReport = null;
+  let assess = null, assessReport = null, assessRows = [];
   // The Assessments tab of the Clients file comes first; the separate tracker file is read only
   // when the Clients file has no such tab (or none of its rows could be used).
   const fromTab = assessTab && assessTab.length ? parseAssessments(assessTab) : null;
@@ -341,7 +341,7 @@ async function main() {
       for (const [name, arr] of sheetsIn) {
         const r = parseAssessments(arr);
         if (r.error) { L.log(`  sheet "${name}": ${r.error}`); continue; }
-        sheetsRead++; counted += r.counted; rows += r.rows;
+        sheetsRead++; counted += r.counted; rows += r.rows; assessRows.push(...r.list);
         r.warnings.forEach((w) => warnings.push(`${name}: ${w}`));
         for (const p of Object.keys(r.periods)) {
           const bucket = (merged[p] = merged[p] || {});
@@ -369,6 +369,7 @@ async function main() {
           cell.a += merged[p][c].a; cell.c += merged[p][c].c;
         }
       }
+      { const to = (c) => known.find((k) => sq(k) === sq(c)) || known.find((k) => near(sq(k), sq(c))) || c; assessRows = assessRows.map((x) => ({ ...x, coach: to(x.coach) })); }
       if (renamed.size) L.log(`  coach names matched to the performance files: ${[...renamed].join(", ")}`);
       if (unmatched.size) L.log(`  coach names with no performance file: ${[...unmatched].join(", ")}`);
       assess = mapped;
@@ -394,6 +395,10 @@ async function main() {
         return p === now && x.mr != null ? { r: x.mr, s: x.ms } : { r: x.r || 0, s: x.s || 0 };
       };
       const ov = buildOverview({ inner: clientsInner, periods, links: nameLinks, now, cutoffDay: today, revenueOf });
+      // Converted on the Assessments tab but no package in the Clients file around that month:
+      // the conversion counts, the new client does not, until the package is logged.
+      ov.convNoPk = convWithoutPackage(assessRows, clientsInner, now);
+      if (ov.convNoPk.length) L.log(`Assessments converted with no package logged in the Clients file (last 3 months): ${ov.convNoPk.length} - ${Object.entries(ov.convNoPk.reduce((o, x) => { o[x.coach] = (o[x.coach] || 0) + 1; return o; }, {})).map(([c, n]) => c + " " + n).join(", ")}`);
       const ovPath = path.join(OUT, "overview.enc.json");
       let same = false;
       if (fs.existsSync(ovPath)) {

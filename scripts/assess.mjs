@@ -82,6 +82,8 @@ export function parseAssessments(arr) {
   const periods = {};
   const unknownConv = new Map(), unknownStatus = new Map(), badMonths = new Map();
   let rows = 0, counted = 0, skippedStatus = 0, skippedMonth = 0, pending = 0;
+  const list = [];   // one entry per counted assessment: month, coach, client, converted
+
 
   for (let r = head.row + 1; r < arr.length; r++) {
     const row = arr[r]; if (!row) continue;
@@ -115,6 +117,7 @@ export function parseAssessments(arr) {
     cell.a++;
     if (conv.converted) cell.c++;
     counted++;
+    list.push({ p: period, coach, client: cols.client !== undefined ? norm(row[cols.client]) : "", conv: !!conv.converted });
   }
 
   const warnings = [];
@@ -122,5 +125,5 @@ export function parseAssessments(arr) {
   if (unknownConv.size) warnings.push(`values in Converted that were not recognised and so counted as not converted: ${top(unknownConv)}`);
   if (badMonths.size) warnings.push(`rows skipped because the Month could not be read: ${top(badMonths)}`);
   if (pending) warnings.push(`${pending} done assessment(s) still TBC in Converted: left out until decided`);
-  return { periods, rows, counted, pending, skippedStatus, skippedMonth, statuses: [...unknownStatus.keys()], warnings };
+  return { periods, list, rows, counted, pending, skippedStatus, skippedMonth, statuses: [...unknownStatus.keys()], warnings };
 }

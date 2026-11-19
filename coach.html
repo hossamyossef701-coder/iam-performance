@@ -168,7 +168,7 @@ body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
   </div>
 
   <div class="card section">
-    <div class="card-h"><div><div class="k" id="cK"></div><div class="t" id="cT"></div></div><span class="unit" id="cU"></span></div>
+    <div class="card-h"><div><div class="k" id="cK"></div><div class="t" id="cT"></div></div><span class="unit" id="cU"></span><span class="seg sm" id="segChart"></span></div>
     <div class="card-b"><div class="chart" id="chKpi"></div></div>
   </div>
 
@@ -358,36 +358,74 @@ function move(k,a,b){ a=rnd(k,a); b=rnd(k,b); if(a==null||b==null) return null; 
    the 1+1 numbers and the score. All end at the month chosen at the top: the month itself, the
    quarter it is in, the 6 or 12 months up to it, or the year so far up to it. */
 // Years: whole calendar years, each against the one before (the year running marked * until December).
-var SPANS=[["m","Month"],["q","Quarter"],["6","6 months"],["12","12 months"],["y","This year"],["Y","Years"]];
+// Every window runs to date: the month so far, the quarter so far, the half-year so far (Jan-Jun,
+// Jul-Dec), the year so far. 12 months and Years are kept for the longer view.
+var SPANS=[["m","MTD"],["q","QTD"],["h","HTD"],["y","YTD"],["12","12 months"],["Y","Years"]];
+var SPAN_OK=/^(m|q|h|12|y|Y)$/;
+function spanOk(v,d){ if(v==="6") return "h"; return SPAN_OK.test(v)?v:d; }
+function hLab(p){ return +p.slice(5,7)<=6?"H1":"H2"; }
+function spanName(x){ return x[0]==="h"?hLab(month||now())+" to date":x[1]; }
 function qStart(p){ var m=+p.slice(5,7); return C.prevP(p,(m-1)%3); }
+function hStart(p){ return p.slice(0,4)+(+p.slice(5,7)<=6?"-01":"-07"); }
 function block(endP,sp){
   var ms=[], i, lab;
   if(sp==="m"){ ms=[endP]; lab=C.label(endP,true); }
   else if(sp==="y"){ var y0=endP.slice(0,4)+"-01"; for(var q2=y0;q2<=endP;q2=C.prevP(q2,-1)) ms.push(q2); lab=(ms.length===12?"":C.label(y0,true)+"–"+C.label(endP,true)+" ")+endP.slice(0,4); }
   else if(sp==="Y"){ var yr=endP.slice(0,4), np2=now(); for(i=1;i<=12;i++){ var qy=yr+"-"+(i<10?"0":"")+i; if(qy<=np2) ms.push(qy); } lab=yr; }
   else if(sp==="q"){ var st=qStart(endP); for(i=0;i<3;i++){ var q=C.prevP(st,-i); if(q<=endP) ms.push(q); } lab="Q"+(Math.floor((+st.slice(5,7)-1)/3)+1)+" "+st.slice(2,4); }
+  else if(sp==="h"){ for(var q3=hStart(endP);q3<=endP;q3=C.prevP(q3,-1)) ms.push(q3); lab=hLab(endP)+" "+endP.slice(2,4); }
   else { var n=+sp; for(i=n-1;i>=0;i--) ms.push(C.prevP(endP,i)); lab=C.label(ms[0],true)+"–"+C.label(endP,true)+" "+endP.slice(2,4); }
-  // Not complete: a quarter cut short, the month running, or months before the coach sheets begin.
-  var first=Object.keys(D.live.periods).sort()[0], full=(sp==="q"?ms.length===3:sp==="Y"?ms.length===12:true)&&ms[0]>=first;
+  // Not complete: a quarter or half cut short, the month running, or months before the coach sheets begin.
+  var first=Object.keys(D.live.periods).sort()[0], full=(sp==="q"?ms.length===3:sp==="h"?ms.length===6:sp==="Y"?ms.length===12:true)&&ms[0]>=first;
+  // A quarter or half cut short that is not the one running says which months it holds.
+  if((sp==="q"||sp==="h")&&!full&&ms.indexOf(now())<0) lab+=" ("+C.label(ms[0],true)+(ms.length>1?"–"+C.label(endP,true):"")+")";
   return {ms:ms,lab:lab,part:!full||ms.indexOf(now())>=0,end:endP};
 }
-// The block before: the month, quarter or stretch before - and for This year, the same months a year earlier.
-function prevEnd(b,sp){ if(sp==="Y") return (+b.end.slice(0,4)-1)+"-12"; return sp==="m"?C.prevP(b.end,1):sp==="q"?C.prevP(qStart(b.end),1):sp==="y"?C.prevP(b.end,12):C.prevP(b.end,+sp); }
+// The block before, whole: the month, quarter, half or stretch before (YTD: the same months a year
+// earlier). Used for the columns of history and the trends.
+function prevEnd(b,sp){ if(sp==="Y") return (+b.end.slice(0,4)-1)+"-12"; return sp==="m"?C.prevP(b.end,1):sp==="q"?C.prevP(qStart(b.end),1):sp==="h"?C.prevP(hStart(b.end),1):sp==="y"?C.prevP(b.end,12):C.prevP(b.end,+sp); }
+// What a block is compared with: the same stretch one period earlier, to the same point. QTD on
+// 19 Nov (Oct-Nov) against Jul-Aug, HTD (Jul-Nov) against Jan-May, YTD against the same months last
+// year - and when the block holds the month running, that last month only up to the same day.
+function cmpBlock(b,sp){
+  sp=sp||span;
+  var sh={m:1,q:3,h:6,y:12,"12":12,Y:12}[sp], run=b.ms.indexOf(now())>=0;
+  var pb=sp==="Y"?(run?block(C.prevP(b.end,12),"y"):block((+b.end.slice(0,4)-1)+"-12","Y")):block(C.prevP(b.end,sh),sp);
+  if(run&&D.live.cutoffDay) pb.cut=D.live.cutoffDay;
+  return pb;
+}
+function cutLab(pb){ return pb.lab+(pb.cut?" to day "+pb.cut:""); }
 // n blocks, oldest first, ending with the block holding the chosen month.
 function blocks(n,sp){ sp=sp||span; var out=[block(month,sp)]; while(out.length<n) out.unshift(block(prevEnd(out[0],sp),sp)); return out; }
 // The block reviewed: the chosen month's block when complete, otherwise the one before it.
 // The block shown: the chosen month's block, the month running included ("Nov so far").
 function reviewed(sp){ sp=sp||span; return block(month,sp); }
-// The last complete block: what the score (and the bonus) and the trends are worked out on.
-function completed(sp){ sp=sp||span; var b=block(month,sp); return b.part&&sp!=="y"?block(prevEnd(b,sp),sp):b; }
-// Better or worse than the block before. A block still running is not held against a whole one:
-// sessions and revenue are compared with the month before up to the same day; projection reached
-// and other counts wait until it ends; rates are compared as they stand.
-function moveB(c,k,b,pb,sp){
-  var v=agg(c,b.ms,k);
-  if(!b.part||(PCT[k]&&k!=="proj")) return move(k,v,agg(c,pb.ms,k));
-  if((sp||span)==="m"&&(k==="rev"||k==="ses")&&b.ms[0]===now()) return move(k,sameDay(c,b.ms[0],k),sameDay(c,pb.ms[0],k));
+// Better or worse than the block it is compared with (cmpBlock). A block holding the month running
+// is set against the same point before: sessions, revenue and new clients up to the same day;
+// rates as they stand; projection reached and the other counts are not coloured until it ends.
+function moveB(c,k,b,pb){
+  var run=b.ms.indexOf(now())>=0;
+  if(!run||(PCT[k]&&k!=="proj")) return move(k,vB(c,b,k),vB(c,pb,k));
+  if((k==="rev"||k==="ses"||k==="nw")&&pb.cut) return move(k,toDay(c,b,k),toDay(c,pb,k));
   return null;
+}
+// Sessions, revenue or new clients of one coach (or the team, c empty) over a block, its last
+// month only up to the day the month running has reached.
+function toDay(c,b,k){
+  var day=D.live.cutoffDay, cs=c?[c]:teamOf(b.ms), t=0, last=b.ms[b.ms.length-1];
+  for(var i=0;i<cs.length;i++){
+    for(var j=0;j<b.ms.length-1;j++){ var q=parts(cs[i],[b.ms[j]],k); if(q) t+=q.n; }
+    // No row for the coach that month: nothing to add. A row without the day-by-day detail: unknown.
+    var x=k==="nw"?nwTo(cs[i],last,day):(D.live.periods[last]||{})[cs[i]]?sameDay(cs[i],last,k):0;
+    if(x==null) return null; t+=x;
+  }
+  return t;
+}
+// New packages of one coach in month p up to a day (the refresh keeps the day of each).
+function nwTo(c,p,day){
+  var K=D.ov&&D.ov.kpiM, f=fileName(c); if(!K||!K.from||p<K.from) return null;
+  var m=f&&K.by[f]&&K.by[f][p]; if(!m||!m.nw) return 0; if(!m.nd) return null;   // no days kept yet (before this refresh)
+  return m.nd.filter(function(d){ return d<=day; }).length;
 }
 function vB(c,b,k){ return c?agg(c,b.ms,k):teamB(b,k); }
 function medianB(b,k){ return C.median(teamOf(b.ms).map(function(c){ return agg(c,b.ms,k); })); }
@@ -397,14 +435,22 @@ function teamB(b,k){
 }
 // Where a KPI stands at the reviewed block: its last move and how many blocks in a row it has gone that way.
 function state(c,k,sp){
-  sp=sp||span; var r=completed(sp), s=[r]; while(s.length<(sp==="y"||sp==="Y"?3:13)) s.unshift(block(prevEnd(s[0],sp),sp));
-  var mv=[]; for(var j=1;j<s.length;j++) mv.push(move(k,vB(c,s[j],k),vB(c,s[j-1],k)));
-  var last=mv[mv.length-1]; if(last==null) return {last:null,run:0};
-  var run=0; for(var i=mv.length-1;i>=0&&mv[i]===last;i--) run++;
+  sp=sp||span; var r=reviewed(sp), s=[r]; while(s.length<(sp==="y"||sp==="Y"?3:13)) s.unshift(block(prevEnd(s[0],sp),sp));
+  // The latest move: the block shown against the same point before; then the whole blocks before it.
+  var last=c?moveB(c,k,r,cmpBlock(r,sp)):teamMove(k,r,cmpBlock(r,sp)); if(last==null) return {last:null,run:0};
+  var mv=[]; for(var j=1;j<s.length-1;j++) mv.push(move(k,vB(c,s[j],k),vB(c,s[j-1],k)));
+  var run=1; for(var i=mv.length-1;i>=0&&mv[i]===last;i--) run++;
   return {last:last,run:run};
 }
-var UNIT={m:"month",q:"quarter","6":"6 months","12":"12 months",y:"year",Y:"year"};
-var NCOL={m:6,q:4,"6":3,"12":2,y:2,Y:3}, NCHART={m:12,q:6,"6":4,"12":3,y:3,Y:3};
+function teamMove(k,b,pb){
+  var run=b.ms.indexOf(now())>=0;
+  if(!run||(PCT[k]&&k!=="proj")) return move(k,vB(null,b,k),vB(null,pb,k));
+  if(SUM[k]&&(k==="rev"||k==="ses"||k==="nw")&&pb.cut) return move(k,toDay(null,b,k),toDay(null,pb,k));
+  return null;
+}
+var UNIT={m:"month",q:"quarter",h:"half-year","12":"12 months",y:"year",Y:"year"};
+var NCOL={m:6,q:4,h:3,"12":2,y:2,Y:3}, NCHART={m:12,q:6,h:4,"12":3,y:3,Y:3};
+var cspan="m";
 var tspan="m";
 function trendTxt(st){ if(st.last==null) return '<span class="dim">—</span>'; return st.last===1?'<span class="up">▲ '+st.run+" up</span>":st.last===-1?'<span class="down">▼ '+st.run+" down</span>":'<span class="dim">● same</span>'; }
 
@@ -414,15 +460,15 @@ function fillCoaches(){
   $("selCoach").innerHTML='<option value="">Whole team</option>'+cs.map(function(c){ return "<option"+(c===sel?" selected":"")+">"+esc(c)+"</option>"; }).join("");
 }
 function fillMonths(){
-  var ms=months(); if(!month||ms.indexOf(month)<0) month=PAGE==="dir"?ms[0]:(ms[1]||ms[0]);
+  var ms=months(); if(!month||ms.indexOf(month)<0) month=ms[0];
   $("selMonth").innerHTML=ms.map(function(p){ return '<option value="'+p+'"'+(p===month?" selected":"")+">"+C.label(p)+(p===now()?" (so far)":"")+"</option>"; }).join("");
 }
 function ordinal(n){ var s=["th","st","nd","rd"], v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]); }
 function tile(k,v,sub,lead,small){ return '<div class="tile'+(lead?" lead":"")+'"><div class="k">'+k+'</div><div class="v'+(small?" sm":"")+'">'+v+'</div><div class="sub">'+sub+"</div></div>"; }
 function segs(){
   $("segList").innerHTML=[["full","Full list (15)"],["bal","Balanced (10)"]].map(function(x){ return '<button data-v="'+x[0]+'"'+(x[0]===list?' class="on"':"")+">"+x[1]+"</button>"; }).join("");
-  var seg=function(cur){ return SPANS.map(function(x){ return '<button data-v="'+x[0]+'"'+(x[0]===cur?' class="on"':"")+">"+x[1]+"</button>"; }).join(""); };
-  $("segSpan").innerHTML=seg(span); $("segTiles").innerHTML=seg(tspan); $("segWin").innerHTML=seg(win); $("segGlance").innerHTML=seg(span); $("segBusy").innerHTML=seg(bspan);
+  var seg=function(cur){ return SPANS.map(function(x){ return '<button data-v="'+x[0]+'"'+(x[0]===cur?' class="on"':"")+">"+spanName(x)+"</button>"; }).join(""); };
+  $("segSpan").innerHTML=seg(span); $("segTiles").innerHTML=seg(tspan); $("segWin").innerHTML=seg(win); $("segGlance").innerHTML=seg(span); $("segBusy").innerHTML=seg(bspan); $("segChart").innerHTML=seg(cspan);
 }
 function nameCell(k){
   var d=DEFK[k];
@@ -437,7 +483,7 @@ function render(){
   var team=sel==="";
   $("one").style.display=team?"none":""; $("btnNames").style.display=team?"":"none"; $("scoreCard").style.display=team?"":"none";
   $("h1").textContent=PAGE==="dir"?"Fitness":team?"The team":sel;
-  $("legBefore").textContent=span==="y"?"better than the same months last year":"better than the "+(span==="m"?"month":span==="q"?"quarter":span==="Y"?"year":"stretch")+" before";
+  $("legBefore").textContent="better than "+cutLab(cmpBlock(reviewed(),span));
   if(PAGE==="dir") renderDir(); else if(team) renderTeam(); else renderOne();
   chart();
 }
@@ -448,17 +494,17 @@ function renderOne(){
   // The summary tiles: their own window (the picker above them), whatever the table below shows.
   // Revenue follows the chosen block (so far, in the month running); better/worse, the trend and
   // the score are worked out on the last complete block.
-  var tr=reviewed(tspan), cr=completed(tspan), tsts={}, up=0, dn=0, same=0, worst=null;
+  var tr=reviewed(tspan), cr=tr, tcmp=cutLab(cmpBlock(tr,tspan)), tsts={}, up=0, dn=0, same=0, worst=null;
   ks.forEach(function(k){ var st=tsts[k]=state(c,k,tspan); if(st.last===1) up++; else if(st.last===-1){ dn++; if(worst==null||st.run>tsts[worst].run) worst=k; } else if(st.last===0) same++; });
   var sts={}; ks.forEach(function(k){ sts[k]=state(c,k); });
   var rows=scoreRows(tspan), at=-1; rows.forEach(function(x,i){ if(x.c===c) at=i; });
   var rev=parts(c,tr.ms,"rev"), unitT=UNIT[tspan];
   $("sumK").textContent="Summary · "+tr.lab+(tr.part?" so far":"");
-  $("tiles").innerHTML=tile("Better in "+cr.lab,up+"<small>of "+ks.length+"</small>","than the "+(tspan==="y"?"same months last year":unitT+" before"),1)+
+  $("tiles").innerHTML=tile("Better in "+cr.lab+(cr.part?" so far":""),up+"<small>of "+ks.length+"</small>","than "+tcmp,1)+
     tile("Worse",dn+"<small>of "+ks.length+"</small>",same?same+" the same":"")+
     tile("Look at first",worst!=null?esc(DEFK[worst].name):"Nothing slipped",worst!=null?"down "+tsts[worst].run+" "+unitT+(tsts[worst].run>1&&(tspan==="m"||tspan==="q"||tspan==="y")?"s":"")+" in a row":"",0,1)+
     tile("Revenue, "+tr.lab+(tr.part?" so far":""),rev?C.aed(rev.n):"—",agg(c,tr.ms,"proj")!=null?Math.round(agg(c,tr.ms,"proj"))+"% of projection":"")+
-    tile("Score, "+cr.lab,at<0?"—":Math.round(rows[at].s)+"<small>"+ordinal(at+1)+" of "+rows.length+"</small>",at<0?"":(rows[at].up>rows[at].dn?"beat their "+(tspan==="y"?"same months last year":unitT+" before"):"did not beat their "+(tspan==="y"?"same months last year":unitT+" before")));
+    tile("Score, "+cr.lab+(cr.part?" so far":""),at<0?"—":Math.round(rows[at].s)+"<small>"+ordinal(at+1)+" of "+rows.length+"</small>",at<0?"":(rows[at].up>rows[at].dn?"beat "+tcmp:"did not beat "+tcmp));
   $("kK").textContent="1+1 numbers · "+c;
   $("kT").textContent=(list==="bal"?"Balanced list":"The KPI sheet's rows")+", "+bs[0].lab+" to "+bs[bs.length-1].lab+(span==="m"?"":" · totals over the stretch");
   $("kU").textContent="team median = the coach in the middle when all are lined up";
@@ -469,7 +515,7 @@ function renderOne(){
     var cells=bs.map(function(b){
       var v=agg(c,b.ms,k), cls="m"+(b.lab===r.lab?" sel":"");
       if(b.part) cls+=" p";
-      var mv=moveB(c,k,b,block(prevEnd(b,span),span)); if(mv===1) cls+=" g"; else if(mv===-1) cls+=" r"; else if(mv===0) cls+=" s";
+      var mv=moveB(c,k,b,cmpBlock(b,span)); if(mv===1) cls+=" g"; else if(mv===-1) cls+=" r"; else if(mv===0) cls+=" s";
       var t=tipOf(c,b,k);
       return '<td class="'+cls+'"'+(t?' title="'+esc(t)+'"':"")+">"+show(k,v)+"</td>";
     }).join("");
@@ -478,23 +524,23 @@ function renderOne(){
   $("kTbl").innerHTML=head+"<tbody>"+body+"</tbody>";
   bindRows();
   $("kNote").innerHTML="Copy "+r.lab+" puts its "+ks.length+" numbers on the clipboard in the "+(list==="bal"?"balanced list's":"KPI sheet's")+" order: click the first cell of that column on the coach's sheet and paste. "+
-    "Colours compare each "+UNIT[span]+" with the one before (for the lower-is-better rows a drop is green). * = not complete yet, so not coloured. Hover a cell for what it is made of.<br>"+defs();
+    "Colours compare each column with the same stretch one period earlier (for the lower-is-better rows a drop is green); the column running is compared to the same day. * = still running. Hover a cell for what it is made of.<br>"+defs();
   who(c); room(c); renderTalking(c);
 }
 
 function renderTeam(){
-  var cs=coaches(), r=reviewed(), pb=block(prevEnd(r,span),span), ks=KEYS(), tr=reviewed(tspan);
+  var cs=coaches(), r=reviewed(), pb=cmpBlock(r,span), ks=KEYS(), tr=reviewed(tspan);
   var ncS=0, ncA=0; cs.forEach(function(c){ tr.ms.forEach(function(p){ var o=val(c,p); if(o.nc!=null){ ncS+=o.nc; ncA+=o.ncAED||0; } }); });
   var tot=function(k){ var t=0, any=false; teamOf(tr.ms).forEach(function(c){ var q=parts(c,tr.ms,k); if(q){ t+=q.n; any=true; } }); return any?t:null; };
   var endM=tr.ms[tr.ms.length-1];
   $("sumK").textContent="Summary · "+tr.lab+(tr.part?" so far":"");
   $("tiles").innerHTML=tile("Revenue, "+tr.lab+(tr.part?" so far":""),tot("rev")!=null?C.aed(tot("rev")):"—","",1)+
-    tile("Sessions",tot("ses")!=null?C.full(tot("ses")):"—","")+tile("Active clients",teamB({ms:[endM]},"act")!=null?teamB({ms:[endM]},"act"):"—","at "+C.label(endM,true)+"'s end")+
+    tile("Sessions",tot("ses")!=null?C.full(tot("ses")):"—","")+tile("Active clients",teamB({ms:[endM]},"act")!=null?teamB({ms:[endM]},"act"):"—",(endM===now()?"today":"at "+C.label(endM,true)+"'s end"))+
     tile("New clients",tot("nw")!=null?tot("nw"):"—","")+
     tile("Cancelled, not charged",C.full(ncS),"sessions the clients keep for later");
   renderScore();
   $("kK").textContent="1+1 numbers · every coach";
-  $("kT").textContent=r.lab+": each coach against their own "+(span==="y"?"same months last year":UNIT[span]+" before")+(span==="m"?"":" · totals over the stretch");
+  $("kT").textContent=r.lab+(r.part?" so far":"")+": each coach against "+cutLab(pb)+(span==="m"?"":" · totals over the stretch");
   $("kU").textContent=showNames?"names shown":"coaches as letters · Show names to reveal";
   $("btnCopy").textContent="Copy "+r.lab+" (team)";
   var head='<thead><tr><th class="l">KPI</th><th class="sep">Team</th>'+cs.map(function(c){ return "<th>"+label(c)+"</th>"; }).join("")+"</tr></thead>";
@@ -508,7 +554,7 @@ function renderTeam(){
   }).join("");
   $("kTbl").innerHTML=head+"<tbody>"+body+"</tbody>";
   bindRows();
-  $("kNote").innerHTML="Each coach's cell is coloured against that coach's own "+(span==="y"?"same months last year":UNIT[span]+" before")+" ("+pb.lab+"). Team = the team's total for counts, and the team median for rates. Choose a coach above for their 1+1 view.<br>"+defs();
+  $("kNote").innerHTML="Each coach's cell is coloured against that coach's own "+cutLab(pb)+". Team = the team's total for counts, and the team median for rates. Choose a coach above for their 1+1 view.<br>"+defs();
 }
 
 /* ---- Director: the team at a glance ----
@@ -520,31 +566,29 @@ function chips(o,fmt){
   return ks.map(function(c){ var v=o[c]; return '<span class="chip">'+esc(c)+"<b>"+(fmt?fmt(v):v)+"</b></span>"; }).join("");
 }
 function renderDir(){
-  var cs=coaches(), tb=block(month,tspan), pb=block(prevEnd(tb,tspan),tspan), np=now();
+  var cs=coaches(), tb=block(month,tspan), pb=cmpBlock(tb,tspan), np=now();
   var tot=function(ms,k){ var t=0, any=false; teamOf(ms).forEach(function(c){ var q=parts(c,ms,k); if(q){ t+=q.n; any=true; } }); return any?t:null; };
   var ratio=function(ms,k){ var n=0,d=0; teamOf(ms).forEach(function(c){ var q=parts(c,ms,k); if(q){ n+=q.n; d+=q.d; } }); return d?n/d*100:null; };
   // Against the block before. A block still running is not set against a whole one: the month
   // running is compared with the month before up to the same day (from the day-by-day rows);
   // a longer block still running shows the one before as it stands, without a percentage.
-  var day=D.live.cutoffDay, sameDay=tb.part&&tspan==="m"&&month===np&&day;
-  var soFar=function(p,k){ var t=0, any=false; teamOf([p]).forEach(function(c){ var rows=((D.live.periods[p]||{})[c]||{}).cl; if(!rows) return; any=true;
-    rows.forEach(function(row){ var m=row[2]||""; for(var i=0;i<Math.min(day,m.length);i++){ var w=wOf(m[i]); t+=k==="rev"?w*(row[1]||0):w; } }); }); return any?t:null; };
+  var run=tb.ms.indexOf(np)>=0&&!!pb.cut;
   var pct=function(a,b,lower,tail){ if(a==null||b==null||!b) return ""; var d=(a-b)/b*100; if(Math.abs(d)<0.5) return '<span class="dim">same as '+tail+"</span>"; var good=lower?d<0:d>0;
     return '<span class="'+(good?"up":"down")+'">'+(d>0?"+":"")+Math.round(d)+"%</span> on "+tail; };
+  // Sessions, revenue and new clients: against the same stretch one period earlier, to the same day.
   var cmp=function(a,b,lower,k){
-    if(sameDay&&(k==="rev"||k==="ses")) return pct(soFar(np,k),soFar(C.prevP(np,1),k),lower,C.label(C.prevP(np,1),true)+" to day "+day);
-    if(tb.part) return b==null?"":'<span class="dim">'+pb.lab+": "+(k==="rev"?C.aed(b):C.full(b))+"</span>";
+    if(run) return pct(toDay(null,tb,k),toDay(null,pb,k),lower,cutLab(pb));
     return pct(a,b,lower,pb.lab); };
   var endM=tb.ms[tb.ms.length-1], endP=pb.ms[pb.ms.length-1];
   $("sumK").textContent="Summary · "+tb.lab+(tb.part?" so far":"");
-  var rv=tot(tb.ms,"rev"), rvP=tot(pb.ms,"rev"), ss=tot(tb.ms,"ses"), ssP=tot(pb.ms,"ses"), pj=ratio(tb.ms,"proj"), kp=ratio(tb.ms,"kept"), kpP=ratio(pb.ms,"kept"), ac=teamB({ms:[endM]},"act"), acP=teamB({ms:[endP]},"act"), nw=tot(tb.ms,"nw"), nwP=tot(pb.ms,"nw"), cv=ratio(tb.ms,"conv");
+  var rv=tot(tb.ms,"rev"), rvP=tot(pb.ms,"rev"), ss=tot(tb.ms,"ses"), ssP=tot(pb.ms,"ses"), pj=ratio(tb.ms,"proj"), kp=ratio(tb.ms,"kept"), kpP=ratio(pb.ms,"kept"), ac=teamB({ms:[endM]},"act"), acP=teamB({ms:[C.prevP(tb.ms[0],1)]},"act"), nw=tot(tb.ms,"nw"), nwP=tot(pb.ms,"nw"), cv=ratio(tb.ms,"conv");
   $("tiles").innerHTML=tile("Revenue",rv!=null?C.aed(rv):"—",cmp(rv,rvP,false,"rev"),1)+tile("Sessions",ss!=null?C.full(ss):"—",cmp(ss,ssP,false,"ses"))+
     tile("Projection reached",pj!=null?Math.round(pj)+"%":"—",pj==null?"no projection in "+tb.lab:(function(){
       var withP=tb.ms.filter(function(p){ return cs.some(function(c){ return val(c,p).P.proj; }); }), due=null;
       cs.some(function(c){ var o=val(c,np); if(o.projDue){ due=o.projDue; return true; } });
       return "revenue of the projection"+(withP.length<tb.ms.length?" · "+withP.map(function(p){ return C.label(p,true); }).join(", ")+" only":"")+(due!=null&&withP.indexOf(np)>=0?" · "+Math.round(due*100)+"% of "+C.label(np,true)+" gone":"");
     })())+
-    tile("Active clients",ac!=null?C.full(ac):"—",acP!=null?(ac-acP>=0?"+":"")+(ac-acP)+" since "+C.label(endP,true):"")+
+    tile("Active clients",ac!=null?C.full(ac):"—",acP!=null?(ac-acP>=0?"+":"")+(ac-acP)+" since the end of "+C.label(C.prevP(tb.ms[0],1),true):"")+
     tile("New clients",nw!=null?C.full(nw):"—",cmp(nw,nwP,false,"nw"))+
     tile("Still with us",kp!=null?Math.round(kp)+"%":"—",[kpP!=null?Math.round(kpP)+"% in "+pb.lab:"",cv!=null?"assessments converted "+Math.round(cv)+"%":""].filter(Boolean).join(" · "));
   renderAttention(cs,np);
@@ -644,6 +688,11 @@ function renderAttention(cs,np){
   var fee={}; Object.keys((ov.leak&&ov.leak.m)||{}).forEach(function(k){ var c=f2c[k]||k, v=ov.leak.m[k][np]; if(C.keep(c)&&v&&v.xf) fee[c]=v.xf[0]; });
   if(Object.keys(fee).length) items.push(["var(--watch)","Extension fee not charged","packages used after expiry this month",chips(fee)]);
   // 4. The data itself.
+  // Converted on the Assessments tab, but no package in the Clients file: the conversion counts,
+  // the new client does not, until the package is logged.
+  var cnp={}, cnpN={}; (ov.convNoPk||[]).forEach(function(x){ if(!C.keep(x.coach)) return; cnp[x.coach]=(cnp[x.coach]||0)+1; (cnpN[x.coach]||(cnpN[x.coach]=[])).push(x.name+" ("+C.label(x.p,true)+")"); });
+  if(Object.keys(cnp).length) items.push(["var(--watch)","Converted, no package logged","assessment ✓ on the Assessments tab, no package in the Clients file - not counted as a new client yet",
+    Object.keys(cnp).sort(C.ivan()).map(function(c){ return '<span class="chip" title="'+esc(cnpN[c].join(", "))+'">'+esc(c)+"<b>"+cnp[c]+"</b></span>"; }).join("")]);
   var nm=ov.names||{}, nUn=(nm.unclear||[]).length, nOut=(nm.notInFile||[]).length, nEnd=(nm.endedOnSheet||[]).length;
   if(nUn+nOut+nEnd) items.push(["var(--ink-faint)","Names to sort out","Clients page → Name check",(nUn?'<span class="chip">to confirm<b>'+nUn+"</b></span>":"")+(nOut?'<span class="chip">not in the file<b>'+nOut+"</b></span>":"")+(nEnd?'<span class="chip">ended, still on a sheet<b>'+nEnd+"</b></span>":"")]);
   $("aT").textContent="Right now · "+C.label(np)+" so far";
@@ -653,12 +702,12 @@ function renderAttention(cs,np){
 }
 function renderGlance(cs){
   // The block of the month chosen at the top, the month running included ("Nov so far").
-  var r=block(month,span), pb=block(prevEnd(r,span),span);
+  var r=block(month,span), pb=cmpBlock(r,span);
   var ks=BAL.filter(function(k){ return k!=="prog"||cs.some(function(c){ return agg(c,r.ms,k)!=null; }); });
   if(ks.indexOf(kSel)<0) kSel=ks[0];
   var rows=scoreRows(span,r), byC={}; rows.forEach(function(x,i){ byC[x.c]={s:x.s,i:i+1,up:x.up,dn:x.dn,n:x.n}; });
-  $("gT").textContent=r.lab+(r.part?" so far":"")+": each coach against their own "+(span==="y"?"same months last year":UNIT[span]+" before")+" ("+pb.lab+")"+(span==="m"?"":" · totals over the stretch");
-  $("gLeg").textContent="better than "+pb.lab;
+  $("gT").textContent=r.lab+(r.part?" so far":"")+": each coach against their own "+cutLab(pb)+(span==="m"?"":" · totals over the stretch");
+  $("gLeg").textContent="better than "+cutLab(pb);
   var order=cs.slice().sort(C.ivan(function(a,b){ var x=byC[a], y=byC[b]; return (x?x.i:99)-(y?y.i:99)||a.localeCompare(b); }));
   var head='<thead><tr><th class="l">Coach</th><th class="l">Score</th><th class="l">Going well</th>'+ks.map(function(k){ return '<th data-k="'+k+'"'+(k===kSel?' class="on"':"")+' title="'+esc(DEFK[k].name)+" · "+(DEFK[k].better==="Lower"?"lower":"higher")+' is better">'+(SHORT[k]||esc(DEFK[k].name))+"</th>"; }).join("")+"</tr></thead>";
   // Team: counts added up, rates over the whole team (all numerators over all denominators),
@@ -679,7 +728,7 @@ function renderGlance(cs){
   }).join("");
   $("gTbl").innerHTML=head+"<tbody>"+teamRow+body+"</tbody>";
   Array.prototype.forEach.call($("gTbl").querySelectorAll("th[data-k]"),function(th){ th.addEventListener("click",function(){ kSel=th.getAttribute("data-k"); save(); render(); }); });
-  $("gNote").textContent="Balanced list. Score: best on a KPI 100, lowest 0, averaged by area. Counts are totals; rates over the whole stretch; rates on a few cases ranked with "+FAIR_N+" extra cases at the team rate."+(r.part?" The month running: sessions and revenue are coloured against the month before up to the same day; other counts are not coloured until it ends.":"");
+  $("gNote").textContent="Balanced list. Score: best on a KPI 100, lowest 0, averaged by area. Counts are totals; rates over the whole stretch; rates on a few cases ranked with "+FAIR_N+" extra cases at the team rate."+(r.ms.indexOf(now())>=0?" With the month running: sessions, revenue and new clients are coloured against the same day; rates as they stand; projection reached and active clients are not coloured until the month ends.":"");
 }
 // Sessions or revenue of one coach in month p up to the day the month running has reached.
 function sameDay(c,p,k){ var rows=((D.live.periods[p]||{})[c]||{}).cl, day=D.live.cutoffDay; if(!rows||!day) return null; var t=0;
@@ -692,11 +741,13 @@ var SHORT={rev:"Revenue",proj:"Projection<br>reached",p3:"Clients<br>3+ a week",
    (the reverse). The 1+1 opens and closes on something going well. There is always a first
    point: when nothing stands out, the KPI where the coach stands highest on the team. */
 function txtOf(k,v){ v=rnd(k,v); if(v==null) return "—"; return DEC[k]?v.toFixed(1):PCT[k]?v+"%":AED[k]?"AED "+C.full(v):C.full(v); }
+// A rate with what it is made of: "2 of 3 (67%)", so a rate on a few cases reads as one.
+function txtP(c,ms,k,v){ var q=PCT[k]&&k!=="proj"&&parts(c,ms,k); return q&&q.d?C.full(Math.round(q.n*10)/10)+" of "+C.full(Math.round(q.d*10)/10)+" ("+txtOf(k,v)+")":txtOf(k,v); }
 function talking(c,sp,rIn){
-  var r=rIn||completed(sp), pb=block(prevEnd(r,sp),sp), team=teamOf(r.ms), good=[], bad=[], standing=[];
+  var r=rIn||reviewed(sp), pb=cmpBlock(r,sp), team=teamOf(r.ms), good=[], bad=[], standing=[];
   KEYS().forEach(function(k){
     var v=agg(c,r.ms,k); if(v==null) return;
-    var was=agg(c,pb.ms,k), mv=moveB(c,k,r,pb,sp), st=state(c,k,sp), lower=better(k)==="Lower";
+    var was=pb.cut&&(k==="rev"||k==="ses"||k==="nw")?toDay(c,pb,k):agg(c,pb.ms,k), mv=moveB(c,k,r,pb), st=state(c,k,sp), lower=better(k)==="Lower";
     // Standing on the team uses the fair value for rates built on a few cases.
     var fv=fairOf(r.ms,k), rv=FAIR[k]?fv(c):rnd(k,v);
     var vals=team.map(function(x){ return FAIR[k]?fv(x):rnd(k,agg(x,r.ms,k)); }).filter(function(x){ return x!=null; }), n=vals.length;
@@ -704,13 +755,13 @@ function talking(c,sp,rIn){
     // Shared by many (everyone at 0 clients training less often) is not a standout either way.
     var ties=vals.filter(function(x){ return x===rv; }).length, crowd=ties>q;
     var name=DEFK[k].name, g=0, b=0, gw=[], bw=[];
-    if(n>=3&&!crowd) standing.push({k:k,p:(n-rank)/(n-1||1),txt:name+": "+txtOf(k,v),why:ordinal(rank)+" of "+n+" on the team"});
+    if(n>=3&&!crowd) standing.push({k:k,p:(n-rank)/(n-1||1),txt:name+": "+txtP(c,r.ms,k,v),why:ordinal(rank)+" of "+n+" on the team"});
     if(n>=3&&rank<=q&&!crowd){ g+=3-(rank-1)*0.5; gw.push(rank===1?"best on the team":ordinal(rank)+" of "+n+" on the team"); }
-    if(mv===1){ g+=1+(st.last===1&&st.run>1?Math.min(st.run,4)*0.5:0); gw.push((lower?"down":"up")+" from "+txtOf(k,was)+" in "+pb.lab+(st.last===1&&st.run>1?", "+st.run+" in a row":"")); }
+    if(mv===1){ g+=1+(st.last===1&&st.run>1?Math.min(st.run,4)*0.5:0); gw.push((lower?"down":"up")+" from "+txtOf(k,was)+" in "+cutLab(pb)+(st.last===1&&st.run>1?", "+st.run+" in a row":"")); }
     if(n>=3&&rank+ties-1>n-q&&!crowd){ b+=2; bw.push(rank===n?"lowest on the team":ordinal(rank)+" of "+n+" on the team"); }
-    if(mv===-1){ b+=1+(st.last===-1&&st.run>1?Math.min(st.run,4)*0.5:0); bw.push((lower?"up":"down")+" from "+txtOf(k,was)+" in "+pb.lab+(st.last===-1&&st.run>1?", "+st.run+" in a row":"")); }
-    if(g) good.push({k:k,s:g,txt:name+": "+txtOf(k,v),why:gw.join(", ")});
-    if(b) bad.push({k:k,s:b,txt:name+": "+txtOf(k,v),why:bw.join(", ")});
+    if(mv===-1){ b+=1+(st.last===-1&&st.run>1?Math.min(st.run,4)*0.5:0); bw.push((lower?"up":"down")+" from "+txtOf(k,was)+" in "+cutLab(pb)+(st.last===-1&&st.run>1?", "+st.run+" in a row":"")); }
+    if(g) good.push({k:k,s:g,txt:name+": "+txtP(c,r.ms,k,v),why:gw.join(", ")});
+    if(b) bad.push({k:k,s:b,txt:name+": "+txtP(c,r.ms,k,v),why:bw.join(", ")});
   });
   good.sort(function(a,b){ return b.s-a.s; }); bad.sort(function(a,b){ return b.s-a.s; });
   standing.sort(function(a,b){ return b.p-a.p; });
@@ -770,16 +821,16 @@ function scores(ms){
 }
 // The score over a window: the reviewed block (the last complete one) against the one before it.
 function scoreRows(sp,rbIn){
-  var rb=rbIn||completed(sp), pb=block(prevEnd(rb,sp),sp), A=scores(rb.ms), B=scores(pb.ms), cs=coaches(), ks=KEYS(), pk=pick();
+  var rb=rbIn||reviewed(sp), pb=cmpBlock(rb,sp), A=scores(rb.ms), B=scores(pb.ms), cs=coaches(), ks=KEYS(), pk=pick();
   return cs.map(function(c){
     var a=A[c], b=B[c], up=0, dn=0;
-    ks.forEach(function(k,i){ if(!pk[i]) return; var m=move(k,a.v[k],b.v[k]); if(m===1) up++; else if(m===-1) dn++; });
+    ks.forEach(function(k,i){ if(!pk[i]) return; var m=moveB(c,k,rb,pb); if(m===1) up++; else if(m===-1) dn++; });
     return {c:c,s:a.score,ps:b.score,up:up,dn:dn,n:a.pts.length,pts:a.pts,areas:a.areas,v:a.v,f:a.f||{}};
   }).filter(function(r){ return r.s!=null; }).sort(function(x,y){ return y.s-x.s; });
 }
 function renderScore(){
-  var rb=completed(win), pb=block(prevEnd(rb,win),win), cs=coaches(), ks=KEYS(), pk=pick();
-  $("sT").textContent="Who leads on the "+(list==="bal"?"balanced list":"full list")+", "+rb.lab+(rb.part?" so far":"")+" · against "+pb.lab;
+  var rb=reviewed(win), pb=cmpBlock(rb,win), cs=coaches(), ks=KEYS(), pk=pick();
+  $("sT").textContent="Who leads on the "+(list==="bal"?"balanced list":"full list")+", "+rb.lab+(rb.part?" so far":"")+" · against "+cutLab(pb);
   var rows=scoreRows(win), A={}; rows.forEach(function(r){ A[r.c]={v:r.v,f:r.f||{}}; });
   return renderScoreRows(rows,A,ks,pk);
 }
@@ -799,8 +850,8 @@ function renderScoreRows(rows,A,ks,pk){
   Array.prototype.forEach.call($("sPick").querySelectorAll("input"),function(b){ b.addEventListener("change",function(){ pick()[+b.getAttribute("data-i")]=b.checked; save(); render(); }); });
   $("sNote").innerHTML="Score: for each KPI ticked below, the coaches with a figure are placed against each other over the stretch: the best gets 100 points, the lowest 0, a tie counts half. "+
     (list==="bal"?"Balanced list: the points are averaged within each area, then the five areas are averaged, so every area weighs the same. ":"Full list: the average of the KPIs' points. ")+
-    "Hover a score for each KPI's points. Rates are worked out over the whole stretch, counts are totals. Full months only. Rates built on a few cases (assessments converted, renewed before the last paid session, still with us, cancellations charged, clients at 3+ a week) are ranked with "+FAIR_N+" extra cases at the team's rate, so 1 of 1 does not beat 4 of 5; the tables show the real figure. "+
-    "Beat their own previous stretch = more KPIs better than worse against the same coach's month, quarter or stretch before (for This year, the same months last year). A window that is not complete yet is scored on the last complete one.";
+    "Hover a score for each KPI's points. Rates are worked out over the whole stretch, counts are totals. Rates built on a few cases (assessments converted, renewed before the last paid session, still with us, cancellations charged, clients at 3+ a week) are ranked with "+FAIR_N+" extra cases at the team's rate, so 1 of 1 does not beat 4 of 5; the tables show the real figure. "+
+    "Every window runs to date, the month running included. Beat their own results before = more KPIs better than worse against the same coach over the same stretch one period earlier, to the same day (sessions, revenue and new clients); rates as they stand.";
   return rows;
 }
 
@@ -822,6 +873,7 @@ function bindRows(){
 
 /* The chosen KPI block by block, with the team median as a line. */
 function chart(){
+  var span=cspan;   // the chart has its own window, next to it
   var k=kSel, d=DEFK[k], c=sel||null, host=$("chKpi"), n=NCHART[span];
   // This year: every month of the year so far. Years: whole years side by side.
   var bl=span==="y"?block(month,"y").ms.map(function(p){ return block(p,"m"); }):blocks(n);
@@ -908,12 +960,12 @@ function copyCol(){
   else { var ta=document.createElement("textarea"); ta.value=lines; document.body.appendChild(ta); ta.select(); var ok=false; try{ ok=document.execCommand("copy"); }catch(e){} document.body.removeChild(ta); done(ok); }
 }
 
-function save(){ try{ localStorage.setItem(UI_KEY,JSON.stringify({sel:sel,win:win,list:list,span:span,tspan:tspan,bspan:bspan,k:kSel,pick:pickBy})); }catch(e){} }
+function save(){ try{ localStorage.setItem(UI_KEY,JSON.stringify({sel:sel,win:win,list:list,span:span,tspan:tspan,bspan:bspan,cspan:cspan,k:kSel,pick:pickBy})); }catch(e){} }
 
 C.unlock(function(d){
   D=d;
   if(!D.ov||!D.ov.kpiM) document.querySelector(".wrap").insertAdjacentHTML("afterbegin",'<div class="card section"><div class="empty">The client figures (active clients, still with us, renewals, new clients, beyond what\'s paid) arrive with the next refresh. Press Refresh now on the Performance page.</div></div>');
-  try{ var u=JSON.parse(localStorage.getItem(UI_KEY)||"{}"); sel=u.sel||""; win=/^(m|q|6|12|y|Y)$/.test(u.win)?u.win:"q"; tspan=/^(m|q|6|12|y|Y)$/.test(u.tspan)?u.tspan:"m"; bspan=/^(m|q|6|12|y|Y)$/.test(u.bspan)?u.bspan:"q"; list=u.list==="bal"?"bal":"full"; span=u.span||"m"; kSel=u.k||"ses"; pickBy=u.pick||{}; }catch(e){}
+  try{ var u=JSON.parse(localStorage.getItem(UI_KEY)||"{}"); sel=u.sel||""; win=spanOk(u.win,"m"); tspan=spanOk(u.tspan,"m"); bspan=spanOk(u.bspan,"q"); cspan=spanOk(u.cspan,"m"); list=u.list==="bal"?"bal":"full"; span=spanOk(u.span,"m"); kSel=u.k||"ses"; pickBy=u.pick||{}; }catch(e){}
   if(PAGE==="dir"){ sel=""; list="bal"; showNames=true; if(!u||!u.k) kSel="rev"; }
   fillCoaches(); fillMonths();
   C.scopeSwitch($("segScope"),function(){ fillCoaches(); render(); });
@@ -926,6 +978,7 @@ C.unlock(function(d){
   $("segWin").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ win=v; save(); render(); } });
   $("segBusy").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ bspan=v; save(); render(); } });
   $("segGlance").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ span=v; save(); render(); } });
+  $("segChart").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ cspan=v; save(); chart(); segs(); } });
   $("segTiles").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ tspan=v; save(); render(); } });
   C.notes($("btnNotes"));
   render();
@@ -933,7 +986,7 @@ C.unlock(function(d){
 });
 if("serviceWorker" in navigator){ navigator.serviceWorker.register("./sw.js").catch(function(){}); }
 // For checking the figures from the browser console or a test: read-only access to the model.
-window.IAMCHECK={teamOf:teamOf,val:val,parts:parts,agg:agg,block:block,reviewed:function(sp){ return reviewed(sp); },teamB:teamB,coaches:function(){ return coaches(); },months:function(){ return months(); },now:function(){ return now(); },fileName:function(c){ return fileName(c); },D:function(){ return D; },month:function(){ return month; }};
+window.IAMCHECK={toDay:toDay,cmpBlock:cmpBlock,nwTo:nwTo,teamOf:teamOf,val:val,parts:parts,agg:agg,block:block,reviewed:function(sp){ return reviewed(sp); },teamB:teamB,coaches:function(){ return coaches(); },months:function(){ return months(); },now:function(){ return now(); },fileName:function(c){ return fileName(c); },D:function(){ return D; },month:function(){ return month; }};
 })();
 </script>
 </body>

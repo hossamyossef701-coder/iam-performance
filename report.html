@@ -215,6 +215,8 @@ details.coaches[open] summary::before{content:"\25BE ";}
 body.locked{overflow:hidden;}
 /* client-level panels: training frequency, load, revenue per client, training less often */
 .deep{margin:16px 0;}
+.dbar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;margin:22px 0 10px;}
+.dbar .k{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.17em;text-transform:uppercase;color:var(--ink-faint);}
 .dcard{background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r);margin-bottom:16px;overflow:hidden;}
 .dcard-h{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:flex-start;justify-content:space-between;padding:13px 16px 11px;border-bottom:1px solid var(--line-soft);}
 .dcard-h .k{font-size:9.5px;letter-spacing:.17em;text-transform:uppercase;color:var(--ink-faint);}
@@ -298,8 +300,8 @@ body.notes .dnote{display:block;}
   <div class="bar">
     <span class="seg" id="nav"></span>
     <select id="selSpan" aria-label="Window">
-      <option value="1">One month</option><option value="3">3 months to</option><option value="6">6 months to</option>
-      <option value="12">12 months to</option><option value="ytd">Year to date</option><option value="custom">From…</option>
+      <option value="1">Month to date</option><option value="qtd">Quarter to date</option><option value="htd">Half-year to date</option>
+      <option value="ytd">Year to date</option><option value="12">12 months to</option><option value="custom">From…</option>
     </select>
     <select id="selFrom" aria-label="From" style="display:none"></select>
     <select id="selMonth" aria-label="Month"></select>
@@ -425,7 +427,7 @@ drawNav();
 var DIRECTOR="Hossam";
 var MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 var PASS=null, LIVE=null, HIST=null, DATA={}, PERIODS=[];
-var ui={month:null, span:"1", from:null, compare:"pace", scope:"all", basis:"mtd", sort:"revenue", dir:-1};
+var ui={month:null, span:"1", from:null, compare:"pace", scope:"all", basis:"mtd", sort:"revenue", dir:-1, pspan:"1", dspan:"1"};
 // Per-coach switches. Ivan starts outside the even-share figure because his sessions are
 // counted differently; everyone else is in by default.
 var COACH_KEY="iamreport:coaches";
@@ -442,12 +444,14 @@ function setPref(c,k,v){
   savePrefs();
 }
 try{ var sv=JSON.parse(localStorage.getItem(UI_KEY)||"{}");
-  ["compare","scope","basis","sort","span","from"].forEach(function(k){ if(sv[k]) ui[k]=sv[k]; });
+  ["compare","scope","basis","sort","span","from","pspan","dspan"].forEach(function(k){ if(sv[k]) ui[k]=sv[k]; });
+  // The old rolling windows become the to-date ones: 3 months -> quarter to date, 6 -> half-year.
+  ["span","pspan","dspan"].forEach(function(k){ if(ui[k]==="3") ui[k]="qtd"; if(ui[k]==="6") ui[k]="htd"; });
   // With or without the Fitness Director: one switch shared by every page.
   var shared=localStorage.getItem("iam:scope"); if(shared==="team"||shared==="all") ui.scope=shared;
   if(sv.dir) ui.dir=sv.dir;
 }catch(e){}
-function saveUi(){ try{ localStorage.setItem(UI_KEY,JSON.stringify({compare:ui.compare,scope:ui.scope,basis:ui.basis,sort:ui.sort,dir:ui.dir,span:ui.span,from:ui.from})); localStorage.setItem("iam:scope",ui.scope); }catch(e){} }
+function saveUi(){ try{ localStorage.setItem(UI_KEY,JSON.stringify({compare:ui.compare,scope:ui.scope,basis:ui.basis,sort:ui.sort,dir:ui.dir,span:ui.span,from:ui.from,pspan:ui.pspan,dspan:ui.dspan})); localStorage.setItem("iam:scope",ui.scope); }catch(e){} }
 function cfg(){ try{ return JSON.parse(localStorage.getItem(CFG_KEY)||"{}"); }catch(e){ return {}; } }
 function setStat(id,t,c){ var e=document.getElementById(id); if(e){ e.className="status "+(c||""); e.textContent=t; } }
 
@@ -558,14 +562,29 @@ function buildRange(key,scaleLast){
   });
   DATA[key]=out; return key;
 }
-function viewKey(){
+/* Windows, all to date and ending at the month chosen at the top: the month (so far), the
+   quarter so far, the half-year so far (Jan-Jun, Jul-Dec), the year so far; or 12 months, or a
+   start month of your own. Each panel lower down has its own picker (keyFor). */
+function spanFrom(sp,to){
+  var m=+to.slice(5,7);
+  if(sp==="qtd") return prevP(to,(m-1)%3);
+  if(sp==="htd") return to.slice(0,4)+(m<=6?"-01":"-07");
+  if(sp==="ytd") return to.slice(0,4)+"-01";
+  if(sp==="custom") return (ui.from&&ui.from<=to)?ui.from:to;
+  if(+sp>1) return prevP(to,+sp-1);
+  return to;
+}
+function keyFor(sp){
   var to=ui.month; if(!to) return null;
-  var from=to;
-  if(ui.span==="ytd") from=to.slice(0,4)+"-01";
-  else if(ui.span==="custom") from=(ui.from&&ui.from<=to)?ui.from:to;
-  else if(+ui.span>1) from=prevP(to,+ui.span-1);
-  if(from===to) return to;
-  return buildRange(vKey(from,to));
+  var from=spanFrom(sp,to);
+  return from===to?to:buildRange(vKey(from,to));
+}
+function viewKey(){ return keyFor(ui.span); }
+function hName(){ var to=ui.month||currentPeriod(); return +to.slice(5,7)<=6?"H1":"H2"; }
+// The small picker a panel carries for its own window.
+function panelSeg(id,cur,withYear){
+  var o=[["1","MTD"],["qtd","QTD"],["htd",hName()+" to date"],["ytd","YTD"]].concat(withYear?[["12","12 months"]]:[]);
+  return '<span class="seg sm" id="'+id+'">'+o.map(function(x){ return '<button type="button" data-v="'+x[0]+'"'+(x[0]===cur?' class="on"':"")+">"+x[1]+"</button>"; }).join("")+"</span>";
 }
 function currentPeriod(){
   return new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Dubai",year:"numeric",month:"2-digit"}).format(new Date()).slice(0,7);
@@ -603,7 +622,10 @@ function basisPeriods(p){
   // the earlier stretch is cut to the same point in its own length.
   if(isV(p)){
     if(m==="none") return [];
-    var k=p.split(":"), n=monthsBetween(k[1],k[2]).length, shift=(m==="yoy"||m==="yoyfull")?12:n;
+    // A window to date is set against the same point one period earlier: QTD against the quarter
+    // before (Oct-Nov against Jul-Aug), the half-year against the half before, YTD a year back.
+    var k=p.split(":"), n=monthsBetween(k[1],k[2]).length, per={qtd:3,htd:6,ytd:12}[ui.span];
+    var shift=(m==="yoy"||m==="yoyfull")?12:(per||n);
     var f=prevP(k[1],shift), t=prevP(k[2],shift), key=vKey(f,t);
     var cut=(ui.basis==="mtd"&&k[2]===currentPeriod()&&m!=="prev"&&m!=="yoyfull")?Math.min(1,daysUsed(k[2])/monthDays(t)):null;
     buildRange(key,cut);
@@ -787,12 +809,15 @@ function projBar(pct,target,st,small,tip){
   return '<span class="pj-track'+(small?" sm":"")+'"'+(tip?' title="'+tip+'"':"")+'><span class="pj-fill '+st+'" style="width:'+w.toFixed(1)+'%"></span>'+
     '<span class="pj-full"></span>'+(target<99.5?'<span class="pj-pace" style="left:'+tick.toFixed(2)+'%"></span>':"")+"</span>";
 }
+// On Team Performance the projection has its own window; on Overview it is the page, so the
+// window at the top is its window.
+function projKey(p){ return PAGE==="full"?keyFor(ui.pspan):p; }
 function renderProj(p){
   var el=document.getElementById("proj");
   var t=projTeam(p);
   if(!t.any){
     // The Overview page is only this panel, so it says why it is empty rather than vanish.
-    if(PAGE==="ceo"){ el.style.display=""; el.innerHTML='<div class="proj-head"><span class="k">Projection \u00b7 '+label(p)+'</span></div><div class="proj-foot">No projection was set '+(isV(p)?"in these months":"for this month")+". The coaches' sheets carry it from Nov 2026.</div>"; return; }
+    if(PAGE==="ceo"||PAGE==="full"){ el.style.display=""; el.innerHTML='<div class="proj-head"><span class="k">Projection \u00b7 '+label(p)+'</span>'+(PAGE==="full"?panelSeg("segProj",ui.pspan):"")+'</div><div class="proj-foot">No projection was set '+(isV(p)?"in these months":"for this month")+". The coaches' sheets carry it from Nov 2026.</div>"; return; }
     el.style.display="none"; el.innerHTML=""; return;
   }
   el.style.display="";
@@ -823,7 +848,7 @@ function renderProj(p){
       projBar(pct,target,st,false,tip)+
       '<span class="fig">'+fmt(done)+" <span class=\"dim\">of</span> "+fmt(goal)+unit+'<span class="d '+cls+'">'+note+"</span></span></div>";
   }
-  el.innerHTML='<div class="proj-head"><span class="k">Projection \u00b7 '+label(p)+'</span><span class="who">'+who+"</span></div>"+
+  el.innerHTML='<div class="proj-head"><span class="k">Projection \u00b7 '+label(p)+(rangeTo(p)===currentPeriod()?" so far":"")+'</span>'+(PAGE==="full"?panelSeg("segProj",ui.pspan):"")+'<span class="who">'+who+"</span></div>"+
     (t.set.length?(line("Revenue",t.pctR,t.r,t.pr,fmtInt," AED",function(v){ return fmtInt(v)+" AED"; })+
                    line("Sessions",t.pctS,t.s,t.ps,fmtSess,"",function(v){ var n=Math.round(v); return n+(n===1?" session":" sessions"); })+
                    coachRows(p,target,tip))
@@ -1232,14 +1257,15 @@ function renderDeep(p){
   var el=document.getElementById("deep"); if(!el) return;
   if(!p){ el.innerHTML=""; return; }
   var load=panelLoad(p);
+  var bar='<div class="dbar"><span class="k">Clients and load \u00b7 '+label(p)+(rangeTo(p)===currentPeriod()?" so far":"")+"</span>"+panelSeg("segDeep",ui.dspan,true)+"</div>";
   if(!hasCl(p)){
     var oldest=prevP(currentPeriod(),12);
-    el.innerHTML=load+dCard("Clients","Training frequency, revenue per client and training less often","",
+    el.innerHTML=bar+load+dCard("Clients","Training frequency, revenue per client and training less often","",
       '<div class="dempty">'+(p<oldest?"Each client's day-by-day row is kept for the last 13 months only, so these panels start at "+label(oldest)+".":
         "These panels need each client's day-by-day row, which the next refresh reads. Press Refresh now, or wait for the next scheduled read.")+"</div>");
     return;
   }
-  el.innerHTML=panelFreq(p)+load+'<div class="dgrid">'+panelRpc(p)+panelLess(rangeTo(p))+"</div>";
+  el.innerHTML=bar+panelFreq(p)+load+'<div class="dgrid">'+panelRpc(p)+panelLess(rangeTo(p))+"</div>";
 }
 
 // Online 1+1 sessions are counted as a half, so a session count can legitimately end in .5.
@@ -1325,7 +1351,7 @@ function render(){
     : ("Whole month \u00b7 includes bookings ahead");
 
   var list=coachesIn(p);
-  if(!list.length){ tbl.innerHTML=""; empty.style.display=""; renderTiles(p); renderProj(p); renderDeep(p); return; }
+  if(!list.length){ tbl.innerHTML=""; empty.style.display=""; renderTiles(p); renderProj(projKey(p)); renderDeep(keyFor(ui.dspan)); return; }
   empty.style.display="none";
 
   var team=teamTotals(p,false);
@@ -1422,9 +1448,9 @@ function render(){
     });
   });
   renderTiles(p);
-  if(PAGE!=="fin") renderProj(p);
+  if(PAGE!=="fin") renderProj(projKey(p));
   renderOvPanel();
-  if(PAGE==="full") renderDeep(p);
+  if(PAGE==="full") renderDeep(keyFor(ui.dspan));
 }
 // How much of the team is carrying its equal share: how many coaches sit at or above 100%,
 // as a percentage of those with revenue this month.
@@ -1519,7 +1545,8 @@ function fillMonths(){
 // Over a stretch, "last month" means the stretch of the same length before it.
 function relabelCompare(p){
   var V=isV(p), sel=document.getElementById("selCompare");
-  var T={pace:["vs last month, same point","vs the stretch before, same point"],prev:["vs last month, full","vs the stretch before, full"],
+  var U={qtd:"last quarter",htd:"the half-year before",ytd:"last year"}[ui.span]||"the stretch before";
+  var T={pace:["vs last month, same point","vs "+U+", same point"],prev:["vs last month, full","vs "+U+", full"],
          yoy:["vs same month last year, same point","vs same stretch last year, same point"],yoyfull:["vs same month last year, full","vs same stretch last year, full"]};
   Array.prototype.forEach.call(sel.options,function(o){
     if(T[o.value]) o.textContent=T[o.value][V?1:0];
@@ -1781,6 +1808,9 @@ unlock().then(function(){
   paint();
   document.getElementById("selMonth").addEventListener("change",function(e){ ui.month=e.target.value; fillMonths(); render(); });
   document.getElementById("selSpan").addEventListener("change",function(e){ ui.span=e.target.value; saveUi(); fillMonths(); render(); });
+  // The panels' own windows.
+  document.getElementById("proj").addEventListener("click",function(e){ var b=e.target.closest&&e.target.closest("#segProj button"); if(b){ ui.pspan=b.getAttribute("data-v"); saveUi(); renderProj(projKey(viewKey())); } });
+  document.getElementById("deep").addEventListener("click",function(e){ var b=e.target.closest&&e.target.closest("#segDeep button"); if(b){ ui.dspan=b.getAttribute("data-v"); saveUi(); renderDeep(keyFor(ui.dspan)); } });
   document.getElementById("selFrom").addEventListener("change",function(e){ ui.from=e.target.value; saveUi(); render(); });
   document.getElementById("selCompare").addEventListener("change",function(e){ ui.compare=e.target.value; saveUi(); render(); });
   Array.prototype.forEach.call(document.querySelectorAll("#segScope button"),function(b){

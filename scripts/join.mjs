@@ -528,3 +528,21 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
       const k = c.coach || ((c.pk.filter((p) => p.date <= today).pop() || {}).coach) || "(no coach)"; o[k] = (o[k] || 0) + 1; return o; }, {}),
   };
 }
+
+// Converted assessments of the last 3 months with no package in the Clients file within a month
+// either side of the assessment's month. A one-word name on the tracker ("Lilan") matches any
+// client whose name holds that word, so a match is generous: what is listed is surely missing.
+export function convWithoutPackage(rows, inner, now) {
+  const EP = Date.UTC(1899, 11, 30), ser = (y, m, d) => Math.round((Date.UTC(y, m - 1, d) - EP) / 864e5);
+  const words = (s) => String(s || "").toLowerCase().replace(/[^a-z\u0600-\u06ff ]+/g, " ").split(" ").filter((w) => w.length >= 2);
+  const from = (() => { let y = +now.slice(0, 4), m = +now.slice(5, 7) - 2; if (m < 1) { m += 12; y--; } return y + "-" + String(m).padStart(2, "0"); })();
+  const out = [];
+  for (const x of rows) {
+    if (!x.conv || x.p < from || x.p > now || !x.client) continue;
+    const y = +x.p.slice(0, 4), m = +x.p.slice(5, 7), s0 = ser(y, m, 1), e = ser(m === 12 ? y + 1 : y, m === 12 ? 1 : m + 1, 1) - 1;
+    const w = words(x.client); if (!w.length) continue;
+    const hit = inner.clients.some((c) => { const cw = words(c.name); return w.every((t) => cw.includes(t)) && (c.pk || []).some((p) => p.date >= s0 - 31 && p.date <= e + 31); });
+    if (!hit) out.push({ p: x.p, coach: x.coach, name: x.client });
+  }
+  return out;
+}
