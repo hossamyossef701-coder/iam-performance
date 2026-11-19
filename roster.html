@@ -46,7 +46,6 @@
     <div class="stamp" id="stamp"></div>
   </div>
   <div class="bar">
-    <span class="seg" id="nav"></span>
     <span class="grow"></span>
     <select id="selCoach" aria-label="Coach"></select>
     <span class="seg" id="segShow"><button data-v="open">Not ended</button><button data-v="all">All</button></span>
@@ -58,6 +57,7 @@
 </div>
 
 <script src="./common.js"></script>
+<script src="./nav.js"></script>
 <script>
 /* Head coach: each coach's clients by name, from the Clients file's Coach column. Not ended =
    active, renewal due, or bought but not started. It opens with its own passphrase
@@ -85,7 +85,7 @@ function render(){
 }
 C.unlock(function(d){
   R=d;
-  $("nav").innerHTML=NAV.filter(function(n){ return role==="dir"||n[0]==="roster.html"; }).map(function(n){ return "<a"+(n[0]==="roster.html"?' class="on"':"")+' href="./'+n[0]+'">'+n[1]+"</a>"; }).join("");
+  IAMNAV.draw("roster.html",role==="dir"?null:["roster.html"]);
   $("stamp").textContent=d.generated?"Read "+new Date(d.generated).toLocaleString():"";
   // The Fitness Director's own clients are not on the head coach's list.
   var cs=Object.keys(R.roster).filter(function(c){ return c!=="(no coach)"&&c!==C.DIRECTOR&&R.roster[c].some(function(x){ return x[1]!=="e"; }); }).sort(C.ivan());

@@ -120,6 +120,7 @@ tr.total td{border-top:1px solid var(--line);color:var(--ink-soft);}
 .legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:11px;color:var(--ink-soft);margin:0 0 8px;}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px;}
 .legend .r{margin-left:auto;color:var(--ink-faint);}
+.scroll table th:first-child,.scroll table td:first-child{position:sticky;left:0;z-index:1;background:var(--panel);}
 .tip{position:absolute;pointer-events:none;background:var(--panel-3);border:1px solid var(--line);border-radius:9px;padding:8px 10px;
   font-size:11.5px;line-height:1.6;color:var(--ink);white-space:nowrap;box-shadow:0 8px 24px rgba(0,0,0,.45);opacity:0;transition:opacity .08s;z-index:5;}
 .tip b{font-weight:400;display:block;margin-bottom:2px;font-size:12.5px;}
@@ -235,7 +236,6 @@ body.locked{overflow:hidden;}
   </div>
 
   <div class="bar">
-    <span class="seg"><a href="./overview.html">Overview</a><a href="./director.html">Fitness</a><a href="./finance.html">Finance</a><a href="./report.html">Team Performance</a><a class="on" href="./clients.html">Clients</a><a href="./business.html">Business</a><a href="./coach.html">Coach review</a><a href="./roster.html">Head coach</a></span>
     <span class="grow"></span>
     <span class="seg" id="segScope"><button data-v="all">With Hossam</button><button data-v="team">Team only</button></span>
     <button id="btnNotes">Notes</button>
@@ -340,13 +340,25 @@ body.locked{overflow:hidden;}
     </div>
   </div>
 
+  <!-- Training frequency, revenue per client and training less often: the client panels from the
+       coach sheets, drawn by load.html (main passphrase only; hidden otherwise). -->
+  <iframe id="loadFrame" src="./load.html" title="Training and value" style="display:block;visibility:hidden;width:100%;border:0;height:0;margin:14px 0 4px;background:transparent" scrolling="no"></iframe>
+
   <details class="more" id="checksPanel"><summary id="checksSummary">Checks on the file</summary><div class="body"><ul class="checks" id="checks"></ul></div></details>
   <details class="more"><summary>How these figures are worked out</summary><div class="body defs"><ul id="defs"></ul></div></details>
 </div>
 
 <div class="tip" id="tip"></div>
 
+<script src="./nav.js"></script>
 <script>
+IAMNAV.draw("clients.html");
+window.addEventListener("message",function(e){
+  if(e.origin!==location.origin||!e.data||!e.data.iamload) return;
+  var f=document.getElementById("loadFrame"); if(!f) return;
+  if(e.data.iamload==="locked"){ f.style.display="none"; return; }
+  if(e.data.iamload==="h"&&e.data.h>40){ f.style.display="block"; f.style.visibility="visible"; f.style.height=Math.ceil(e.data.h)+"px"; }
+});
 (function(){
 "use strict";
 window.addEventListener("error",function(e){console.error("[clients]",e.error||e.message);e.preventDefault();});

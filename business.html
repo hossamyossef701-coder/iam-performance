@@ -34,7 +34,6 @@
     <div class="stamp" id="stamp"></div>
   </div>
   <div class="bar">
-    <span class="seg"><a href="./overview.html">Overview</a><a href="./director.html">Fitness</a><a href="./finance.html">Finance</a><a href="./report.html">Team Performance</a><a href="./clients.html">Clients</a><a class="on" href="./business.html">Business</a><a href="./coach.html">Coach review</a><a href="./roster.html">Head coach</a></span>
     <span class="grow"></span>
     <span class="seg" id="segScope"></span>
     <button id="btnNotes">Notes</button>
@@ -110,7 +109,9 @@
 </div>
 
 <script src="./common.js"></script>
+<script src="./nav.js"></script>
 <script>
+IAMNAV.draw("business.html");
 (function(){
 "use strict";
 var C=window.IAM, $=C.$, esc=C.esc, aed=C.aed, D=null, OV0=null;

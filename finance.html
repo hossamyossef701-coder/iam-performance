@@ -33,9 +33,11 @@ body{background:var(--ground);color:var(--ink);font-family:var(--f-display);font
    projection only. The file name picks the view. */
 body.v-ceo #tiles,body.v-ceo #mainCard,body.v-ceo #deep,body.v-ceo #selCompare,body.v-ceo #chipWhole,
 body.v-fin #proj,body.v-fin #deep,
+body.v-load #app>*:not(#deep),body.v-load #gate .gate-note,
 body.v-ceo #btnRefresh,body.v-fin #btnRefresh,body.v-ceo #tokenPanel,body.v-fin #tokenPanel,
 body.v-ceo #coveragePanel,body.v-fin #coveragePanel,body.v-ceo #note,body.v-fin #note,body.v-ceo #coachPanel,body.v-fin #coachPanel{display:none !important;}
 @media(max-width:640px){.wrap{padding:18px 14px 50px;}}
+body.v-load .wrap{padding:0;max-width:none;} body.v-load{background:transparent;} body.v-load #deep{margin:0;}
 ::selection{background:rgba(239,105,29,.3);}
 
 .head{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;justify-content:space-between;padding-bottom:16px;margin-bottom:18px;position:relative;}
@@ -263,6 +265,8 @@ body.locked{overflow:hidden;}
 .dtbl .up{color:var(--up);} .dtbl .down{color:var(--down);}
 .dgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;}
 .dgrid>.dcard{margin-bottom:16px;}
+.dgrid>*{min-width:0;}
+body.v-load .dgrid{grid-template-columns:1fr;}
 .dgrid .dtbl th,.dgrid .dtbl td{padding:9px 7px;}
 .dgrid .dtbl th{white-space:normal;min-width:54px;}
 .dgrid .dtbl th:first-child,.dgrid .dtbl td:first-child{padding-left:16px;}
@@ -298,7 +302,6 @@ body.notes .dnote{display:block;}
   </div>
 
   <div class="bar">
-    <span class="seg" id="nav"></span>
     <select id="selSpan" aria-label="Window">
       <option value="1">Month to date</option><option value="qtd">Quarter to date</option><option value="htd">Half-year to date</option>
       <option value="ytd">Year to date</option><option value="12">12 months to</option><option value="custom">From…</option>
@@ -391,6 +394,7 @@ body.notes .dnote{display:block;}
   </details>
 </div>
 
+<script src="./nav.js"></script>
 <script>
 (function(){
 "use strict";
@@ -399,13 +403,15 @@ window.addEventListener("unhandledrejection",function(e){console.error("[report]
 
 var GH_OWNER="hossamyossef701-coder", GH_REPO="iam-performance", GH_BRANCH="main", GH_WORKFLOW="refresh.yml";
 // Which view: the file name decides (finance.html, overview.html; anything else is Performance).
-var PAGE=/finance\.html$/i.test(location.pathname)?"fin":/overview\.html$/i.test(location.pathname)?"ceo":"full";
-var PAGE_NAME={full:"Team Performance",fin:"Finance",ceo:"Overview"}[PAGE];
+// load.html is the client panels alone (training frequency, revenue per client, training less
+// often), shown inside the Clients page.
+var PAGE=/finance\.html$/i.test(location.pathname)?"fin":/overview\.html$/i.test(location.pathname)?"ceo":/load\.html$/i.test(location.pathname)?"load":"full";
+var PAGE_NAME={full:"Team Performance",fin:"Finance",ceo:"Overview",load:"Clients · training"}[PAGE];
 // Finance and Overview remember their passphrase under their own key, so typing the Finance one
 // on a device never replaces the Performance one the other pages use.
 // Ivan is always listed last wherever coaches are listed, whatever the sort.
 function ivan(cmp,get){ get=get||function(x){ return x; }; return function(a,b){ var d=(get(a)==="Ivan")-(get(b)==="Ivan"); return d||(cmp?cmp(a,b):String(get(a)).localeCompare(String(get(b)))); }; }
-var PASS_KEY="iamlive:pass"+(PAGE==="full"?"":":"+PAGE), CFG_KEY="iamlive:cfg", UI_KEY="iamreport:ui"+(PAGE==="full"?"":":"+PAGE);
+var PASS_KEY="iamlive:pass"+(PAGE==="full"||PAGE==="load"?"":":"+PAGE), CFG_KEY="iamlive:cfg", UI_KEY="iamreport:ui"+(PAGE==="full"?"":":"+PAGE);
 (function(){
   document.body.classList.add("v-"+PAGE);
   document.title=PAGE_NAME+" — I AM Performance";
@@ -415,15 +421,15 @@ var PASS_KEY="iamlive:pass"+(PAGE==="full"?"":":"+PAGE), CFG_KEY="iamlive:cfg", 
 // Finance and Overview also open with their own passphrase (FINANCE_PASSPHRASE, CEO_PASSPHRASE),
 // which decrypts only that page's file: the menu is then that page alone, and the other pages'
 // data cannot be read with it.
-var ROLE=PAGE==="full"?"director":null;
+var ROLE=PAGE==="full"||PAGE==="load"?"director":null;
 var AUD_FILE=PAGE==="fin"?"finance.enc.json":PAGE==="ceo"?"ceo.enc.json":null;
 function drawNav(){
   var NAV=[["overview.html","Overview","ceo"],["director.html","Fitness"],["finance.html","Finance","fin"],["report.html","Team Performance","full"],["clients.html","Clients"],["business.html","Business"],["coach.html","Coach review"],["roster.html","Head coach"]];
   var full=ROLE==="director";
-  document.getElementById("nav").innerHTML=NAV.filter(function(n){ return full||n[2]===PAGE; }).map(function(n){
-    return '<a'+(n[2]===PAGE?' class="on"':"")+' href="./'+n[0]+'">'+n[1]+"</a>"; }).join("");
+  var me=NAV.filter(function(n){ return n[2]===PAGE; })[0][0];
+  IAMNAV.draw(me, full?null:[me]);
 }
-drawNav();
+if(PAGE!=="load") drawNav();
 var DIRECTOR="Hossam";
 var MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 var PASS=null, LIVE=null, HIST=null, DATA={}, PERIODS=[];
@@ -549,14 +555,24 @@ function vKey(from,to){ return "R:"+from+":"+to; }
 function monthsBetween(from,to){ var out=[], q=from; while(q<=to){ out.push(q); q=prevP(q,-1); } return out; }
 function rangeOf(p){ if(!isV(p)) return [p]; var k=p.split(":"); return PERIODS.filter(function(q){ return q>=k[1]&&q<=k[2]; }); }
 function rangeTo(p){ return isV(p)?p.split(":")[2]:p; }
-function buildRange(key,scaleLast){
+// Sessions and revenue of one coach in an earlier month up to a day, from the sheet's
+// day-by-day rows (the same figures Fitness and Coach review use). Null when the month has none.
+function sameDayRows(q,c,day){
+  var rows=LIVE&&LIVE.periods&&LIVE.periods[q]&&LIVE.periods[q][c]&&LIVE.periods[q][c].cl; if(!rows||!day) return null;
+  var w=function(ch){ return ch==="1"||ch==="x"?1:ch==="h"?0.5:(ch>="2"&&ch<="9")?+ch:0; }, s=0, r=0;
+  rows.forEach(function(row){ var m=row[2]||""; for(var i=0;i<Math.min(day,m.length);i++){ var x=w(m[i]); s+=x; r+=x*(row[1]||0); } });
+  return {s:s,r:r};
+}
+function buildRange(key,scaleLast,dayN){
   var ms=rangeOf(key), out={};
   ms.forEach(function(q,i){
-    var f=(scaleLast!=null&&q===key.split(":")[2])?scaleLast:1;
+    var last=q===key.split(":")[2], f=(scaleLast!=null&&last)?scaleLast:1;
     Object.keys(DATA[q]||{}).forEach(function(c){
       var m=metrics(q,c); if(!m) return;
       var o=out[c]||(out[c]={s:null,r:null,x:null,a:null,c:null,n:0});
-      [["s","s"],["r","r"],["x","x"],["a","a"],["cv","c"]].forEach(function(kk){ var v=m[kk[0]]; if(v!=null) o[kk[1]]=(o[kk[1]]||0)+v*f; });
+      // The month cut to the same point: sessions and revenue from its own day rows where it has them.
+      var sd=(scaleLast!=null&&last&&dayN)?sameDayRows(q,c,dayN):null;
+      [["s","s"],["r","r"],["x","x"],["a","a"],["cv","c"]].forEach(function(kk){ var v=m[kk[0]]; if(v==null) return; if(sd&&(kk[0]==="s"||kk[0]==="r")) v=sd[kk[0]]; else v=v*f; o[kk[1]]=(o[kk[1]]||0)+v; });
       if(m.mtdMissing) o.mtdMissing=true; o.n++;
     });
   });
@@ -628,7 +644,7 @@ function basisPeriods(p){
     var shift=(m==="yoy"||m==="yoyfull")?12:(per||n);
     var f=prevP(k[1],shift), t=prevP(k[2],shift), key=vKey(f,t);
     var cut=(ui.basis==="mtd"&&k[2]===currentPeriod()&&m!=="prev"&&m!=="yoyfull")?Math.min(1,daysUsed(k[2])/monthDays(t)):null;
-    buildRange(key,cut);
+    buildRange(key,cut,cut!=null?daysUsed(k[2]):null);
     // Only when every month of the earlier stretch is on record: a part-stretch would mislead.
     return rangeOf(key).length===n?[key]:[];
   }
@@ -706,7 +722,10 @@ function basis(p,coach){
   list.forEach(function(q){
     var m=metrics(q,coach); if(!m) return;
     var f=partial?Math.min(1,day/monthDays(q)):1;
-    TOTALS.forEach(function(k){ if(m[k]!=null) acc[k].push(m[k]*f); });
+    // Sessions and revenue: the earlier month's own day rows up to the same day where it has
+    // them; otherwise (and for the other totals) its share of the month.
+    var sd=partial?sameDayRows(q,coach,day):null;
+    TOTALS.forEach(function(k){ if(m[k]!=null) acc[k].push(sd&&(k==="s"||k==="r")?sd[k]:m[k]*f); });
     RATIOS.forEach(function(k){ if(m[k]!=null) acc[k].push(m[k]); });
     any=true;
   });
@@ -720,7 +739,12 @@ function basis(p,coach){
 }
 function teamTotals(p,useBasis){   // p is needed for the day count
   var t={s:0,r:0,x:null,a:null,cv:null,n:0}, anyX=false, anyA=false;
-  coachesIn(p).forEach(function(c){
+  // The team before is the whole team then: a coach who has left since still counts in it.
+  var cs=coachesIn(p);
+  // (Single earlier periods only: an average over several months would count a leaver's one month as their average.)
+  var bl=useBasis?basisPeriods(p):[];
+  if(bl.length===1) bl.forEach(function(q){ coachesIn(q).forEach(function(c){ if(cs.indexOf(c)<0) cs.push(c); }); });
+  cs.forEach(function(c){
     var m=useBasis?basis(p,c):metrics(p,c);
     if(!m) return;
     t.n++;
@@ -1256,8 +1280,10 @@ document.addEventListener("scroll",function(){ dHide(); },{passive:true});
 function renderDeep(p){
   var el=document.getElementById("deep"); if(!el) return;
   if(!p){ el.innerHTML=""; return; }
-  var load=panelLoad(p);
-  var bar='<div class="dbar"><span class="k">Clients and load \u00b7 '+label(p)+(rangeTo(p)===currentPeriod()?" so far":"")+"</span>"+panelSeg("segDeep",ui.dspan,true)+"</div>";
+  // Team Performance keeps the load panel; the client panels live on the Clients page (load.html).
+  var load=PAGE==="load"?"":panelLoad(p);
+  var bar='<div class="dbar"><span class="k">'+(PAGE==="load"?"Training and value":"Load")+" \u00b7 "+label(p)+(rangeTo(p)===currentPeriod()?" so far":"")+"</span>"+panelSeg("segDeep",ui.dspan,true)+"</div>";
+  if(PAGE==="full"){ el.innerHTML=bar+load; return; }
   if(!hasCl(p)){
     var oldest=prevP(currentPeriod(),12);
     el.innerHTML=bar+load+dCard("Clients","Training frequency, revenue per client and training less often","",
@@ -1265,8 +1291,12 @@ function renderDeep(p){
         "These panels need each client's day-by-day row, which the next refresh reads. Press Refresh now, or wait for the next scheduled read.")+"</div>");
     return;
   }
-  el.innerHTML=bar+panelFreq(p)+load+'<div class="dgrid">'+panelRpc(p)+panelLess(rangeTo(p))+"</div>";
+  el.innerHTML=bar+panelFreq(p)+'<div class="dgrid">'+panelRpc(p)+panelLess(rangeTo(p))+"</div>";
+  if(PAGE==="load") setTimeout(function(){ toParent({iamload:"h",h:document.documentElement.scrollHeight}); },0);
 }
+// Inside the Clients page: tell it how tall the panels are, and when there is nothing to show.
+function toParent(m){ try{ if(window.parent&&window.parent!==window) window.parent.postMessage(m,location.origin); }catch(e){} }
+if(PAGE==="load"&&window.ResizeObserver) new ResizeObserver(function(){ var app=document.getElementById("app"); if(!app||app.style.display==="none") return; toParent({iamload:"h",h:document.documentElement.scrollHeight}); }).observe(document.body);
 
 // Online 1+1 sessions are counted as a half, so a session count can legitimately end in .5.
 // Rounding it away loses real work: 133.5 is not 134. Whole numbers still print whole.
@@ -1450,7 +1480,7 @@ function render(){
   renderTiles(p);
   if(PAGE!=="fin") renderProj(projKey(p));
   renderOvPanel();
-  if(PAGE==="full") renderDeep(keyFor(ui.dspan));
+  if(PAGE==="full"||PAGE==="load") renderDeep(keyFor(ui.dspan));
 }
 // How much of the team is carrying its equal share: how many coaches sit at or above 100%,
 // as a percentage of those with revenue this month.
@@ -1602,7 +1632,7 @@ function loadAll(pass){
       return loadEnc("live.enc.json",true)
         .then(function(env){ return decrypt(env,pass); })
         .then(function(l){ LIVE=l; }, function(){ LIVE=null; })
-        .then(function(){ drawNav(); build(); });
+        .then(function(){ if(PAGE!=="load") drawNav(); build(); });
     });
   if(!AUD_FILE) return master;
   // Not the Performance passphrase: try this page's own.
@@ -1800,7 +1830,7 @@ function unlock(){
       attempt(v,!!rem.checked,false);
     });
     var saved=null; try{ saved=localStorage.getItem(PASS_KEY)||(PAGE!=="full"?localStorage.getItem("iamlive:pass"):null); }catch(e){}
-    if(saved) attempt(saved,true,true); else input.focus();
+    if(saved) attempt(saved,true,true); else if(PAGE==="load") toParent({iamload:"locked"}); else input.focus();
   });
 }
 

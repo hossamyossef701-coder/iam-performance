@@ -216,3 +216,6 @@ button.on{border-color:var(--accent);color:var(--accent-2);}
 select.win{padding:5px 8px;font-size:11.5px;}
 .card-h{align-items:center;}
 .card-h .unit{margin-left:auto;}
+
+/* On a narrow screen a wide table scrolls sideways: its first column (the coach or the KPI) stays put. */
+.scroll table th:first-child,.scroll table td:first-child{position:sticky;left:0;z-index:1;background:var(--panel);}

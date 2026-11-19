@@ -505,11 +505,11 @@ if (failures) { console.error(`\n${failures} self-test(s) failed - refusing to p
   const fs = await import("fs"), url = await import("url"), path = await import("path");
   const root = path.dirname(path.dirname(url.fileURLToPath(import.meta.url)));
   const rep = fs.readFileSync(path.join(root, "report.html"), "utf8");
-  for (const f of ["finance.html", "overview.html"]) {
+  for (const f of ["finance.html", "overview.html", "load.html"]) {
     const other = fs.existsSync(path.join(root, f)) ? fs.readFileSync(path.join(root, f), "utf8") : null;
     if (other !== rep) { console.error(`FAIL: ${f} differs from report.html - copy report.html over it (cp report.html ${f})`); process.exit(1); }
   }
-  console.log("ok  finance.html and overview.html match report.html");
+  console.log("ok  finance.html, overview.html and load.html match report.html");
   const coach = fs.readFileSync(path.join(root, "coach.html"), "utf8");
   const dir = fs.existsSync(path.join(root, "director.html")) ? fs.readFileSync(path.join(root, "director.html"), "utf8") : null;
   if (dir !== coach) { console.error("FAIL: director.html differs from coach.html - copy coach.html over it (cp coach.html director.html)"); process.exit(1); }

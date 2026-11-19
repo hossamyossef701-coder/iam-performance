@@ -63,7 +63,10 @@
 .sand p{font-size:13.5px;line-height:1.5;margin:0 0 6px;} .sand p small{display:block;color:var(--ink-faint);font-size:11.5px;}
 @media(max-width:800px){.sand{grid-template-columns:1fr;}}
 /* Director view */
-body.v-dir #scoreCard,body.v-dir #kCard,body.v-dir #one,body.v-dir #selCoach,body.v-dir #btnNames{display:none !important;}
+body.v-dir #scoreCard,body.v-dir #kCard,body.v-dir #one,body.v-dir #selCoach,body.v-dir #btnNames,body.v-dir .sumbar,body.v-dir #tiles{display:none !important;}
+#rsTiles{grid-template-columns:repeat(3,1fr);margin:0;}
+@media(max-width:640px){#rsTiles{grid-template-columns:1fr;}}
+#rsTiles .tile .v{font-size:30px;} #rsTiles .tile .sub{line-height:1.6;}
 body:not(.v-dir) #dir{display:none;}
 body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
 @media(max-width:1000px){body.v-dir .tiles{grid-template-columns:repeat(3,1fr);}}
@@ -110,7 +113,6 @@ body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
     <div class="stamp" id="stamp"></div>
   </div>
   <div class="bar">
-    <span class="seg"><a href="./overview.html">Overview</a><a href="./director.html">Fitness</a><a href="./finance.html">Finance</a><a href="./report.html">Team Performance</a><a href="./clients.html">Clients</a><a href="./business.html">Business</a><a class="on" href="./coach.html">Coach review</a><a href="./roster.html">Head coach</a></span>
     <span class="grow"></span>
     <span class="seg" id="segScope"></span>
     <select id="selCoach" aria-label="Coach"></select>
@@ -133,6 +135,10 @@ body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
   </div>
 
   <div id="dir">
+    <div class="card section" id="rsCard">
+      <div class="card-h"><div><div class="k">Revenue and sessions</div><div class="t" id="rsT"></div></div><span class="seg sm" id="segRS"></span></div>
+      <div class="card-b"><div class="tiles" id="rsTiles"></div></div>
+    </div>
     <div class="card section">
       <div class="card-h"><div><div class="k">Sessions day by day</div><div class="t" id="dT"></div></div><span class="unit" id="dU"></span></div>
       <div class="scroll"><table class="kt dly" id="dTbl"></table></div>
@@ -199,6 +205,7 @@ body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
 </div>
 
 <script src="./common.js"></script>
+<script src="./nav.js"></script>
 <script>
 (function(){
 "use strict";
@@ -210,8 +217,8 @@ var UI_KEY=PAGE==="dir"?"iamdir:ui":"iamcoach:ui";
 if(PAGE==="dir"){
   document.body.classList.add("v-dir"); document.title="Fitness — I AM Performance";
   Array.prototype.forEach.call(document.querySelectorAll("h1"),function(h){ h.textContent="Fitness"; });
-  Array.prototype.forEach.call(document.querySelectorAll(".bar .seg a"),function(a){ a.classList.toggle("on",/director\.html$/.test(a.getAttribute("href"))); });
 }
+IAMNAV.draw(PAGE==="dir"?"director.html":"coach.html");
 
 /* ---- The KPIs ----
    Two lists, switched with "Full list / Balanced": the full 15 (the KPI sheet's rows), and the
@@ -392,9 +399,15 @@ function cmpBlock(b,sp){
   var sh={m:1,q:3,h:6,y:12,"12":12,Y:12}[sp], run=b.ms.indexOf(now())>=0;
   var pb=sp==="Y"?(run?block(C.prevP(b.end,12),"y"):block((+b.end.slice(0,4)-1)+"-12","Y")):block(C.prevP(b.end,sh),sp);
   if(run&&D.live.cutoffDay) pb.cut=D.live.cutoffDay;
+  pb.sp=sp;
   return pb;
 }
-function cutLab(pb){ return pb.lab+(pb.cut?" to day "+pb.cut:""); }
+// What a block is compared with, said plainly ("last month to the same day"), never as a month
+// name: with Nov so far chosen, the page says "last month", not "Oct".
+function cutLab(pb){
+  var sp=pb.sp||span, base={m:"last month",q:"last quarter",h:"the half-year before",y:"last year","12":"the 12 months before",Y:"the year before"}[sp]||"the stretch before";
+  return base+(pb.cut?(sp==="m"?" to the same day":" to the same point"):"");
+}
 // n blocks, oldest first, ending with the block holding the chosen month.
 function blocks(n,sp){ sp=sp||span; var out=[block(month,sp)]; while(out.length<n) out.unshift(block(prevEnd(out[0],sp),sp)); return out; }
 // The block reviewed: the chosen month's block when complete, otherwise the one before it.
@@ -416,7 +429,9 @@ function toDay(c,b,k){
   for(var i=0;i<cs.length;i++){
     for(var j=0;j<b.ms.length-1;j++){ var q=parts(cs[i],[b.ms[j]],k); if(q) t+=q.n; }
     // No row for the coach that month: nothing to add. A row without the day-by-day detail: unknown.
-    var x=k==="nw"?nwTo(cs[i],last,day):(D.live.periods[last]||{})[cs[i]]?sameDay(cs[i],last,k):0;
+    // The month running: the sheet's own figure to date (as Team Performance reads it). An
+    // earlier month: its day-by-day rows up to the same day.
+    var x=k==="nw"?nwTo(cs[i],last,day):last===now()?((parts(cs[i],[last],k)||{n:0}).n):(D.live.periods[last]||{})[cs[i]]?sameDay(cs[i],last,k):0;
     if(x==null) return null; t+=x;
   }
   return t;
@@ -450,7 +465,7 @@ function teamMove(k,b,pb){
 }
 var UNIT={m:"month",q:"quarter",h:"half-year","12":"12 months",y:"year",Y:"year"};
 var NCOL={m:6,q:4,h:3,"12":2,y:2,Y:3}, NCHART={m:12,q:6,h:4,"12":3,y:3,Y:3};
-var cspan="m";
+var cspan="m", rspan="m";
 var tspan="m";
 function trendTxt(st){ if(st.last==null) return '<span class="dim">—</span>'; return st.last===1?'<span class="up">▲ '+st.run+" up</span>":st.last===-1?'<span class="down">▼ '+st.run+" down</span>":'<span class="dim">● same</span>'; }
 
@@ -468,7 +483,7 @@ function tile(k,v,sub,lead,small){ return '<div class="tile'+(lead?" lead":"")+'
 function segs(){
   $("segList").innerHTML=[["full","Full list (15)"],["bal","Balanced (10)"]].map(function(x){ return '<button data-v="'+x[0]+'"'+(x[0]===list?' class="on"':"")+">"+x[1]+"</button>"; }).join("");
   var seg=function(cur){ return SPANS.map(function(x){ return '<button data-v="'+x[0]+'"'+(x[0]===cur?' class="on"':"")+">"+spanName(x)+"</button>"; }).join(""); };
-  $("segSpan").innerHTML=seg(span); $("segTiles").innerHTML=seg(tspan); $("segWin").innerHTML=seg(win); $("segGlance").innerHTML=seg(span); $("segBusy").innerHTML=seg(bspan); $("segChart").innerHTML=seg(cspan);
+  $("segSpan").innerHTML=seg(span); $("segTiles").innerHTML=seg(tspan); $("segWin").innerHTML=seg(win); $("segGlance").innerHTML=seg(span); $("segBusy").innerHTML=seg(bspan); $("segChart").innerHTML=seg(cspan); $("segRS").innerHTML=seg(rspan);
 }
 function nameCell(k){
   var d=DEFK[k];
@@ -523,7 +538,7 @@ function renderOne(){
   }).join("");
   $("kTbl").innerHTML=head+"<tbody>"+body+"</tbody>";
   bindRows();
-  $("kNote").innerHTML="Copy "+r.lab+" puts its "+ks.length+" numbers on the clipboard in the "+(list==="bal"?"balanced list's":"KPI sheet's")+" order: click the first cell of that column on the coach's sheet and paste. "+
+  $("kNote").innerHTML="Copy "+r.lab+" puts its "+ks.length+" numbers on the clipboard in the "+(list==="bal"?"balanced list's":"KPI sheet's")+" order: on the KPI sheet's Log tab click the month's first number cell and paste (they go across the row). "+
     "Colours compare each column with the same stretch one period earlier (for the lower-is-better rows a drop is green); the column running is compared to the same day. * = still running. Hover a cell for what it is made of.<br>"+defs();
   who(c); room(c); renderTalking(c);
 }
@@ -580,17 +595,21 @@ function renderDir(){
     if(run) return pct(toDay(null,tb,k),toDay(null,pb,k),lower,cutLab(pb));
     return pct(a,b,lower,pb.lab); };
   var endM=tb.ms[tb.ms.length-1], endP=pb.ms[pb.ms.length-1];
-  $("sumK").textContent="Summary · "+tb.lab+(tb.part?" so far":"");
-  var rv=tot(tb.ms,"rev"), rvP=tot(pb.ms,"rev"), ss=tot(tb.ms,"ses"), ssP=tot(pb.ms,"ses"), pj=ratio(tb.ms,"proj"), kp=ratio(tb.ms,"kept"), kpP=ratio(pb.ms,"kept"), ac=teamB({ms:[endM]},"act"), acP=teamB({ms:[C.prevP(tb.ms[0],1)]},"act"), nw=tot(tb.ms,"nw"), nwP=tot(pb.ms,"nw"), cv=ratio(tb.ms,"conv");
-  $("tiles").innerHTML=tile("Revenue",rv!=null?C.aed(rv):"—",cmp(rv,rvP,false,"rev"),1)+tile("Sessions",ss!=null?C.full(ss):"—",cmp(ss,ssP,false,"ses"))+
-    tile("Projection reached",pj!=null?Math.round(pj)+"%":"—",pj==null?"no projection in "+tb.lab:(function(){
-      var withP=tb.ms.filter(function(p){ return cs.some(function(c){ return val(c,p).P.proj; }); }), due=null;
-      cs.some(function(c){ var o=val(c,np); if(o.projDue){ due=o.projDue; return true; } });
-      return "revenue of the projection"+(withP.length<tb.ms.length?" · "+withP.map(function(p){ return C.label(p,true); }).join(", ")+" only":"")+(due!=null&&withP.indexOf(np)>=0?" · "+Math.round(due*100)+"% of "+C.label(np,true)+" gone":"");
-    })())+
-    tile("Active clients",ac!=null?C.full(ac):"—",acP!=null?(ac-acP>=0?"+":"")+(ac-acP)+" since the end of "+C.label(C.prevP(tb.ms[0],1),true):"")+
-    tile("New clients",nw!=null?C.full(nw):"—",cmp(nw,nwP,false,"nw"))+
-    tile("Still with us",kp!=null?Math.round(kp)+"%":"—",[kpP!=null?Math.round(kpP)+"% in "+pb.lab:"",cv!=null?"assessments converted "+Math.round(cv)+"%":""].filter(Boolean).join(" · "));
+  // Revenue and sessions, worked out as on Team Performance: totals over the window to date,
+  // the month running as the sheets have it to date, against the same stretch one period
+  // earlier cut to the same day.
+  var rb=block(month,rspan), rp=cmpBlock(rb,rspan), rrun=rb.ms.indexOf(np)>=0&&!!rp.cut;
+  var rv=tot(rb.ms,"rev"), ss=tot(rb.ms,"ses"), rvP=rrun?toDay(null,rp,"rev"):tot(rp.ms,"rev"), ssP=rrun?toDay(null,rp,"ses"):tot(rp.ms,"ses");
+  var days=rb.ms.reduce(function(t,p){ return t+(p===np?C.lastDay(D.live,p):C.daysIn(p)); },0);
+  var rt=rv!=null&&ss?rv/ss:null, rtP=rvP!=null&&ssP?rvP/ssP:null;
+  var vs=function(a,b,dec){ if(a==null||b==null||!b) return '<span class="dim">nothing to compare with</span>'; var d=(a-b)/b*100;
+    if(Math.abs(d)<0.5) return '<span class="dim">same as '+cutLab(rp)+"</span>";
+    return '<span class="'+(d>0?"up":"down")+'">'+(d>0?"+":"")+d.toFixed(dec?1:0)+"%</span> vs "+cutLab(rp); };
+  $("rsT").textContent=rb.lab+(rb.part&&rb.ms.indexOf(np)>=0?" so far":"")+" · the team";
+  $("rsTiles").innerHTML=
+    tile("Team revenue · AED",rv!=null?C.full(Math.round(rv)):"—",vs(rv,rvP)+(rv!=null&&days?"<br>"+C.full(Math.round(rv/days))+" a day over "+days+" days":""),1)+
+    tile("Team sessions",ss!=null?C.full(ss):"—",vs(ss,ssP)+(ss!=null&&days?"<br>"+(ss/days).toFixed(1)+" a day over "+days+" days":""))+
+    tile("Rate per session · AED",rt!=null?rt.toFixed(1):"—",vs(rt,rtP,1));
   renderAttention(cs,np);
   renderGlance(cs);
   renderBusy();
@@ -757,9 +776,9 @@ function talking(c,sp,rIn){
     var name=DEFK[k].name, g=0, b=0, gw=[], bw=[];
     if(n>=3&&!crowd) standing.push({k:k,p:(n-rank)/(n-1||1),txt:name+": "+txtP(c,r.ms,k,v),why:ordinal(rank)+" of "+n+" on the team"});
     if(n>=3&&rank<=q&&!crowd){ g+=3-(rank-1)*0.5; gw.push(rank===1?"best on the team":ordinal(rank)+" of "+n+" on the team"); }
-    if(mv===1){ g+=1+(st.last===1&&st.run>1?Math.min(st.run,4)*0.5:0); gw.push((lower?"down":"up")+" from "+txtOf(k,was)+" in "+cutLab(pb)+(st.last===1&&st.run>1?", "+st.run+" in a row":"")); }
+    if(mv===1){ g+=1+(st.last===1&&st.run>1?Math.min(st.run,4)*0.5:0); gw.push((lower?"down":"up")+" from "+txtOf(k,was)+" "+cutLab(pb)+(st.last===1&&st.run>1?", "+st.run+" in a row":"")); }
     if(n>=3&&rank+ties-1>n-q&&!crowd){ b+=2; bw.push(rank===n?"lowest on the team":ordinal(rank)+" of "+n+" on the team"); }
-    if(mv===-1){ b+=1+(st.last===-1&&st.run>1?Math.min(st.run,4)*0.5:0); bw.push((lower?"up":"down")+" from "+txtOf(k,was)+" in "+cutLab(pb)+(st.last===-1&&st.run>1?", "+st.run+" in a row":"")); }
+    if(mv===-1){ b+=1+(st.last===-1&&st.run>1?Math.min(st.run,4)*0.5:0); bw.push((lower?"up":"down")+" from "+txtOf(k,was)+" "+cutLab(pb)+(st.last===-1&&st.run>1?", "+st.run+" in a row":"")); }
     if(g) good.push({k:k,s:g,txt:name+": "+txtP(c,r.ms,k,v),why:gw.join(", ")});
     if(b) bad.push({k:k,s:b,txt:name+": "+txtP(c,r.ms,k,v),why:bw.join(", ")});
   });
@@ -952,20 +971,21 @@ function clientList(c){
   }).join("");
 }
 
-/* Copy: the reviewed column's numbers in the list's order, one per line, ready to paste down a column. */
+/* Copy: the reviewed column's numbers in the list's order, tab-separated, ready to paste across
+   the month's row on the KPI sheet's Log tab. */
 function copyCol(){
-  var r=reviewed(), lines=KEYS().map(function(k){ var v=rnd(k,vB(sel||null,r,k)); return v==null?"":String(v); }).join("\n"), b=$("btnCopy"), t=b.textContent;
+  var r=reviewed(), lines=KEYS().map(function(k){ var v=rnd(k,vB(sel||null,r,k)); return v==null?"":String(v); }).join("\t"), b=$("btnCopy"), t=b.textContent;
   function done(ok){ b.textContent=ok?"Copied":"Copy failed"; setTimeout(function(){ b.textContent=t; },1400); }
   if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(lines).then(function(){ done(true); },function(){ done(false); });
   else { var ta=document.createElement("textarea"); ta.value=lines; document.body.appendChild(ta); ta.select(); var ok=false; try{ ok=document.execCommand("copy"); }catch(e){} document.body.removeChild(ta); done(ok); }
 }
 
-function save(){ try{ localStorage.setItem(UI_KEY,JSON.stringify({sel:sel,win:win,list:list,span:span,tspan:tspan,bspan:bspan,cspan:cspan,k:kSel,pick:pickBy})); }catch(e){} }
+function save(){ try{ localStorage.setItem(UI_KEY,JSON.stringify({sel:sel,win:win,list:list,span:span,tspan:tspan,bspan:bspan,cspan:cspan,rspan:rspan,k:kSel,pick:pickBy})); }catch(e){} }
 
 C.unlock(function(d){
   D=d;
   if(!D.ov||!D.ov.kpiM) document.querySelector(".wrap").insertAdjacentHTML("afterbegin",'<div class="card section"><div class="empty">The client figures (active clients, still with us, renewals, new clients, beyond what\'s paid) arrive with the next refresh. Press Refresh now on the Performance page.</div></div>');
-  try{ var u=JSON.parse(localStorage.getItem(UI_KEY)||"{}"); sel=u.sel||""; win=spanOk(u.win,"m"); tspan=spanOk(u.tspan,"m"); bspan=spanOk(u.bspan,"q"); cspan=spanOk(u.cspan,"m"); list=u.list==="bal"?"bal":"full"; span=spanOk(u.span,"m"); kSel=u.k||"ses"; pickBy=u.pick||{}; }catch(e){}
+  try{ var u=JSON.parse(localStorage.getItem(UI_KEY)||"{}"); sel=u.sel||""; win=spanOk(u.win,"m"); tspan=spanOk(u.tspan,"m"); bspan=spanOk(u.bspan,"q"); cspan=spanOk(u.cspan,"m"); rspan=spanOk(u.rspan,"m"); list=u.list==="bal"?"bal":"full"; span=spanOk(u.span,"m"); kSel=u.k||"ses"; pickBy=u.pick||{}; }catch(e){}
   if(PAGE==="dir"){ sel=""; list="bal"; showNames=true; if(!u||!u.k) kSel="rev"; }
   fillCoaches(); fillMonths();
   C.scopeSwitch($("segScope"),function(){ fillCoaches(); render(); });
@@ -978,6 +998,7 @@ C.unlock(function(d){
   $("segWin").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ win=v; save(); render(); } });
   $("segBusy").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ bspan=v; save(); render(); } });
   $("segGlance").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ span=v; save(); render(); } });
+  $("segRS").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ rspan=v; save(); render(); } });
   $("segChart").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ cspan=v; save(); chart(); segs(); } });
   $("segTiles").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ tspan=v; save(); render(); } });
   C.notes($("btnNotes"));
