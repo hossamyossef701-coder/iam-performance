@@ -83,6 +83,8 @@ body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
 #dTbl{font-size:11.5px;} #dTbl th,#dTbl td{padding:6px 3px;min-width:24px;text-align:center;} #dTbl td.l,#dTbl th.l{text-align:left;padding-left:12px;min-width:96px;}
 #dTbl th.we,#dTbl td.we{border-left:1px solid var(--line);} #dTbl td.z{color:var(--ink-faint);} #dTbl td.ahead{opacity:.45;} #dTbl th small{display:block;color:var(--ink-faint);font-size:9.5px;}
 #dTbl td.tot{border-left:1px solid var(--line);font-weight:600;min-width:44px;}
+#dTbl th.today{background:#2f6fd6;color:#fff;border-radius:5px 5px 0 0;} #dTbl th.today small{color:#dce8fb;}
+#dTbl td.today{box-shadow:inset 2px 0 0 #4a8cf0,inset -2px 0 0 #4a8cf0;} #dTbl tr:last-child td.today{box-shadow:inset 2px 0 0 #4a8cf0,inset -2px 0 0 #4a8cf0,inset 0 -2px 0 #4a8cf0;}
 .blg{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--ink-soft);margin-top:8px;}
 .blg i{display:inline-block;width:120px;height:9px;border-radius:5px;background:linear-gradient(90deg,hsl(0,58%,26%),hsl(62,58%,29%),hsl(125,58%,32%));}
 </style>
@@ -560,10 +562,13 @@ function renderDaily(){
   $("dU").textContent="sessions per day";
   if(!cs.length){ $("dTbl").innerHTML='<tbody><tr><td class="l dim">No day-by-day figures for this month.</td></tr></tbody>'; return; }
   var WDL=["S","M","T","W","T","F","S"], wd=function(d){ return new Date(Date.UTC(y,mo-1,d)).getUTCDay(); };
+  // Today's date (Dubai), marked in blue down its column.
+  var tz=""; try{ tz=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Dubai"}).format(new Date()); }catch(e){}
+  var td=tz.slice(0,7)===p?+tz.slice(8,10):0;
   var grid={}, team=new Array(days).fill(0);
   cs.forEach(function(c){ var g=new Array(days).fill(0); per[c].cl.forEach(function(r){ var m=r[2]||""; for(var i=0;i<Math.min(days,m.length);i++) g[i]+=wOf(m[i]); }); grid[c]=g; g.forEach(function(v,i){ team[i]+=v; }); });
   var cell=function(v,i,g){ var nz=g.filter(function(x){ return x>0; }), mx=Math.max.apply(null,nz.concat([0])), mn=Math.min.apply(null,nz.length?nz:[0]);
-    var cls=(wd(i+1)===1?"we":"")+(i+1>today?" ahead":"");
+    var cls=(wd(i+1)===1?"we":"")+(i+1>today?" ahead":"")+(i+1===td?" today":"");
     if(!v) return '<td class="z '+cls+'">0</td>';
     var t=mx===mn?1:(v-mn)/(mx-mn);
     return '<td class="'+cls+'" style="background:hsl('+Math.round(t*125)+',58%,'+(26+t*6).toFixed(0)+'%);color:#fff">'+(v%1?v.toFixed(1):v)+"</td>"; };
@@ -571,7 +576,7 @@ function renderDaily(){
     return "<tr><td class=\"l\">"+(bold?"<b>"+nm+"</b>":nm)+"</td>"+g.map(function(v,i){ return cell(v,i,g); }).join("")+
       '<td class="tot">'+C.full(Math.round(tot*2)/2)+(ahead?' <span class="dim">+'+C.full(ahead)+"</span>":"")+'</td><td class="tot">'+(worked?(tot/worked).toFixed(1):"—")+"</td></tr>"; };
   var head='<thead><tr><th class="l">Coach</th>';
-  for(var d=1;d<=days;d++) head+='<th class="'+(wd(d)===1?"we":"")+'">'+d+"<small>"+WDL[wd(d)]+"</small></th>";
+  for(var d=1;d<=days;d++) head+='<th class="'+(wd(d)===1?"we":"")+(d===td?" today":"")+'"'+(d===td?' title="Today"':"")+">"+d+"<small>"+WDL[wd(d)]+"</small></th>";
   head+='<th class="tot">Total</th><th class="tot" title="Sessions ÷ the days with at least one session">Per day<small>on days worked</small></th></tr></thead>';
   $("dTbl").innerHTML=head+"<tbody>"+row("Team",team,true)+cs.sort(C.ivan(function(a,b){ return grid[b].reduce(function(t,v){ return t+v; },0)-grid[a].reduce(function(t,v){ return t+v; },0); })).map(function(c){ return row(esc(c),grid[c]); }).join("")+"</tbody>";
 }
@@ -609,11 +614,17 @@ function renderAttention(cs,np){
   var x=D.live.periods[np]||{}, ov=D.ov||{}, items=[];
   // 1. Projection pace this month.
   var behind={}, ahead={}, unset=[], days=C.daysIn(np);
-  cs.forEach(function(c){ var v=x[c]; if(!v) return; if(!(v.ps>0)){ if(v.ps!=null||v.pr!=null||v.s) unset.push(c); return; }
+  var floor={};
+  cs.forEach(function(c){ var v=x[c]; if(!v) return; var st=v.pg&&v.pg.st;
+    // Not set: nothing on the sheet by the 3rd (the floor then stands in), or nothing at all.
+    if(st==="unset"||st==="pending"||(!(v.ps>0)&&(v.ps!=null||v.pr!=null||v.s))) unset.push(c);
+    if(st==="below") floor[c]={v:v.pg.fl,t:(v.pg.lk&&v.pg.lk.ps!=null?v.pg.lk.ps:v.ps0)+" → "+v.pg.fl};
+    if(!(v.ps>0)) return;
     var share=v.md?v.md/days:1, done=v.ms!=null?v.ms:v.s, gap=Math.round((done||0)-v.ps*share);
     if(gap<=-Math.max(2,v.ps*share*0.1)) behind[c]=-gap; else if(gap>=Math.max(2,v.ps*share*0.1)) ahead[c]=gap; });
   if(Object.keys(behind).length) items.push(["var(--down)","Behind projection pace","sessions behind what was due by today, "+C.label(np,true),chips(behind)]);
-  if(unset.length) items.push(["var(--watch)","No projection set",C.label(np,true),unset.map(function(c){ return '<span class="chip">'+esc(c)+"</span>"; }).join("")]);
+  if(unset.length) items.push(["var(--watch)","No projection set",C.label(np,true)+" · the floor counts from the 3rd",unset.map(function(c){ return '<span class="chip">'+esc(c)+"</span>"; }).join("")]);
+  if(Object.keys(floor).length) items.push(["var(--watch)","Projection below the floor","the floor counts · sheet → floor",chips(floor,function(o){ return o.t; })]);
   // 2. Renewal conversations now.
   var near={}, short={}, late={}, unpaid={}, f2c={};
   cs.forEach(function(c){ f2c[fileName(c)||c]=c; });

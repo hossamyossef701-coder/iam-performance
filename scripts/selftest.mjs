@@ -5,6 +5,7 @@ import { buildClientsModel } from "./clients-model.mjs";
 import { parseCoachSheet, sheetNameToPeriod, colourFamily } from "./parse.mjs";
 import { parseAssessments, monthToPeriod } from "./assess.mjs";
 import { buildOverview } from "./join.mjs";
+import { guardProjections } from "./projection.mjs";
 
 const W = 48;
 const row = (pairs) => { const r = Array(W).fill(null); for (const [i, v] of pairs) r[i] = v; return r; };
@@ -455,6 +456,36 @@ check("sheet names", ["Oct 2026", "Sept 2026", "October 2026", " October 2022", 
   ]);
   check("assessment tracker", r.periods, { "2026-07": { Shayla: { a: 2, c: 1 } }, "2026-08": { Sue: { a: 1, c: 1 } } });
   check("tracker month forms", ["Jul-26", "July 2026", "2026-07"].map(monthToPeriod), ["2026-07", "2026-07", "2026-07"]);
+}
+
+/* 9s. The projection that counts: locked on the 3rd, never below the floor, overrides win,
+       and sessions delivered are never touched. */
+{
+  const mk = () => {
+    const P = {};
+    for (const p of ["2026-08", "2026-09", "2026-10"]) P[p] = { A: { s: 100, r: 30000 }, B: { s: 100, r: 30000 }, C: { s: 100, r: 30000 }, N: { s: 5, r: 1500 } };
+    P["2026-11"] = { A: { s: 40, r: 12000, ps: 30, pr: 9000 }, B: { s: 45, r: 13500 }, C: { s: 50, r: 15000, ps: 120, pr: 36000 }, N: { s: 9, r: 2700 } };
+    return P;
+  };
+  let P = mk(); let g = guardProjections(P, { now: "2026-11", today: 2, todayIso: "2026-11-02" });
+  check("before the 3rd nothing is locked", [g.lockChanged, P["2026-11"].A.pg.lk], [false, null]);
+  check("before the 3rd, no projection: pending, floor stands in", [P["2026-11"].B.pg.st, P["2026-11"].B.ps > 0], ["pending", true]);
+  P = mk(); g = guardProjections(P, { now: "2026-11", today: 3, todayIso: "2026-11-03" });
+  const lock = g.lock;
+  check("locks on the 3rd", [g.lockChanged, lock["2026-11"].A.ps], [true, 30]);
+  check("below the floor: the floor counts", [P["2026-11"].A.pg.st, P["2026-11"].A.ps > 30, P["2026-11"].A.ps0], ["below", true, 30]);
+  check("not set by the 3rd: unset, floor counts", [P["2026-11"].B.pg.st, P["2026-11"].B.ps === P["2026-11"].B.pg.fl], ["unset", true]);
+  check("above the floor: as projected", [P["2026-11"].C.pg.st, P["2026-11"].C.ps], ["ok", 120]);
+  check("no 3 steady months: no floor, sessions kept", [P["2026-11"].N.pg.st, P["2026-11"].N.s], ["none", 9]);
+  check("sessions delivered never change", [P["2026-11"].A.s, P["2026-11"].B.s, P["2026-11"].C.r], [40, 45, 15000]);
+  P = mk(); P["2026-11"].C.ps = 200;
+  g = guardProjections(P, { now: "2026-11", today: 10, todayIso: "2026-11-10", lock });
+  check("edit after the lock is shown, not counted", [P["2026-11"].C.ps, P["2026-11"].C.pg.changed && P["2026-11"].C.pg.changed.ps], [120, 200]);
+  P = mk(); P["2026-11"].C.ps = 200;
+  g = guardProjections(P, { now: "2026-11", today: 10, todayIso: "2026-11-10", lock,
+    overrides: { "2026-11": { C: { mode: "set", ps: 200, pr: 60000, why: "agreed" }, A: { mode: "nofloor", why: "leave" } } } });
+  check("override set: your figure counts", [P["2026-11"].C.pg.st, P["2026-11"].C.ps, P["2026-11"].C.pr], ["override", 200, 60000]);
+  check("override no floor: the locked projection counts as given", [P["2026-11"].A.pg.st, P["2026-11"].A.ps], ["override", 30]);
 }
 
 if (failures) { console.error(`\n${failures} self-test(s) failed - refusing to publish figures.`); process.exit(1); }

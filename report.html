@@ -164,6 +164,14 @@ tfoot td:first-child{background:var(--panel-2);}
 .pj-track.sm .pj-pace{top:-3px;bottom:-3px;}
 .ok{color:var(--up);} .near{color:var(--watch);} .low{color:var(--down);}
 .att-pct.ok{color:var(--up);} .att-pct.near{color:var(--watch);} .att-pct.low{color:var(--down);}
+.ovp{padding:10px 0 4px;display:flex;flex-direction:column;gap:9px;}
+.ovp-row{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:flex-end;}
+.ovp label{display:flex;flex-direction:column;gap:3px;font-family:var(--f-mono);font-size:10.5px;color:var(--ink-faint);}
+.ovp label.wide{flex:1;min-width:220px;}
+.ovp select,.ovp input{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:13px;}
+.ovp input[type=number]{width:110px;}
+.ovp-now,.ovp-note,.ovp-stat{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-faint);line-height:1.6;}
+.ovp-stat.err{color:var(--down);} .ovp-stat.ok{color:var(--up);}
 .notset{font-family:var(--f-mono);font-size:11px;color:var(--watch);letter-spacing:.06em;}
 .d.near{color:var(--watch);}
 /* the last read failed: the figures on screen are older than they look */
@@ -335,6 +343,29 @@ body.notes .dnote{display:block;}
   </div>
 
   <div class="proj" id="proj" style="display:none"></div>
+  <details class="coaches" id="ovPanel" style="display:none">
+    <summary>Projection changes <span class="dim">· after you have talked to the coach</span></summary>
+    <div class="ovp">
+      <div class="ovp-row">
+        <label>Coach <select id="ovCoach"></select></label>
+        <label>Month <select id="ovMonth"></select></label>
+        <label>Change <select id="ovMode">
+          <option value="retake">Use what the sheet says now</option>
+          <option value="set">Set the figures myself</option>
+          <option value="nofloor">Use their projection, no floor</option>
+          <option value="clear">Remove my change</option>
+        </select></label>
+      </div>
+      <div class="ovp-row" id="ovFig">
+        <label>Sessions <input id="ovS" type="number" min="0" step="1"></label>
+        <label>Revenue (AED) <input id="ovR" type="number" min="0" step="1"></label>
+      </div>
+      <div class="ovp-row"><label class="wide">Reason <input id="ovWhy" type="text" maxlength="160" placeholder="e.g. two weeks of leave agreed on the 5th"></label></div>
+      <div class="ovp-now" id="ovNow"></div>
+      <div class="ovp-row"><button class="btn" id="ovSave" type="button">Save and refresh</button><span class="ovp-stat" id="ovStat"></span></div>
+      <div class="ovp-note">Saved encrypted in the repository (proj-override.enc.json) with the main passphrase. The saved refresh token needs <b>Contents: read and write</b> as well as Actions.</div>
+    </div>
+  </details>
   <div class="deep" id="deep"></div>
 
   <details class="coaches" id="coveragePanel">
@@ -481,6 +512,8 @@ function build(){
                    ms:(v.ms!=null?v.ms:null), mr:(v.mr!=null?v.mr:null), mx:(v.mx!=null?v.mx:null), md:(v.md!=null?v.md:null),
                    // The month's projection, set by the coach at the start of it. Absent on older sheets.
                    ps:(v.ps!=null?v.ps:null), pr:(v.pr!=null?v.pr:null),
+                   // What the sheet says now, and how the counted figure was reached (lock, floor, your change).
+                   ps0:(v.ps0!=null?v.ps0:null), pr0:(v.pr0!=null?v.pr0:null), pg:(v.pg||null),
                    // pm: clients with sessions this month but nothing projected for them.
                    pm:(v.pm!=null?v.pm:null) };
     });
@@ -626,7 +659,7 @@ function metrics(p,coach){
   var booked=(d.s!=null&&d.x!=null)?(d.s+d.x):null;
   var days=daysUsed(p);
   // The projection is one figure for the whole month: the same whichever basis is chosen.
-  return { s:d.s, r:d.r, x:d.x, a:d.a, cv:d.c, mtdMissing:mtdMissing||!!raw.mtdMissing, ps:raw.ps, pr:raw.pr, pm:raw.pm,
+  return { s:d.s, r:d.r, x:d.x, a:d.a, cv:d.c, mtdMissing:mtdMissing||!!raw.mtdMissing, ps:raw.ps, pr:raw.pr, pm:raw.pm, ps0:raw.ps0, pr0:raw.pr0, pg:raw.pg,
            rate:(d.r!=null&&d.s)?d.r/d.s:null, cpc:booked?d.x/booked*100:null,
            spd:(d.s!=null&&days)?d.s/days:null,
            conv:(d.a)?d.c/d.a*100:null };
@@ -710,10 +743,12 @@ function projOf(p,c){
   // existed are left out on both sides.
   if(isV(p)){
     if(!metrics(p,c)) return null;
-    var o={has:false,set:false,pr:0,ps:0,r:0,s:0,mtdMissing:false,pm:0,months:0}, anyR=false, anyS=false;
+    var o={has:false,set:false,pr:0,ps:0,r:0,s:0,mtdMissing:false,pm:0,months:0,fl:0,ov:0}, anyR=false, anyS=false;
     rangeOf(p).forEach(function(q){
       var x=projOf(q,c); if(!x) return;
       if(x.has) o.has=true;
+      if(x.pg&&(x.pg.st==="below"||x.pg.st==="unset"||x.pg.st==="pending")) o.fl++;
+      if(x.pg&&x.pg.st==="override") o.ov++;
       if(!x.set) return;
       o.set=true; o.months++; o.pm+=x.pm; if(x.mtdMissing) o.mtdMissing=true;
       if(x.pr>0){ o.pr+=x.pr; o.r+=(x.r||0); anyR=true; }
@@ -725,18 +760,18 @@ function projOf(p,c){
   }
   var m=metrics(p,c); if(!m) return null;
   var has=(m.pr!=null||m.ps!=null), set=((m.pr||0)>0||(m.ps||0)>0);
-  return { has:has, set:set, pr:m.pr, ps:m.ps, r:m.r, s:m.s, mtdMissing:m.mtdMissing, pm:m.pm||0,
+  return { has:has, set:set, pr:m.pr, ps:m.ps, r:m.r, s:m.s, mtdMissing:m.mtdMissing, pm:m.pm||0, pg:m.pg||null, ps0:m.ps0, pr0:m.pr0,
            pctR:((m.pr||0)>0&&m.r!=null)?m.r/m.pr*100:null,
            pctS:((m.ps||0)>0&&m.s!=null)?m.s/m.ps*100:null };
 }
 // Only coaches who set a projection are measured against it: one who did not set it would
 // otherwise add revenue with nothing to set it against, and lift the team's figure.
 function projTeam(p){
-  var t={any:false, pr:0, ps:0, r:0, s:0, set:[], unset:[], partly:[]};
+  var t={any:false, pr:0, ps:0, r:0, s:0, set:[], unset:[], partly:[], outS:0};
   coachesIn(p).forEach(function(c){
     var q=projOf(p,c); if(!q) return;
     if(q.has) t.any=true;
-    if(!q.set){ t.unset.push(c); return; }
+    if(!q.set){ t.unset.push(c); t.outS+=(q.s||0); return; }
     t.set.push(c);
     if(q.pm>0) t.partly.push(c+" ("+q.pm+")");
     if(q.pr>0){ t.pr+=q.pr; t.r+=(q.r||0); }
@@ -766,8 +801,8 @@ function renderProj(p){
   var total=t.set.length+t.unset.length;
   var who=t.set.length?("Set by "+t.set.length+" of "+total+(total===1?" coach":" coaches")):"No coach has set a projection yet";
   // Who has not set it, and who left clients out, is on each coach's own row below.
-  if(t.set.length&&t.unset.length) who+=' \u00b7 <b>'+t.unset.length+" not set</b>";
-  if(t.partly.length) who+=' \u00b7 <b>'+t.partly.length+" partly set</b>";
+  if(t.set.length&&t.unset.length) who+=' \u00b7 <b>'+t.unset.length+" not set</b>"+(t.outS?' <span title="Their sessions are counted everywhere else and shown on their rows below; with nothing to measure them against they stay out of the % here">('+fmtSess(t.outS)+" sessions shown, not in the %)</span>":"");
+  if(t.partly.length) who+=' \u00b7 <b title="Coaches with clients training this month who have no projection on the sheet - new clients included">'+t.partly.length+" with clients not projected</b>";
   if(isV(p)&&withP.length<all.length) who+=" \u00b7 projection in "+withP.length+" of "+all.length+" months: "+withP.map(label).join(", ");
   var tip=live?(isV(p)?"Pace mark: the share of the window's projection due by today":"Pace mark: a straight line to the full projection, day "+daysUsed(p)+" of "+monthDays(p)):"";
   // gapFmt: how a shortfall is written. A pace target is fractional, so sessions round to whole ones there.
@@ -829,13 +864,119 @@ function coachRows(p,target,tip){
     var gpTxt=fmtInt(Math.abs(gap));
     var gp=Math.abs(gap)<(bySess?0.5:50)?'<span class="gp flat" title="On pace">on pace</span>'
       :'<span class="gp '+(gap<0?"down":"up")+'" title="'+(gap<0?"Behind":"Ahead of")+" what was due by now: "+(bySess?fmtInt(due)+" sessions":fmtInt(due)+" AED")+'">'+gpTxt+unitG+(gap<0?" behind":" ahead")+"</span>";
-    var flag=q.pm>0?'<span class="near" title="Clients with sessions this month but nothing projected for them, so the projection reads low">partly set \u00b7 '+q.pm+" missing</span>":"";
+    var flag=q.pm>0?'<span class="near" title="Clients with sessions this month but nothing projected for them. A new client lands here: their sessions count on top of the projection">'+q.pm+" without a projection</span>":"";
+    flag+=pgNote(q);
     return '<div class="pc-row"><span class="nm">'+x.c+(q.mtdMissing?' <span class="nomtd" title="This sheet has no day-by-day counts, so this row is the whole month, bookings ahead included">\u25cf</span>':"")+"</span>"+
       projBar(x.pct,target,st,false,tip)+gp+
       '<span class="ss">'+(bySess?fmtSess(q.s)+' <span class="dim">/ '+fmtSess(q.ps)+"</span>":fmtInt(q.r)+' <span class="dim">/ '+fmtInt(q.pr)+"</span>")+"</span>"+
       '<span class="pp '+st+'">'+x.pct.toFixed(0)+"%</span>"+pm(x.pct)+
       '<span class="rv">'+(q.pr>0&&bySess?fmtInt(q.r)+" / "+fmtInt(q.pr)+" AED \u00b7 "+(q.pctR!=null?q.pctR.toFixed(0)+"%":""):(bySess?"":"revenue \u2014 no session projection"))+flag+"</span></div>";
   }).join("");
+}
+/* ---------- projection changes ----------
+   Only with the main passphrase (the Fitness Director). After talking to a coach you can take the
+   sheet's figure now (past the lock), set the figures yourself, or use their projection without the
+   floor this month. Saved encrypted in proj-override.enc.json through the GitHub API with the saved
+   token; the next read applies it and every page follows. */
+var PROJ_FROM="2026-11", OV_FILE="proj-override.enc.json", ovWired=false;
+function u8b64(u){ var s=""; for(var i=0;i<u.length;i++) s+=String.fromCharCode(u[i]); return btoa(s); }
+function encryptJson(obj,pass){
+  var salt=crypto.getRandomValues(new Uint8Array(16)), iv=crypto.getRandomValues(new Uint8Array(12));
+  return crypto.subtle.importKey("raw",new TextEncoder().encode(String(pass).trim()),"PBKDF2",false,["deriveKey"])
+    .then(function(base){ return crypto.subtle.deriveKey({name:"PBKDF2",salt:salt,iterations:250000,hash:"SHA-256"},base,{name:"AES-GCM",length:256},false,["encrypt"]); })
+    .then(function(k){ return crypto.subtle.encrypt({name:"AES-GCM",iv:iv},k,new TextEncoder().encode(JSON.stringify(obj))); })
+    .then(function(ct){ return {v:1,it:250000,salt:u8b64(salt),iv:u8b64(iv),ct:u8b64(new Uint8Array(ct))}; });
+}
+function renderOvPanel(){
+  var el=document.getElementById("ovPanel"); if(!el) return;
+  var months=(ROLE==="director"&&LIVE&&LIVE.periods)?Object.keys(LIVE.periods).filter(function(m){ return m>=PROJ_FROM&&m<=currentPeriod(); }).sort().reverse():[];
+  if(!months.length){ el.style.display="none"; return; }
+  el.style.display="";
+  var mSel=document.getElementById("ovMonth"), cSel=document.getElementById("ovCoach");
+  var keepM=mSel.value; mSel.innerHTML=months.map(function(m){ return '<option value="'+m+'">'+label(m)+"</option>"; }).join("");
+  if(months.indexOf(keepM)>=0) mSel.value=keepM;
+  function fillCoaches(){
+    var keepC=cSel.value, cs=Object.keys(LIVE.periods[mSel.value]||{}).sort(ivan());
+    cSel.innerHTML=cs.map(function(c){ return '<option>'+dEsc(c)+"</option>"; }).join("");
+    if(cs.indexOf(keepC)>=0) cSel.value=keepC;
+    ovShowNow();
+  }
+  if(!ovWired){
+    ovWired=true;
+    mSel.addEventListener("change",fillCoaches);
+    cSel.addEventListener("change",ovShowNow);
+    document.getElementById("ovMode").addEventListener("change",ovShowNow);
+    document.getElementById("ovSave").addEventListener("click",ovSave);
+  }
+  fillCoaches();
+}
+function ovCell(){ var m=document.getElementById("ovMonth").value, c=document.getElementById("ovCoach").value; return (LIVE.periods[m]||{})[c]||{}; }
+function ovShowNow(){
+  var v=ovCell(), g=v.pg||{}, mode=document.getElementById("ovMode").value, f=function(s,r){ return (s!=null?fmtSess(s)+" sessions":"\u2014")+(r!=null?" / "+fmtInt(r)+" AED":""); };
+  var t=["Sheet now: "+f(v.ps0,v.pr0)];
+  if(g.lk) t.push("Locked"+(g.lk.at?" on "+g.lk.at:"")+": "+f(g.lk.ps,g.lk.pr));
+  if(g.fl!=null) t.push("Floor: "+f(g.fl,g.flr));
+  t.push("Counts now: "+f(v.ps,v.pr));
+  if(g.ov) t.push("Your change: "+(g.ov.mode==="nofloor"?"no floor":"set")+(g.ov.why?" \u2014 "+dEsc(g.ov.why):""));
+  document.getElementById("ovNow").innerHTML=t.join(" \u00b7 ");
+  document.getElementById("ovFig").style.display=mode==="set"?"":"none";
+  if(mode==="set"){ document.getElementById("ovS").value=v.ps!=null?v.ps:""; document.getElementById("ovR").value=v.pr!=null?Math.round(v.pr):""; }
+}
+function ovStat(t,cls){ var e=document.getElementById("ovStat"); e.textContent=t; e.className="ovp-stat"+(cls?" "+cls:""); }
+function ovSave(){
+  var c=cfg(); if(!c.pat){ ovStat("Refresh access isn\u2019t set on this device \u2014 save a token under Refresh access first.","err"); return; }
+  var month=document.getElementById("ovMonth").value, coach=document.getElementById("ovCoach").value, mode=document.getElementById("ovMode").value;
+  var why=document.getElementById("ovWhy").value.trim(), v=ovCell();
+  if(mode!=="clear"&&!why){ ovStat("Write the reason first \u2014 it is shown beside the figure.","err"); return; }
+  var entry=null, at=(function(){ try{ var f=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Dubai",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false}).formatToParts(new Date()), o={}; f.forEach(function(x){ o[x.type]=x.value; }); return o.year+"-"+o.month+"-"+o.day+" "+o.hour+":"+o.minute; }catch(e){ return new Date().toISOString().slice(0,16).replace("T"," "); } })();
+  if(mode==="retake"){ if(v.ps0==null&&v.pr0==null){ ovStat("The sheet has no projection for this coach yet.","err"); return; } entry={mode:"set",ps:v.ps0,pr:v.pr0,why:why+" (sheet figure taken)",at:at}; }
+  else if(mode==="set"){
+    var S=document.getElementById("ovS").value, R=document.getElementById("ovR").value;
+    if(S===""&&R===""){ ovStat("Enter the sessions, the revenue, or both.","err"); return; }
+    entry={mode:"set",ps:S===""?null:Math.round(+S),pr:R===""?null:Math.round(+R),why:why,at:at};
+  } else if(mode==="nofloor") entry={mode:"nofloor",why:why,at:at};
+  var url="https://api.github.com/repos/"+GH_OWNER+"/"+GH_REPO+"/contents/"+OV_FILE, sha=null;
+  document.getElementById("ovSave").disabled=true; ovStat("Saving\u2026");
+  fetch(url+"?ref="+GH_BRANCH+"&t="+Date.now(),{headers:ghHeaders(c.pat)})
+    .then(function(r){ if(r.status===404) return null; if(!r.ok) throw new Error("GitHub replied "+r.status+" reading the file"); return r.json(); })
+    .then(function(j){ if(!j) return {}; sha=j.sha; return decrypt(JSON.parse(atob(String(j.content).replace(/\s/g,""))),PASS); })
+    .then(function(all){
+      all=all||{}; all[month]=all[month]||{};
+      if(entry) all[month][coach]=entry; else delete all[month][coach];
+      if(!Object.keys(all[month]).length) delete all[month];
+      return encryptJson(all,PASS);
+    })
+    .then(function(env){
+      var body={message:"Projection change: "+coach+" "+month,content:btoa(JSON.stringify(env)),branch:GH_BRANCH}; if(sha) body.sha=sha;
+      return fetch(url,{method:"PUT",headers:ghHeaders(c.pat),body:JSON.stringify(body)});
+    })
+    .then(function(r){
+      if(r.status===200||r.status===201){ ovStat("Saved. A fresh read has started; the figures change when it finishes (about 10 minutes).","ok"); refreshNow(); return; }
+      if(r.status===401||r.status===403||r.status===404) throw new Error("the saved token can\u2019t write files \u2014 give it Contents: read and write");
+      if(r.status===409) throw new Error("the file changed meanwhile \u2014 press Save again");
+      throw new Error("GitHub replied "+r.status);
+    })
+    .catch(function(e){ ovStat("Not saved: "+e.message,"err"); })
+    .then(function(){ document.getElementById("ovSave").disabled=false; });
+}
+/* How the projection that counts was reached, in one short line under the coach's row:
+   the floor took over, nothing was set, you changed it, or the sheet moved after the lock. */
+function pgNote(q){
+  if(q.months!=null){   // a window: how many of its months the floor or your change decided
+    var t=[];
+    if(q.fl) t.push("floor counted in "+q.fl+(q.fl===1?" month":" months"));
+    if(q.ov) t.push("your change in "+q.ov+(q.ov===1?" month":" months"));
+    return t.length?'<span class="near">'+t.join(" \u00b7 ")+"</span>":"";
+  }
+  var g=q.pg; if(!g) return "";
+  var why=g.fl!=null?"Floor "+fmtInt(g.fl)+" sessions: their usual "+fmtInt(g.usual)+" a month (average of the 3 months before), \u00d7"+g.se+" for the season, less "+g.a+"% (how far an honest month dips 1 time in 10)":"";
+  var x="";
+  if(g.st==="below") x='<span class="near" title="Projected '+fmtSess(g.lk?g.lk.ps:q.ps0)+(g.lk?" when it locked":" on the sheet")+'. '+why+'. The higher counts.">floor counts \u00b7 '+(g.lk?"locked ":"sheet ")+fmtSess(g.lk?g.lk.ps:q.ps0)+"</span>";
+  else if(g.st==="unset") x='<span class="near" title="Nothing projected by the '+3+'rd, so the floor counts. '+why+'">not set by the 3rd \u00b7 floor counts</span>';
+  else if(g.st==="pending") x='<span class="near" title="Nothing projected yet. The projection locks on the 3rd; until then the floor stands in. '+why+'">not set yet \u00b7 locks on the 3rd</span>';
+  else if(g.st==="override") x='<span class="near" title="'+dEsc((g.ov&&g.ov.why)||"No reason given")+(g.ov&&g.ov.at?" \u00b7 "+dEsc(g.ov.at):"")+'">'+(g.ov&&g.ov.mode==="nofloor"?"as projected, no floor (your change)":"set by you")+"</span>";
+  if(g.changed&&g.st!=="override") x+='<span class="near" title="Changed on the sheet after it locked'+(g.lk&&g.lk.at?" on "+g.lk.at:"")+'. The locked figure counts; to use the new one, change it under Projection changes below.">sheet now '+fmtSess(g.changed.ps)+" \u00b7 not counted</span>";
+  return x;
 }
 /* ---------- formatting ---------- */
 function fmtInt(v){ return v==null?"—":Math.round(v).toLocaleString("en-US"); }
@@ -1282,6 +1423,7 @@ function render(){
   });
   renderTiles(p);
   if(PAGE!=="fin") renderProj(p);
+  renderOvPanel();
   if(PAGE==="full") renderDeep(p);
 }
 // How much of the team is carrying its equal share: how many coaches sit at or above 100%,

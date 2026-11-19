@@ -74,6 +74,7 @@ jobs:
           [ -f finance.enc.json ] && git add finance.enc.json || true
           [ -f ceo.enc.json ] && git add ceo.enc.json || true
           [ -f roster.enc.json ] && git add roster.enc.json || true
+          [ -f proj-lock.enc.json ] && git add proj-lock.enc.json || true
           if git diff --cached --quiet; then
             echo "Nothing new to save."
           else

@@ -14,6 +14,7 @@ import { encryptJSON, decryptJSON } from "./crypto.mjs";
 import { buildClientsModel } from "./clients-model.mjs";
 import { buildOverview } from "./join.mjs";
 import { colourFamily } from "./parse.mjs";
+import { guardProjections } from "./projection.mjs";
 
 const COLOUR_NAME = { r: "red (last session)", g: "green (first session)", y: "yellow (charged)", o: "orange (cover)", b: "blue (assessment)", p: "purple (rewarded)" };
 const colourLog = {};
@@ -46,7 +47,7 @@ const ORDER = (env.FETCH_STRATEGIES || "badger,od,odkey,spshares,zip,rest,browse
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
-console.log("refresh build 2026-11-18c (Head coach list without the Fitness Director)");  // proves which version the job is running
+console.log("refresh build 2026-11-19a (projection lock, floor and overrides)");  // proves which version the job is running
 
 // One typed character of difference, so "Shayla" finds "Shyla".
 function near(a, b) {
@@ -303,6 +304,19 @@ async function main() {
   L.log(`Parsed ${files.length} workbook(s): ${okCount} with data, ${report.filter((r) => r.errors.length).length} with problems, ${Object.keys(periods).length} month(s).`);
   if (!okCount) { console.error("No coach data could be parsed from any workbook - not overwriting live data."); process.exit(1); }
 
+  // 2b. The projection that counts: locked on the 3rd, never below the coach's floor, or as the
+  //     Fitness Director set it (scripts/projection.mjs). The lock is kept in proj-lock.enc.json;
+  //     overrides come from the Team Performance page in proj-override.enc.json.
+  {
+    const readEnc = async (name) => { try { return await decryptJSON(JSON.parse(fs.readFileSync(path.join(OUT, name), "utf8")), PASS); } catch { return {}; } };
+    const lock = await readEnc("proj-lock.enc.json"), overrides = await readEnc("proj-override.enc.json");
+    const todayIso = now + "-" + String(today).padStart(2, "0");
+    const g = guardProjections(periods, { now, today, todayIso, lock, overrides });
+    if (g.lockChanged) { fs.writeFileSync(path.join(OUT, "proj-lock.enc.json"), JSON.stringify(await encryptJSON(g.lock, PASS))); L.log("proj-lock.enc.json written (projections locked)"); }
+    L.log(`Projection floor: an honest month falls below ${Math.round(g.dip.s.q * 100)}% of the coach's 3-month average 1 time in 10 (${g.dip.s.n} coach-months of history; revenue ${Math.round(g.dip.r.q * 100)}%)`);
+    for (const n of g.notes) L.log("  " + n);
+  }
+
   // 3. The assessment tracker, when a link for it is configured. A failure here never
   //    stops the run: the coach figures are the point, assessments are an addition.
   let assess = null, assessReport = null;
@@ -427,7 +441,7 @@ async function main() {
   try { histPlain = env.HISTORY_JSON && env.HISTORY_JSON.trim() ? JSON.parse(env.HISTORY_JSON) : await decryptJSON(JSON.parse(fs.readFileSync(path.join(OUT, "history.enc.json"), "utf8")), PASS); } catch {}
   const AUD = [
     { file: "finance.enc.json", pass: (env.FINANCE_PASSPHRASE || "").trim(), keys: ["s", "r", "x", "ms", "mr", "mx", "md"] },
-    { file: "ceo.enc.json", pass: (env.CEO_PASSPHRASE || "").trim(), keys: ["s", "r", "x", "ms", "mr", "mx", "md", "ps", "pr", "pm"] },
+    { file: "ceo.enc.json", pass: (env.CEO_PASSPHRASE || "").trim(), keys: ["s", "r", "x", "ms", "mr", "mx", "md", "ps", "pr", "pm", "ps0", "pr0", "pg"] },
   ];
   const writeAudience = async (onlyMissing) => {
     for (const a of AUD) {
