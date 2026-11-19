@@ -404,9 +404,9 @@ const PROJ_HEAD = [[0, "Commitment %"], [1, "Client Name"], ...days(2, 30), [34,
     periods: { "2026-10": { Sue: { cl: [["Lisa Roberts", 500, "1".repeat(10) + ".11" + ".".repeat(18), null]] } } },
     links: [], now: "2026-11", cutoffDay: 20, revenueOf: () => null }).leak.m.Sue["2026-10"];
   check("money on the table: fee not charged, sessions after expiry, late, never paid, lost", run(null),
-    { xf: [1, 190], ax: [2, 1000], fl: [1, 1429], fd: [2, 0], rl: [0, 1], ul: [2, 1000], lc: [1, 5000] });
+    { xf: [1, 200], ax: [2, 1000], fl: [1, 1429], fd: [2, 0], rl: [0, 1], ul: [2, 1000], lc: [1, 5000] });
   check("money on the table: a typed fee counts as charged", run(200),
-    { xc: [1, 190], fl: [1, 1429], fd: [2, 0], rl: [0, 1], ul: [2, 1000], lc: [1, 5000] });
+    { xc: [1, 200], fl: [1, 1429], fd: [2, 0], rl: [0, 1], ul: [2, 1000], lc: [1, 5000] });
 }
 
 /* 9p. A covered client: a name on the covering coach's sheet, sessions in orange, for a client who

@@ -421,7 +421,9 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
            says lost but a sheet shows them training in the last 31 days.
      now.tn: sessions trained beyond every paid session by clients still with us (they come off the
      next package if the client renews); now.due: clients in the grace period, last package's price. */
-  const VAT = 1 + (inner.vat ?? 5) / 100, FEE = (inner.extFee ?? 200) / VAT;
+  // The extension fee counts as typed in Settings (200 AED a package), as the team quotes it, and a
+  // fee typed in Packages counts as typed too.
+  const VAT = 1 + (inner.vat ?? 5) / 100, FEE = inner.extFee ?? 200;
   const lk = {}, mOf = (day) => iso(day).slice(0, 7);
   const put = (coach, p, f, a, b = 0) => { const o = (lk[coach] || (lk[coach] = {}))[p] || (lk[coach][p] = {}); const v = o[f] || (o[f] = [0, 0]); v[0] += a; v[1] += b; };
   const leakNow = { tn: {}, due: {} };
@@ -437,7 +439,7 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
       lkPk++;
       const rate = q.px && q.size ? q.px / q.size : 0, k = coachOf(q), charged = q.fee > 0;
       if (q.ax > 0) {
-        put(k, mOf(q.axL[0][0]), charged ? "xc" : "xf", 1, charged ? q.fee / VAT : FEE);
+        put(k, mOf(q.axL[0][0]), charged ? "xc" : "xf", 1, charged ? q.fee : FEE);
         if (!charged) for (const [day, w] of q.axL) put(k, mOf(day), "ax", w, w * rate);
       }
       // A package bought before the sheets start was partly used where the sheets cannot see, so

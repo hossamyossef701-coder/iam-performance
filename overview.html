@@ -1212,7 +1212,7 @@ function panelRpc(p){
     return '<tr'+(cls?' class="'+cls+'"':"")+"><td>"+x.c+"</td><td>"+x.n+"</td><td>"+(x.s/x.cm).toFixed(1)+'</td><td class="'+(spw>=3?"up":spw<2?"down":"")+'">'+spw.toFixed(1)+"</td><td>"+(x.s?fmtInt(x.r/x.s):"—")+'</td><td class="big">'+fmtInt(x.r/x.cm)+"</td></tr>";
   }
   var body=rows.map(function(x){ return line(x); }).join("")+line({c:"Team",n:T.n,s:T.s,r:T.r,cm:T.cm,cw:T.cw},"total");
-  return dCard("Revenue per client","What each client is worth to the coach"+(V?", a month":""),(now?"day 1 to "+upto+" of "+label(p):label(p))+" · AED without VAT",
+  return dCard("Revenue per client","What each client is worth to the coach"+(V?", a month":""),(now?"day 1 to "+upto+" of "+label(p):label(p))+" · AED",
     '<div style="overflow-x:auto"><table class="dtbl"><thead><tr><th>Coach</th><th>Clients<br>trained</th><th>Sessions per<br>client'+(V?" a month":"")+'</th><th>Sessions a week<br>per client</th><th>Average<br>rate</th><th>Revenue per<br>client'+(V?" a month":"")+'</th></tr></thead><tbody>'+body+
     '</tbody></table></div><div class="dcard-b" style="padding-top:4px"><p class="dnote" style="margin:0">Revenue per client = the revenue from client sessions ÷ the clients who trained at least once. High means fewer clients training often or at a higher rate; low means many light clients. '+
     "The two columns before it show which."+(now?" The month is still running, so these grow until it ends.":"")+"</p></div>");
@@ -1286,12 +1286,12 @@ function renderDeep(p){
   if(PAGE==="full"){ el.innerHTML=bar+load; return; }
   if(!hasCl(p)){
     var oldest=prevP(currentPeriod(),12);
-    el.innerHTML=bar+load+dCard("Clients","Training frequency, revenue per client and training less often","",
+    el.innerHTML=bar+load+dCard("Clients","Training frequency and revenue per client","",
       '<div class="dempty">'+(p<oldest?"Each client's day-by-day row is kept for the last 13 months only, so these panels start at "+label(oldest)+".":
         "These panels need each client's day-by-day row, which the next refresh reads. Press Refresh now, or wait for the next scheduled read.")+"</div>");
     return;
   }
-  el.innerHTML=bar+panelFreq(p)+'<div class="dgrid">'+panelRpc(p)+panelLess(rangeTo(p))+"</div>";
+  el.innerHTML=bar+panelFreq(p)+panelRpc(p);
   if(PAGE==="load") setTimeout(function(){ toParent({iamload:"h",h:document.documentElement.scrollHeight}); },0);
 }
 // Inside the Clients page: tell it how tall the panels are, and when there is nothing to show.

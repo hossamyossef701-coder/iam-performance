@@ -49,7 +49,7 @@
   </div>
 
   <div class="card section">
-    <div class="card-h"><div><div class="k">Sold and delivered</div><div class="t">Package sales against revenue</div></div><span class="unit">AED, without VAT</span><select class="win" data-k="sold" aria-label="Period"><option value="3">Last 3 months</option><option value="6">Last 6 months</option><option value="y">This year</option><option value="12">Last 12 months</option><option value="all">Everything logged</option></select></div>
+    <div class="card-h"><div><div class="k">Sold and delivered</div><div class="t">Package sales against revenue</div></div><span class="unit">AED</span><select class="win" data-k="sold" aria-label="Period"><option value="3">Last 3 months</option><option value="6">Last 6 months</option><option value="y">This year</option><option value="12">Last 12 months</option><option value="all">Everything logged</option></select></div>
     <div class="card-b">
       <div class="legend"><span><i style="background:var(--accent)"></i>package sales: what clients paid</span><span><i style="background:var(--s-ret)"></i>revenue: sessions delivered × rate</span><span class="r">on top: sold − delivered</span></div>
       <div class="chart" id="chSold"></div>
@@ -73,7 +73,7 @@
   </div>
 
   <div class="card section">
-    <div class="card-h"><div><div class="k">Money on the table</div><div class="t">What slips through, and what to check</div></div><span class="unit">AED, without VAT</span><select class="win" data-k="leak" aria-label="Period"><option value="1">Last month</option><option value="3">Last 3 months</option><option value="6">Last 6 months</option><option value="y">This year</option><option value="12">Last 12 months</option><option value="all">Everything followed</option></select></div>
+    <div class="card-h"><div><div class="k">Money on the table</div><div class="t">What slips through, and what to check</div></div><span class="unit">AED</span><select class="win" data-k="leak" aria-label="Period"><option value="1">Last month</option><option value="3">Last 3 months</option><option value="6">Last 6 months</option><option value="y">This year</option><option value="12">Last 12 months</option><option value="all">Everything followed</option></select></div>
     <div class="card-b"><div class="k" id="lkW" style="margin-bottom:8px"></div><div class="big3" id="lkBig"></div>
       <div class="k" style="margin:16px 0 8px">Right now</div><div class="big3" id="lkNow"></div></div>
     <div class="card-b" style="padding-top:0"><ul class="sent" id="lkSent"></ul></div>
@@ -94,7 +94,7 @@
 
   <div class="cols2">
     <div class="card">
-      <div class="card-h"><div><div class="k">Value of a client</div><div class="t">What a new client is worth in their first year</div></div><span class="unit">AED, without VAT</span></div>
+      <div class="card-h"><div><div class="k">Value of a client</div><div class="t">What a new client is worth in their first year</div></div><span class="unit">AED</span></div>
       <div class="card-b"><div class="chart" id="chValue"></div>
         <p class="note">Months a new client stays in their first year (by the coach of their first package; clients still with us count as long as watched) × the coach's revenue per client per month over the last 3 complete months. Brackets: new clients it is based on.</p></div>
     </div>
@@ -133,7 +133,7 @@ function ovView(o){
 function render(){
   D.ov=ovView(OV0);
   var live=D.live, ov=D.ov;
-  $("stamp").innerHTML="Read "+new Date(ov?ov.generated:live.generated).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"})+"<br>AED without VAT";
+  $("stamp").innerHTML="Read "+new Date(ov?ov.generated:live.generated).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"})+"";
   if(!ov){ $("noOv").style.display=""; $("main").style.display="none"; return; }
   $("noOv").style.display="none"; $("main").style.display="";
   $("ovFrom").textContent=C.date(ov.loggedFrom);
@@ -152,9 +152,6 @@ function thisMonth(){
       (streak?". Sales were below revenue in each of the last "+streak+" complete month"+(streak>1?"s":"")+".":".")]);
   }
   if(ov.up) out.push(["var(--watch)",ov.up.n+" clients are up for renewal, worth "+aed(ov.up.aed)+". "+ov.up.due+" of them have already run out."]);
-  var less=0, worst=null;
-  Object.keys(live.periods[p]||{}).filter(C.keep).forEach(function(c){ var l=C.lessOften(live,p,c); if(l&&l.length){ less+=l.length; if(!worst||l.length>worst.n) worst={c:c,n:l.length}; } });
-  if(less) out.push(["var(--watch)",less+" clients are training well below their own usual"+(worst?". "+worst.c+" has "+worst.n+".":".")]);
   var cnt=function(st){ return ov.inUse.filter(function(r){ return r.state===st; }).length; }, short=cnt("short"), unpaid=cnt("unpaid"), exp=cnt("expired");
   if(short) out.push(["var(--watch)",short+" clients won't finish their package in time at their current pace."]);
   if(unpaid||exp) out.push(["var(--down)",unpaid+" clients are training beyond what they have paid for; "+exp+" are using sessions after their package's end date."]);
@@ -338,7 +335,7 @@ function leak(){
     Object.keys(byC).sort(C.ivan()).map(function(c){ return '<div class="lrow h" style="padding-top:10px"><span>'+esc(c)+" · "+byC[c].length+"</span></div>"+byC[c].map(function(x){
       return '<div class="lrow" style="grid-template-columns:minmax(150px,1.4fr) repeat(4,minmax(80px,1fr))"><span>'+esc(x.name)+"</span><span>"+R(x.n)+"</span><span>"+(x.last?C.date(x.last):"—")+"</span><span>"+esc(x.pk)+"</span><span"+(x.gone?' style="color:var(--down)"':"")+">"+(x.gone?"stopped":"still training")+" · "+esc(x.status)+"</span></div>"; }).join(""); }).join("")+"</details>";
   $("lkNote").textContent="Cells: AED · count. Only clients whose names are linked (Name check) and packages bought since the coach sheets start ("+C.label(L.from)+") can be followed. "+
-    "Expiry date = purchase date + the days Settings gives that size; a typed extension does not move it. Extension fee = "+L.feeIncl+" AED with VAT ("+L.fee+" without), from Settings (a row \"Extension fee\" changes it). Every package used after its expiry date with no fee typed in Packages counts as not charged, free extensions included. "+
+    "Expiry date = purchase date + the days Settings gives that size; a typed extension does not move it. Extension fee = "+L.fee+" AED a package, from Settings (a row \"Extension fee\" changes it). Every package used after its expiry date with no fee typed in Packages counts as not charged, free extensions included. "+
     "After expiry, no fee = the sessions trained after that date, at the package's rate per session: the most the policy could have brought in. "+
     "Used up past expiry = packages whose last session came after the expiry date, of all packages used up in the window (packages bought before the sheets start are left out: their early sessions are not on any sheet). "+
     "Renewed = the client bought again; counted for packages whose expiry date fell in the window once the grace period after it has passed; n = how many packages. "+

@@ -144,14 +144,14 @@ body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
       <div class="scroll"><table class="kt dly" id="dTbl"></table></div>
       <div class="card-b" style="padding-top:6px"><div class="blg">fewest that month<i></i>most · 0 = no sessions · faded = booked ahead</div></div>
     </div>
-      <div class="card section">
-      <div class="card-h"><div><div class="k">Needs your attention</div><div class="t" id="aT">Right now</div></div><span class="unit" id="aU"></span></div>
-      <div class="card-b"><ul class="att" id="att"></ul><p class="note" id="aNote"></p></div>
-    </div>
     <div class="card section">
       <div class="card-h"><div><div class="k">Busiest days</div><div class="t" id="bT"></div></div><span class="seg sm" id="segBusy"></span></div>
       <div class="scroll"><table class="kt" id="bTbl"></table></div>
       <div class="card-b" style="padding-top:6px"><div class="blg">quietest day<i></i>busiest day · each row against its own week</div><p class="note" id="bNote"></p></div>
+    </div>
+    <div class="card section">
+      <div class="card-h"><div><div class="k">Needs your attention</div><div class="t" id="aT">Right now</div></div><span class="unit" id="aU"></span></div>
+      <div class="card-b"><ul class="att" id="att"></ul><p class="note" id="aNote"></p></div>
     </div>
     <div class="card section">
       <div class="card-h"><div><div class="k">Coaches at a glance</div><div class="t" id="gT"></div></div><span class="seg sm" id="segGlance"></span></div>
@@ -223,7 +223,7 @@ IAMNAV.draw(PAGE==="dir"?"director.html":"coach.html");
 /* ---- The KPIs ----
    Two lists, switched with "Full list / Balanced": the full 15 (the KPI sheet's rows), and the
    balanced 10 - five areas, two KPIs each, so no one area carries a coach. */
-var DEFK={"ses": {"name": "Sessions delivered", "better": "Higher"}, "rev": {"name": "Revenue (AED, without VAT)", "better": "Higher"}, "proj": {"name": "Projection reached (%)", "better": "Higher"}, "act": {"name": "Active clients", "better": "Higher"}, "spw": {"name": "Sessions a week per client", "better": "Higher"}, "p3": {"name": "Clients at 3+ a week (%)", "better": "Higher"}, "rpc": {"name": "Revenue per client (AED)", "better": "Higher"}, "kept": {"name": "Existing clients still with us (%)", "better": "Higher"}, "early": {"name": "Renewed before the last paid session (%)", "better": "Higher"}, "conv": {"name": "Assessments converted (%)", "better": "Higher"}, "nw": {"name": "New clients", "better": "Higher"}, "canc": {"name": "Cancelled sessions (%)", "better": "Lower"}, "less": {"name": "Clients training less often", "better": "Lower"}, "up": {"name": "Clients training beyond what's paid", "better": "Lower"}, "chg": {"name": "Cancellations charged (%)", "better": "Higher"}, "prog": {"name": "Training programme phase (head coach score)", "better": "Higher"}};
+var DEFK={"ses": {"name": "Sessions delivered", "better": "Higher"}, "rev": {"name": "Revenue (AED)", "better": "Higher"}, "proj": {"name": "Projection reached (%)", "better": "Higher"}, "act": {"name": "Active clients", "better": "Higher"}, "spw": {"name": "Sessions a week per client", "better": "Higher"}, "p3": {"name": "Clients at 3+ a week (%)", "better": "Higher"}, "rpc": {"name": "Revenue per client (AED)", "better": "Higher"}, "kept": {"name": "Existing clients still with us (%)", "better": "Higher"}, "early": {"name": "Renewed before the last paid session (%)", "better": "Higher"}, "conv": {"name": "Assessments converted (%)", "better": "Higher"}, "nw": {"name": "New clients", "better": "Higher"}, "canc": {"name": "Cancelled sessions (%)", "better": "Lower"}, "less": {"name": "Clients training less often", "better": "Lower"}, "up": {"name": "Clients training beyond what's paid", "better": "Lower"}, "chg": {"name": "Cancellations charged (%)", "better": "Higher"}, "prog": {"name": "Training programme phase (head coach score)", "better": "Higher"}};
 var FULL=["ses","rev","proj","act","spw","p3","rpc","kept","early","conv","nw","canc","less","up","chg"];
 var BAL=["rev","proj","p3","less","kept","early","conv","nw","chg","prog"];
 var AREA={rev:"Business",proj:"Business",p3:"Client commitment",less:"Client commitment",kept:"Keeping clients",early:"Keeping clients",conv:"Growing the book",nw:"Growing the book",chg:"Standards",prog:"Standards"};
@@ -494,7 +494,7 @@ function render(){
   cache={};
   if(KEYS().indexOf(kSel)<0) kSel=KEYS()[0];
   segs();
-  $("stamp").innerHTML="Read "+new Date(D.ov?D.ov.generated:D.live.generated).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"})+"<br>AED without VAT";
+  $("stamp").innerHTML="Read "+new Date(D.ov?D.ov.generated:D.live.generated).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"})+"";
   var team=sel==="";
   $("one").style.display=team?"none":""; $("btnNames").style.display=team?"":"none"; $("scoreCard").style.display=team?"":"none";
   $("h1").textContent=PAGE==="dir"?"Fitness":team?"The team":sel;

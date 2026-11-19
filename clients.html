@@ -273,7 +273,7 @@ body.locked{overflow:hidden;}
   </div>
 
   <div class="card section">
-    <div class="card-h"><div><div class="k">Package sales</div><div class="t">What clients paid for packages</div></div><span class="unit">AED, without VAT</span></div>
+    <div class="card-h"><div><div class="k">Package sales</div><div class="t">What clients paid for packages</div></div><span class="unit">AED</span></div>
     <div class="card-b">
       <div class="legend"><span><i style="background:var(--accent)"></i>renewal</span><span><i style="background:var(--s-ret)"></i>new</span><span><i style="background:var(--s-lost)"></i>returning</span></div>
       <div class="chart" id="chSales"></div>
@@ -538,7 +538,7 @@ function tiles(){
     {k:"Up for renewal",v:aed(M.up.aed)+"<small>AED</small>",sub:'<span class="watch">'+(M.up.soon+M.up.due)+" clients</span> · "+M.up.due+" already ran out"},
     {k:"Clients kept, last 12 months",v:st+"<small>of "+(st+lf)+" decided</small>",sub:'<span class="down">'+lf+" left</span> · "+pend+" still deciding"},
     {k:"New clients "+M.today.slice(0,4),v:k.newYear,sub:"first package ever"},
-    {k:"Package sales, "+MONTHS[+M.today.slice(5,7)-1],v:aed(k.salesMonth)+"<small>AED</small>",sub:k.nwMonth+" new · "+k.renMonth+" renewals · without VAT"}
+    {k:"Package sales, "+MONTHS[+M.today.slice(5,7)-1],v:aed(k.salesMonth)+"<small>AED</small>",sub:k.nwMonth+" new · "+k.renMonth+" renewals"}
   ];
   $("tiles").innerHTML=T.map(function(t){
     return '<div class="tile'+(t.lead?" lead":"")+'"><div class="k">'+t.k+'</div><div class="v">'+t.v+'</div><div class="sub">'+t.sub+"</div></div>";
@@ -698,7 +698,7 @@ function chartSales(){
     s+=txt(x0+bw/2,y(tot(d))-6,aed(tot(d)),{s:10.5});
     areas.push({x:L+step*i,y:T,w:step,h:H-T-B,ax:x0+bw/2,ay:y(tot(d)),
       html:"<b>"+esc(bucketLong(d.key))+(d.partial?" (so far)":"")+"</b>"+trow("Renewals","AED "+full(d.aed.ren),"var(--accent)")+trow("New clients","AED "+full(d.aed.nw),"var(--s-ret)")+
-        trow("Returning clients","AED "+full(d.aed.ret),"var(--s-lost)")+'<div class="sep">'+trow("Total, without VAT","AED "+full(tot(d)))+"</div>"});
+        trow("Returning clients","AED "+full(d.aed.ret),"var(--s-lost)")+'<div class="sep">'+trow("Total","AED "+full(tot(d)))+"</div>"});
   });
   host.innerHTML=s+"</svg>"; hits(host,areas);
 }
@@ -843,7 +843,7 @@ function coaches(){
   var K=(M.kept&&M.kept[W()])||{d:s0,by:{}};
   function kc(still,start,same,wait){ if(!start) return '<span class="dim">—</span>'; var v=Math.round(still/start*100);
     return '<span class="'+(v>=75?"up":v<50?"down":"")+'" title="With us on '+fmtDate(K.d)+": "+start+". Still with us today: "+still+(same!=null?" ("+same+" with the same coach)":"")+(wait?". Of those, "+wait+" are past their package and still inside the grace period":"")+'">'+v+'%</span> <span class="dim" style="font-size:11px">'+still+" of "+start+"</span>"+(wait?'<div class="dim" style="font-size:11px;line-height:1.2">'+wait+" deciding</div>":""); }
-  $("coachUnit").textContent="clients whose package ran out "+winLabel()+" · AED without VAT";
+  $("coachUnit").textContent="clients whose package ran out "+winLabel()+" · AED";
   var head="<thead><tr>"+[["Coach","l"],["Active",""],["Up for<br>renewal",""],["Existing clients<br>still with us",""],["Stayed · moved coach · left","l"],["Renewed before the<br>last paid session",""],["New clients still<br>here at 3 months",""],["At 6<br>months",""],["Assessments<br>converted",""],["New<br>clients",""],["Package<br>sales",""]]
     .map(function(c){ return '<th class="'+c[1]+'">'+c[0]+"</th>"; }).join("")+"</tr></thead>";
   var body=M.coaches.map(function(r){
@@ -1057,7 +1057,7 @@ function paint(){
   if(M.coaches) M.coaches=M.coaches.slice().sort(function(a,b){ return (a.c==="Ivan")-(b.c==="Ivan"); });
   Array.prototype.forEach.call($("segScope").querySelectorAll("button"),function(b){ b.classList.toggle("on",b.getAttribute("data-v")===scope); });
   var gen=M.generated?new Date(M.generated):null;
-  $("stamp").innerHTML=(gen?"Read "+gen.toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"}):"")+"<br>"+M.kpi.total+" clients on file · AED without VAT";
+  $("stamp").innerHTML=(gen?"Read "+gen.toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"}):"")+"<br>"+M.kpi.total+" clients on file";
   controls();
   tiles(); chartMove(); chartRate(); chartBuy(); chartSales(); chartUp(); chartLadder(); survChips(); chartSurv(); coaches(); xt(); matchForm(); match(); sources(); mix(); checks();
   Array.prototype.forEach.call(document.querySelectorAll(".note .g"),function(e){ e.textContent=M.settings.grace; });
