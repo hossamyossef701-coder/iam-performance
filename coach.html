@@ -71,6 +71,7 @@ document.write('<link rel="manifest" href="./'+f+'.webmanifest"><meta name="appl
 .sand p{font-size:13.5px;line-height:1.5;margin:0 0 6px;} .sand p small{display:block;color:var(--ink-faint);font-size:11.5px;}
 @media(max-width:800px){.sand{grid-template-columns:1fr;}}
 /* Director view */
+body:not(.v-dir) #segBasis{display:none !important;}
 body.v-dir #scoreCard,body.v-dir #kCard,body.v-dir #one,body.v-dir #selCoach,body.v-dir #btnNames,body.v-dir .sumbar,body.v-dir #tiles{display:none !important;}
 #rsTiles{grid-template-columns:repeat(3,1fr);margin:0;}
 @media(max-width:640px){#rsTiles{grid-template-columns:1fr;}}
@@ -95,6 +96,10 @@ body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
 @media(max-width:700px){.att li{grid-template-columns:10px 1fr;} .att li .who{grid-column:2;}}
 #gTbl th{cursor:pointer;} #gTbl th.on{color:var(--accent-2);}
 #gTbl td.l{text-align:left;} #gTbl td.gw{color:var(--up);font-size:12px;white-space:nowrap;}
+#bTbl td.lo{outline:2px dashed rgba(255,255,255,.85);outline-offset:-5px;}
+#bTbl tfoot td{font-size:12px;padding-top:9px;border-top:1px solid var(--line);text-align:center;vertical-align:top;}
+#bTbl tfoot tr.bx td.l{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-faint);text-align:left;}
+#bTbl tfoot td.lo-t{color:#ffd3d3;}
 #bTbl td.l{text-align:left;} #bTbl td.d{min-width:64px;border:2px solid var(--panel);} #bTbl td.top{font-weight:700;}
 #dTbl{font-size:11.5px;} #dTbl th,#dTbl td{padding:6px 3px;min-width:24px;text-align:center;} #dTbl td.l,#dTbl th.l{text-align:left;padding-left:12px;min-width:96px;}
 #dTbl th.we,#dTbl td.we{border-left:1px solid var(--line);} #dTbl td.z{color:var(--ink-faint);} #dTbl td.ahead{opacity:.45;} #dTbl th small{display:block;color:var(--ink-faint);font-size:9.5px;}
@@ -128,6 +133,7 @@ body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
   <div class="bar">
     <span class="grow"></span>
     <span class="seg" id="segScope"></span>
+    <span class="seg" id="segBasis"><button data-v="mtd">To date</button><button data-v="whole">Whole month</button></span>
     <select id="selCoach" aria-label="Coach"></select>
     <select id="selMonth" aria-label="Month"></select>
     <button id="btnNames" style="display:none">Show names</button>
@@ -291,10 +297,16 @@ function months(){
    stands at the end (active clients, clients beyond what's paid); clients training less often
    compare the stretch with the 3 months before it. */
 var cache={};
+// The month running, as on Team Performance: "To date" = the sheets' figures up to today;
+// "Whole month" = the totals as typed, bookings ahead included (no cut to the same day then).
+// Fitness only; Coach review always reads to date.
+var basis="mtd";
+function BASIS(){ return PAGE==="dir"?basis:"mtd"; }
+function running(b){ return BASIS()==="mtd"&&b.ms.indexOf(now())>=0; }
 function wOf(ch){ return ch==="h"?0.5:ch==="x"?1:/[1-9]/.test(ch)?+ch:0; }
 function val(c,p){
-  var key=c+"|"+p; if(cache[key]) return cache[key];
-  var live=D.live, x=(live.periods[p]||{})[c], part=p===now(), o={P:{}};
+  var key=c+"|"+p+"|"+BASIS(); if(cache[key]) return cache[key];
+  var live=D.live, x=(live.periods[p]||{})[c], part=p===now()&&BASIS()==="mtd", o={P:{}};
   function put(k,n,d,desc){ if(n==null||!d||d<=0) return; o.P[k]={n:n,d:d}; if(desc) o[k+"D"]=desc; }
   if(x){
     var s=part&&x.ms!=null?x.ms:x.s, r=part&&x.mr!=null?x.mr:x.r, cx=part&&x.mx!=null?x.mx:x.x;
@@ -407,7 +419,7 @@ function prevEnd(b,sp){ if(sp==="Y") return (+b.end.slice(0,4)-1)+"-12"; return 
 // year - and when the block holds the month running, that last month only up to the same day.
 function cmpBlock(b,sp){
   sp=sp||span;
-  var sh={m:1,q:3,h:6,y:12,"12":12,Y:12}[sp], run=b.ms.indexOf(now())>=0;
+  var sh={m:1,q:3,h:6,y:12,"12":12,Y:12}[sp], run=running(b);
   var pb=sp==="Y"?(run?block(C.prevP(b.end,12),"y"):block((+b.end.slice(0,4)-1)+"-12","Y")):block(C.prevP(b.end,sh),sp);
   if(run&&D.live.cutoffDay) pb.cut=D.live.cutoffDay;
   pb.sp=sp;
@@ -428,7 +440,7 @@ function reviewed(sp){ sp=sp||span; return block(month,sp); }
 // is set against the same point before: sessions, revenue and new clients up to the same day;
 // rates as they stand; projection reached and the other counts are not coloured until it ends.
 function moveB(c,k,b,pb){
-  var run=b.ms.indexOf(now())>=0;
+  var run=running(b);
   if(!run||(PCT[k]&&k!=="proj")) return move(k,vB(c,b,k),vB(c,pb,k));
   if((k==="rev"||k==="ses"||k==="nw")&&pb.cut) return move(k,toDay(c,b,k),toDay(c,pb,k));
   return null;
@@ -471,7 +483,7 @@ function state(c,k,sp){
   return {last:last,run:run};
 }
 function teamMove(k,b,pb){
-  var run=b.ms.indexOf(now())>=0;
+  var run=running(b);
   if(!run||(PCT[k]&&k!=="proj")) return move(k,vB(null,b,k),vB(null,pb,k));
   if(SUM[k]&&(k==="rev"||k==="ses"||k==="nw")&&pb.cut) return move(k,toDay(null,b,k),toDay(null,pb,k));
   return null;
@@ -497,6 +509,7 @@ function segs(){
   $("segList").innerHTML=[["full","Full list (15)"],["bal","Balanced (10)"]].map(function(x){ return '<button data-v="'+x[0]+'"'+(x[0]===list?' class="on"':"")+">"+x[1]+"</button>"; }).join("");
   var seg=function(cur){ return SPANS.map(function(x){ return '<button data-v="'+x[0]+'"'+(x[0]===cur?' class="on"':"")+">"+spanName(x)+"</button>"; }).join(""); };
   $("segSpan").innerHTML=seg(span); $("segTiles").innerHTML=seg(tspan); $("segWin").innerHTML=seg(win); $("segGlance").innerHTML=seg(span); $("segBusy").innerHTML=seg(bspan); $("segChart").innerHTML=seg(cspan); $("segRS").innerHTML=seg(rspan);
+  Array.prototype.forEach.call($("segBasis").children,function(x){ x.classList.toggle("on",x.getAttribute("data-v")===basis); });
 }
 function nameCell(k){
   var d=DEFK[k];
@@ -612,13 +625,15 @@ function renderDir(){
   // month running as the sheets have it to date. Compared, as you choose, with the period before
   // or the same period last year (to the same point or whole), or the average of the 3 or 6
   // months before - and the figure it is compared with is shown beside the change.
-  var rb=block(month,rspan), run=rb.ms.indexOf(np)>=0&&!!D.live.cutoffDay, day=D.live.cutoffDay;
+  var rb=block(month,rspan), run=running(rb)&&!!D.live.cutoffDay, day=D.live.cutoffDay, whole=BASIS()==="whole"&&rb.ms.indexOf(np)>=0;
   var unitW={m:"month",q:"quarter",h:"half-year",y:"year","12":"12 months",Y:"year"}[rspan];
-  var whole=rspan==="m"?"whole month":"whole months";
-  var opts=[["pace","vs last "+unitW+", to the same day"],["prev","vs last "+unitW+", "+whole],["yoy","vs the same "+(rspan==="m"?"month":unitW)+" last year, to the same day"],["yoyfull","vs the same "+(rspan==="m"?"month":unitW)+" last year, "+whole]];
-  if(rspan==="y"||rspan==="12"||rspan==="Y") opts=[["pace","vs last year, to the same day"],["prev","vs last year, "+whole]];
+  var wholeLab=rspan==="m"?"whole month":"whole months";
+  var opts=[["pace","vs last "+unitW+", to the same day"],["prev","vs last "+unitW+", "+wholeLab],["yoy","vs the same "+(rspan==="m"?"month":unitW)+" last year, to the same day"],["yoyfull","vs the same "+(rspan==="m"?"month":unitW)+" last year, "+wholeLab]];
+  if(rspan==="y"||rspan==="12"||rspan==="Y") opts=[["pace","vs last year, to the same day"],["prev","vs last year, "+wholeLab]];
   if(rspan==="m") opts.push(["avg3","vs the 3 months before, on average"],["avg6","vs the 6 months before, on average"]);
-  if(!opts.some(function(o){ return o[0]===rcmp; })) rcmp="pace";
+  // Whole month: nothing is cut to a day, so the "to the same day" choices fall away.
+  if(whole){ opts=opts.filter(function(o){ return o[0]!=="pace"&&o[0]!=="yoy"; }); if(rcmp==="pace") rcmp="prev"; if(rcmp==="yoy") rcmp="yoyfull"; }
+  if(!opts.some(function(o){ return o[0]===rcmp; })) rcmp=opts[0][0];
   $("rsCmp").innerHTML=opts.map(function(o){ return '<option value="'+o[0]+'"'+(o[0]===rcmp?" selected":"")+">"+o[1]+"</option>"; }).join("");
   var first=Object.keys(D.live.periods).sort()[0];
   var cmpList=(function(){
@@ -632,7 +647,7 @@ function renderDir(){
   var valOf=function(b,k){ return b.cut?toDay(null,b,k):tot(b.ms,k); };
   var base=function(k){ if(!cmpList.length) return null; var t=0; for(var i=0;i<cmpList.length;i++){ var v=valOf(cmpList[i],k); if(v==null) return null; t+=v; } return t/cmpList.length; };
   var rv=tot(rb.ms,"rev"), ss=tot(rb.ms,"ses"), rvP=base("rev"), ssP=base("ses");
-  var days=rb.ms.reduce(function(t,p){ return t+(p===np?C.lastDay(D.live,p):C.daysIn(p)); },0);
+  var days=rb.ms.reduce(function(t,p){ return t+(p===np&&!whole?C.lastDay(D.live,p):C.daysIn(p)); },0);
   var rt=rv!=null&&ss?rv/ss:null, rtP=rvP!=null&&ssP?rvP/ssP:null;
   // The period compared with, by name: what the "then" figure is.
   var mName=function(b){ return b.ms.length===1?C.label(b.ms[0]):b.lab; };   // a single month with its year: "Nov 2025"
@@ -642,7 +657,7 @@ function renderDir(){
     var ch=Math.abs(d)<0.5?'<span class="dim">no change</span>':'<span class="'+(d>0?"up":"down")+'">'+(d>0?"+":"")+d.toFixed(dec?1:0)+"%</span>";
     return ch+'<br><span class="then">then '+fmt(b)+" · "+thenLab+"</span>"; };
   var R0=function(x){ return C.full(Math.round(x)); }, R1=function(x){ return x.toFixed(1); };
-  $("rsT").textContent=rb.lab+(rb.part&&rb.ms.indexOf(np)>=0?" so far":"")+" · the team";
+  $("rsT").textContent=rb.lab+(run?" so far":whole?" · whole month, bookings ahead included":"")+" · the team";
   $("rsTiles").innerHTML=
     tile("Team revenue · AED",rv!=null?C.full(Math.round(rv)):"—",vs(rv,rvP,R0)+(rv!=null&&days?"<br>"+C.full(Math.round(rv/days))+" a day over "+days+" days":""),1)+
     tile("Team sessions",ss!=null?C.full(ss):"—",vs(ss,ssP,R0)+(ss!=null&&days?"<br>"+(ss/days).toFixed(1)+" a day over "+days+" days":""))+
@@ -684,21 +699,28 @@ function renderDaily(){
    Mondays and four Sundays still compares fairly. The month running counts up to today. */
 var bspan="q", WD=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 function renderBusy(){
-  var b=block(month,bspan), cs=teamOf(b.ms), cnt=[0,0,0,0,0,0,0], team=[0,0,0,0,0,0,0], by={}, any=false;
-  cs.forEach(function(c){ by[c]=[0,0,0,0,0,0,0]; });
+  var b=block(month,bspan), cs=teamOf(b.ms), cnt=[0,0,0,0,0,0,0], team=[0,0,0,0,0,0,0], by={}, on={}, any=false;
+  cs.forEach(function(c){ by[c]=[0,0,0,0,0,0,0]; on[c]=[0,0,0,0,0,0,0]; });
   b.ms.forEach(function(p){
     var per=D.live.periods[p]||{}, last=C.lastDay(D.live,p), y=+p.slice(0,4), mo=+p.slice(5,7);
     if(!cs.some(function(c){ return per[c]&&per[c].cl; })) return;
     for(var d=1;d<=last;d++){
       var wd=(new Date(Date.UTC(y,mo-1,d)).getUTCDay()+6)%7; cnt[wd]++;
-      cs.forEach(function(c){ var rows=per[c]&&per[c].cl; if(!rows) return; var t=0; rows.forEach(function(r){ var ch=(r[2]||"")[d-1]; if(ch) t+=wOf(ch); }); by[c][wd]+=t; team[wd]+=t; if(t) any=true; });
+      cs.forEach(function(c){ var rows=per[c]&&per[c].cl; if(!rows) return; var t=0; rows.forEach(function(r){ var ch=(r[2]||"")[d-1]; if(ch) t+=wOf(ch); }); by[c][wd]+=t; team[wd]+=t; if(t){ any=true; on[c][wd]++; } });
     }
   });
   $("bT").textContent=b.lab+(b.part?" so far":"")+" · sessions on an average day of each weekday";
   if(!any){ $("bTbl").innerHTML='<tbody><tr><td class="l dim">No day-by-day figures for this window.</td></tr></tbody>'; $("bNote").textContent=""; return; }
   var avg=function(a){ return a.map(function(v,i){ return cnt[i]?v/cnt[i]:null; }); };
   var nCo=cs.filter(function(c){ return by[c].some(function(v){ return v>0; }); }).length;
-  var row=function(nm,a,bold){
+  // Each weekday's busiest and least busy coach. Least busy counts only coaches who usually work
+  // that weekday (trained on at least half of them): a day off, or a coach who drops in now and
+  // then, is not "quiet".
+  var hiC=[], loC=[];
+  for(var w=0;w<7;w++){ cs.forEach(function(c){ var x=cnt[w]?by[c][w]/cnt[w]:0; if(!(x>0)) return;
+    if(!hiC[w]||x>hiC[w].v) hiC[w]={c:c,v:x};
+    if(on[c][w]>=cnt[w]/2&&(!loC[w]||x<loC[w].v)) loC[w]={c:c,v:x}; }); }
+  var row=function(nm,a,bold,coach){
     var v=avg(a), mx=Math.max.apply(null,v.filter(function(x){ return x!=null; })), mn=Math.min.apply(null,v.filter(function(x){ return x!=null; })), top=v.indexOf(mx), low=v.indexOf(mn);
     if(!(mx>0)) return "";
     // Against their own week: red = the coach's quietest day, through amber, to green = their busiest.
@@ -708,12 +730,15 @@ function renderBusy(){
       var bg;
       if(bmode==="min") bg=x==null?"var(--line)":(x/per>=bmin?"hsl(125,52%,30%)":"hsl(0,58%,32%)");
       else { var t=x==null||mx===mn?0.5:(x-mn)/(mx-mn); bg="hsl("+Math.round(t*125)+",58%,"+(26+t*6).toFixed(0)+"%)"; }
-      return '<td class="d'+(i===top?" top":"")+'" style="background:'+bg+';color:#fff"'+(bold&&bmode==="min"&&x!=null?' title="'+(x/per).toFixed(1)+' a coach"':"")+">"+(x==null?"—":x.toFixed(1))+"</td>"; }).join("")+
+      var lo=coach&&loC[i]&&loC[i].c===coach&&!(hiC[i]&&hiC[i].c===coach);
+      return '<td class="d'+(i===top?" top":"")+(lo?" lo":"")+'" style="background:'+bg+';color:#fff"'+(bold&&bmode==="min"&&x!=null?' title="'+(x/per).toFixed(1)+' a coach"':lo?' title="Least busy coach on '+WD[i]+'"':"")+">"+(x==null?"—":x.toFixed(1))+"</td>"; }).join("")+
       '<td class="sep l">'+WD[top]+'</td><td class="l dim">'+WD[low]+"</td></tr>";
   };
   $("bTbl").innerHTML='<thead><tr><th class="l">Coach</th>'+WD.map(function(w,i){ return "<th>"+w+'<br><span class="dim" style="font-size:10px">'+cnt[i]+" days</span></th>"; }).join("")+'<th class="sep l">Busiest</th><th class="l">Quietest</th></tr></thead><tbody>'+
-    row("Team",team,true)+cs.slice().sort(C.ivan(function(a,c){ var sa=by[a].reduce(function(t,v){ return t+v; },0), sc=by[c].reduce(function(t,v){ return t+v; },0); return sc-sa; })).map(function(c){ return row(esc(c),by[c]); }).join("")+"</tbody>";
-  $("bNote").textContent="Sessions on that weekday ÷ how many of that weekday there were. Cancellations left out."+
+    row("Team",team,true)+cs.slice().sort(C.ivan(function(a,c){ var sa=by[a].reduce(function(t,v){ return t+v; },0), sc=by[c].reduce(function(t,v){ return t+v; },0); return sc-sa; })).map(function(c){ return row(esc(c),by[c],false,c); }).join("")+"</tbody>"+
+    '<tfoot><tr class="bx"><td class="l">Busiest coach</td>'+WD.map(function(w,i){ return '<td class="nm">'+(hiC[i]?esc(hiC[i].c)+"<br><span class=\"dim\">"+hiC[i].v.toFixed(1)+"</span>":"—")+"</td>"; }).join("")+'<td></td><td></td></tr>'+
+    '<tr class="bx"><td class="l">Least busy coach</td>'+WD.map(function(w,i){ return '<td class="nm lo-t">'+(loC[i]?esc(loC[i].c)+"<br><span class=\"dim\">"+loC[i].v.toFixed(1)+"</span>":"—")+"</td>"; }).join("")+'<td></td><td></td></tr></tfoot>';
+  $("bNote").textContent="Sessions on that weekday ÷ how many of that weekday there were. Cancellations left out. Dashed box = the least busy coach that weekday, of the coaches who usually work it (trained on at least half of those days)."+
     (bmode==="min"?" Against a minimum: green = "+bmin+" or more sessions on an average day, red = fewer. The team row is set against "+bmin+" a coach ("+nCo+" coaches).":"");
   $("bLeg").style.display=bmode==="min"?"none":"";
   $("bMinL").style.display=bmode==="min"?"":"none";
@@ -1026,12 +1051,12 @@ function copyCol(){
   else { var ta=document.createElement("textarea"); ta.value=lines; document.body.appendChild(ta); ta.select(); var ok=false; try{ ok=document.execCommand("copy"); }catch(e){} document.body.removeChild(ta); done(ok); }
 }
 
-function save(){ try{ localStorage.setItem(UI_KEY,JSON.stringify({sel:sel,win:win,list:list,span:span,tspan:tspan,bspan:bspan,cspan:cspan,rspan:rspan,rcmp:rcmp,bmode:bmode,bmin:bmin,k:kSel,pick:pickBy})); }catch(e){} }
+function save(){ try{ localStorage.setItem(UI_KEY,JSON.stringify({sel:sel,win:win,list:list,span:span,tspan:tspan,bspan:bspan,cspan:cspan,rspan:rspan,rcmp:rcmp,bmode:bmode,bmin:bmin,basis:basis,k:kSel,pick:pickBy})); }catch(e){} }
 
 C.unlock(function(d){
   D=d;
   if(!D.ov||!D.ov.kpiM) document.querySelector(".wrap").insertAdjacentHTML("afterbegin",'<div class="card section"><div class="empty">The client figures (active clients, still with us, renewals, new clients, beyond what\'s paid) arrive with the next refresh. Press Refresh now on the Performance page.</div></div>');
-  try{ var u=JSON.parse(localStorage.getItem(UI_KEY)||"{}"); sel=u.sel||""; win=spanOk(u.win,"m"); tspan=spanOk(u.tspan,"m"); bspan=spanOk(u.bspan,"q"); cspan=spanOk(u.cspan,"m"); rspan=spanOk(u.rspan,"m"); rcmp=/^(pace|prev|yoy|yoyfull|avg3|avg6)$/.test(u.rcmp)?u.rcmp:"pace"; bmode=u.bmode==="min"?"min":"own"; bmin=+u.bmin>0?+u.bmin:4; list=u.list==="bal"?"bal":"full"; span=spanOk(u.span,"m"); kSel=u.k||"ses"; pickBy=u.pick||{}; }catch(e){}
+  try{ var u=JSON.parse(localStorage.getItem(UI_KEY)||"{}"); sel=u.sel||""; win=spanOk(u.win,"m"); tspan=spanOk(u.tspan,"m"); bspan=spanOk(u.bspan,"q"); cspan=spanOk(u.cspan,"m"); rspan=spanOk(u.rspan,"m"); rcmp=/^(pace|prev|yoy|yoyfull|avg3|avg6)$/.test(u.rcmp)?u.rcmp:"pace"; bmode=u.bmode==="min"?"min":"own"; bmin=+u.bmin>0?+u.bmin:4; basis=u.basis==="whole"?"whole":"mtd"; list=u.list==="bal"?"bal":"full"; span=spanOk(u.span,"m"); kSel=u.k||"ses"; pickBy=u.pick||{}; }catch(e){}
   if(PAGE==="dir"){ sel=""; list="bal"; showNames=true; if(!u||!u.k) kSel="rev"; }
   fillCoaches(); fillMonths();
   C.scopeSwitch($("segScope"),function(){ fillCoaches(); render(); });
@@ -1044,6 +1069,7 @@ C.unlock(function(d){
   $("segWin").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ win=v; save(); render(); } });
   $("segBusy").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ bspan=v; save(); render(); } });
   $("segGlance").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ span=v; save(); render(); } });
+  $("segBasis").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v&&v!==basis){ basis=v; cache={}; save(); render(); } });
   $("segBmode").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ bmode=v; save(); renderBusy(); } });
   $("bMin").addEventListener("change",function(e){ var v=Math.round(+e.target.value); if(v>0){ bmin=v; save(); renderBusy(); } });
   $("rsCmp").addEventListener("change",function(e){ rcmp=e.target.value; save(); render(); });
