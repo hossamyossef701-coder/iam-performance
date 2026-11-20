@@ -37,6 +37,10 @@ function fillGrid(ws) {
 const env = process.env;
 const SHARE_URL = (env.SHARE_URL || "").trim();
 const PASS = (env.DATA_PASSPHRASE || "").trim();
+// Changing the main passphrase: put the old one in OLD_DATA_PASSPHRASE for one read. The files
+// that are not rebuilt from the sheets each time (history, the projection lock, your projection
+// changes) are opened with it and saved again under the new one. Delete the secret afterwards.
+const OLD_PASS = (env.OLD_DATA_PASSPHRASE || "").trim();
 const OUT = env.OUT_DIR || ".";
 // Every month tab in every workbook, as far back as each file goes. Set a LIVE_FROM
 // secret ("2026-08") to read only from a given month instead.
@@ -160,7 +164,19 @@ async function writeClients(assess, rt) {
   console.log(`Clients: ${model.kpi.total} clients, ${model.kpi.active} active - clients.enc.json written (no names, no IDs)`);
 }
 
+async function rekey() {
+  if (!OLD_PASS || OLD_PASS === PASS) return;
+  for (const name of ["history.enc.json", "proj-lock.enc.json", "proj-override.enc.json"]) {
+    const fp = path.join(OUT, name); if (!fs.existsSync(fp)) continue;
+    const e = JSON.parse(fs.readFileSync(fp, "utf8"));
+    try { await decryptJSON(e, PASS); continue; } catch {}          // already under the new passphrase
+    try { const v = await decryptJSON(e, OLD_PASS); fs.writeFileSync(fp, JSON.stringify(await encryptJSON(v, PASS))); L.log(`${name} moved to the new passphrase`); }
+    catch { console.log(`::warning title=Passphrase change::${name} opens with neither the new nor the old passphrase - left as is.`); }
+  }
+}
+
 async function main() {
+  await rekey();
   await readClients();
   // 1. History file (one-off): encrypt the private history JSON held in a secret.
   if (env.HISTORY_JSON && env.HISTORY_JSON.trim()) {

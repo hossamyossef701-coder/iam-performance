@@ -54,6 +54,7 @@ jobs:
         env:
           SHARE_URL: ${{ secrets.SHARE_URL }}
           DATA_PASSPHRASE: ${{ secrets.DATA_PASSPHRASE }}
+          OLD_DATA_PASSPHRASE: ${{ secrets.OLD_DATA_PASSPHRASE }}
           HISTORY_JSON: ${{ secrets.HISTORY_JSON }}
           ASSESS_SHARE_URL: ${{ secrets.ASSESS_SHARE_URL }}
           CLIENTS_SHARE_URL: ${{ secrets.CLIENTS_SHARE_URL }}
@@ -75,6 +76,7 @@ jobs:
           [ -f ceo.enc.json ] && git add ceo.enc.json || true
           [ -f roster.enc.json ] && git add roster.enc.json || true
           [ -f proj-lock.enc.json ] && git add proj-lock.enc.json || true
+          [ -f proj-override.enc.json ] && git add proj-override.enc.json || true
           if git diff --cached --quiet; then
             echo "Nothing new to save."
           else
