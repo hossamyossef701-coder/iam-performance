@@ -6,7 +6,15 @@
 <title>Business — I AM Performance</title>
 <meta name="theme-color" content="#050505">
 <meta name="robots" content="noindex, nofollow">
-<link rel="manifest" href="./report.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<script>
+// Each dashboard its own home-screen app: the manifest (and the app's name) follow the page, so
+// "Add to Home Screen" on the Overview opens the Overview, not Team Performance.
+(function(){var f=(location.pathname.split("/").pop()||"").replace(/\.html$/,"");
+var n={overview:"Overview",finance:"Finance",report:"Team Performance",director:"Fitness",coach:"Coach review",clients:"Clients",business:"Business",roster:"Head coach"}[f];
+if(!n){f="report";n="Team Performance";}
+document.write('<link rel="manifest" href="./'+f+'.webmanifest"><meta name="apple-mobile-web-app-title" content="'+n+'">');})();
+</script>
 <link rel="icon" href="./icon-192.png" sizes="192x192">
 <link rel="apple-touch-icon" href="./icon-192.png">
 <link rel="stylesheet" href="./fonts/alata.css">

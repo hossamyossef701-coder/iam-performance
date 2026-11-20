@@ -7,9 +7,15 @@
 <meta name="theme-color" content="#050505">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Coaches">
 <meta name="robots" content="noindex, nofollow">
-<link rel="manifest" href="./report.webmanifest">
+<script>
+// Each dashboard its own home-screen app: the manifest (and the app's name) follow the page, so
+// "Add to Home Screen" on the Overview opens the Overview, not Team Performance.
+(function(){var f=(location.pathname.split("/").pop()||"").replace(/\.html$/,"");
+var n={overview:"Overview",finance:"Finance",report:"Team Performance",director:"Fitness",coach:"Coach review",clients:"Clients",business:"Business",roster:"Head coach"}[f];
+if(!n){f="report";n="Team Performance";}
+document.write('<link rel="manifest" href="./'+f+'.webmanifest"><meta name="apple-mobile-web-app-title" content="'+n+'">');})();
+</script>
 <link rel="icon" href="./icon-192.png" sizes="192x192">
 <link rel="apple-touch-icon" href="./icon-192.png">
 <link rel="stylesheet" href="./fonts/alata.css">
@@ -30,8 +36,8 @@ body{background:var(--ground);color:var(--ink);font-family:var(--f-display);font
 .wrap{max-width:1300px;margin:0 auto;padding:26px 20px 70px;}
 /* One page, three views (scripts/selftest.mjs keeps finance.html and overview.html identical to
    this file): Performance shows everything; Finance the coaches' numbers only; Overview the
-   projection only. The file name picks the view. */
-body.v-ceo #tiles,body.v-ceo #mainCard,body.v-ceo #deep,body.v-ceo #selCompare,body.v-ceo #chipWhole,
+   coaches' numbers and the projection. The file name picks the view. */
+body.v-ceo #deep,
 body.v-fin #proj,body.v-fin #deep,
 body.v-load #app>*:not(#deep),body.v-load #gate .gate-note,
 body.v-ceo #btnRefresh,body.v-fin #btnRefresh,body.v-ceo #tokenPanel,body.v-fin #tokenPanel,
@@ -558,7 +564,10 @@ function rangeTo(p){ return isV(p)?p.split(":")[2]:p; }
 // Sessions and revenue of one coach in an earlier month up to a day, from the sheet's
 // day-by-day rows (the same figures Fitness and Coach review use). Null when the month has none.
 function sameDayRows(q,c,day){
-  var rows=LIVE&&LIVE.periods&&LIVE.periods[q]&&LIVE.periods[q][c]&&LIVE.periods[q][c].cl; if(!rows||!day) return null;
+  var cell=LIVE&&LIVE.periods&&LIVE.periods[q]&&LIVE.periods[q][c]; if(!cell||!day) return null;
+  // Overview and Finance carry day totals (dd) instead of the client rows.
+  if(!cell.cl&&cell.dd){ var ss=0, rr=0; for(var j=0;j<Math.min(day,cell.dd[0].length);j++){ ss+=cell.dd[0][j]||0; rr+=cell.dd[1][j]||0; } return {s:ss,r:rr}; }
+  var rows=cell.cl; if(!rows) return null;
   var w=function(ch){ return ch==="1"||ch==="x"?1:ch==="h"?0.5:(ch>="2"&&ch<="9")?+ch:0; }, s=0, r=0;
   rows.forEach(function(row){ var m=row[2]||""; for(var i=0;i<Math.min(day,m.length);i++){ var x=w(m[i]); s+=x; r+=x*(row[1]||0); } });
   return {s:s,r:r};

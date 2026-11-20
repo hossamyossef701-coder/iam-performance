@@ -164,6 +164,16 @@ async function writeClients(assess, rt) {
   console.log(`Clients: ${model.kpi.total} clients, ${model.kpi.active} active - clients.enc.json written (no names, no IDs)`);
 }
 
+// [sessions per day, revenue per day] for one coach-month, from the client rows' day marks.
+function dayTotals(cl) {
+  const w = (ch) => (ch === "1" || ch === "x" ? 1 : ch === "h" ? 0.5 : ch >= "2" && ch <= "9" ? +ch : 0);
+  const s = [], r = [];
+  for (const row of cl) { const m = row[2] || ""; for (let i = 0; i < m.length; i++) { const x = w(m[i]); if (!x) continue; s[i] = (s[i] || 0) + x; r[i] = (r[i] || 0) + x * (row[1] || 0); } }
+  const n = Math.max(s.length, r.length);
+  for (let i = 0; i < n; i++) { s[i] = s[i] || 0; r[i] = Math.round((r[i] || 0) * 100) / 100; }
+  return [s, r];
+}
+
 async function rekey() {
   if (!OLD_PASS || OLD_PASS === PASS) return;
   for (const name of ["history.enc.json", "proj-lock.enc.json", "proj-override.enc.json"]) {
@@ -473,10 +483,15 @@ async function main() {
       const per = {};
       for (const [p, cs] of Object.entries(periods)) for (const [c, v] of Object.entries(cs)) {
         const o = {}; for (const k of a.keys) if (v[k] !== undefined) o[k] = v[k];
+        // Sessions and revenue per day of the month (no client names), so the comparisons "to the
+        // same day" read the same as on Team Performance.
+        if (v.cl) o.dd = dayTotals(v.cl);
         (per[p] || (per[p] = {}))[c] = o;
       }
       const H = histPlain ? { HIST: histPlain.HIST || {}, SEED: histPlain.SEED || {} } : { HIST: {}, SEED: {} };
-      fs.writeFileSync(fp, JSON.stringify(await encryptJSON({ hist: H, live: { v: 1, generated: new Date().toISOString(), cutoffDay: today, cutoffPeriod: now, periods: per } }, a.pass)));
+      // Overview also carries the assessment counts per coach and month (no names), for its coach table.
+      const extra = a.file === "ceo.enc.json" && assess ? { assess } : {};
+      fs.writeFileSync(fp, JSON.stringify(await encryptJSON({ hist: H, live: { v: 1, generated: new Date().toISOString(), cutoffDay: today, cutoffPeriod: now, periods: per, ...extra } }, a.pass)));
       L.log(`${a.file} written`);
     }
   };

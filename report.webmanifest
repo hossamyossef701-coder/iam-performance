@@ -1,6 +1,6 @@
 {
-  "name": "Coach Performance \u2014 I AM Performance",
-  "short_name": "Coaches",
+  "name": "Team Performance — I AM Performance",
+  "short_name": "Team Performance",
   "start_url": "./report.html",
   "scope": "./",
   "display": "standalone",
@@ -25,5 +25,6 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ]
+  ],
+  "id": "./report.html"
 }
