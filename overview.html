@@ -1626,13 +1626,17 @@ function paint(){
 
 /* ---------- loading and refresh ---------- */
 function loadAll(pass){
-  var master=loadEnc("history.enc.json",false)
+  // Both files from the GitHub API (the committed copies): the Pages copy can lag a few minutes
+  // behind, and right after the passphrase is changed an old copy would still open with the old one.
+  var master=loadEnc("history.enc.json",true)
     .then(function(env){ return decrypt(env,pass); })
     .then(function(h){
       HIST=h; ROLE="director";
       return loadEnc("live.enc.json",true)
         .then(function(env){ return decrypt(env,pass); })
-        .then(function(l){ LIVE=l; }, function(){ LIVE=null; })
+        // The figures not opening with this passphrase means it is no longer the right one:
+        // turned away, never shown the history alone. (A failed download is let through.)
+        .then(function(l){ LIVE=l; }, function(e){ if(e&&e.name==="OperationError") throw e; LIVE=null; })
         .then(function(){ if(PAGE!=="load") drawNav(); build(); });
     });
   if(!AUD_FILE) return master;
@@ -1679,7 +1683,9 @@ function reload(newerThan){
       });
   }
   return attempt()
-    .catch(function(e){ setStat("status","Could not read the latest figures: "+e.message,"err"); })
+    .catch(function(e){
+      if(e&&e.name==="OperationError"){ try{ localStorage.removeItem(PASS_KEY); }catch(e2){} setStat("status","The passphrase was changed, so the one used here no longer opens the figures. Reload the page and enter the new one.","err"); return; }
+      setStat("status","Could not read the latest figures: "+(e&&e.message||"unknown error"),"err"); })
     .then(function(){ busy("btnReload",false); });
 }
 /* ---------- a failed read ----------
