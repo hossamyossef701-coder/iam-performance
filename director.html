@@ -66,7 +66,12 @@
 body.v-dir #scoreCard,body.v-dir #kCard,body.v-dir #one,body.v-dir #selCoach,body.v-dir #btnNames,body.v-dir .sumbar,body.v-dir #tiles{display:none !important;}
 #rsTiles{grid-template-columns:repeat(3,1fr);margin:0;}
 @media(max-width:640px){#rsTiles{grid-template-columns:1fr;}}
-#rsTiles .tile .v{font-size:30px;} #rsTiles .tile .sub{line-height:1.6;}
+#rsTiles .tile .v{font-size:30px;}
+.rs-cmp{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;max-width:100%;}
+.bmode{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;}
+.bmin{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-faint);display:flex;align-items:center;gap:6px;}
+.bmin input{width:56px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:13px;}
+.then{color:var(--ink-faint);font-size:12px;} #rsTiles .tile .sub{line-height:1.6;}
 body:not(.v-dir) #dir{display:none;}
 body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
 @media(max-width:1000px){body.v-dir .tiles{grid-template-columns:repeat(3,1fr);}}
@@ -137,6 +142,7 @@ body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
   <div id="dir">
     <div class="card section" id="rsCard">
       <div class="card-h"><div><div class="k">Revenue and sessions</div><div class="t" id="rsT"></div></div><span class="seg sm" id="segRS"></span></div>
+      <div class="card-b" style="padding:0 22px 4px"><select id="rsCmp" class="rs-cmp" aria-label="Compare with"></select></div>
       <div class="card-b"><div class="tiles" id="rsTiles"></div></div>
     </div>
     <div class="card section">
@@ -146,12 +152,9 @@ body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
     </div>
     <div class="card section">
       <div class="card-h"><div><div class="k">Busiest days</div><div class="t" id="bT"></div></div><span class="seg sm" id="segBusy"></span></div>
+      <div class="card-b bmode" style="padding:0 22px 10px"><span class="seg sm" id="segBmode"><button data-v="own">Against their own week</button><button data-v="min">Against a minimum</button></span><label class="bmin" id="bMinL">green from <input id="bMin" type="number" min="1" max="20" step="1" value="4"> sessions a day</label></div>
       <div class="scroll"><table class="kt" id="bTbl"></table></div>
-      <div class="card-b" style="padding-top:6px"><div class="blg">quietest day<i></i>busiest day · each row against its own week</div><p class="note" id="bNote"></p></div>
-    </div>
-    <div class="card section">
-      <div class="card-h"><div><div class="k">Needs your attention</div><div class="t" id="aT">Right now</div></div><span class="unit" id="aU"></span></div>
-      <div class="card-b"><ul class="att" id="att"></ul><p class="note" id="aNote"></p></div>
+      <div class="card-b" style="padding-top:6px"><div class="blg" id="bLeg">quietest day<i></i>busiest day · each row against its own week</div><p class="note" id="bNote"></p></div>
     </div>
     <div class="card section">
       <div class="card-h"><div><div class="k">Coaches at a glance</div><div class="t" id="gT"></div></div><span class="seg sm" id="segGlance"></span></div>
@@ -432,6 +435,8 @@ function toDay(c,b,k){
     // The month running: the sheet's own figure to date (as Team Performance reads it). An
     // earlier month: its day-by-day rows up to the same day.
     var x=k==="nw"?nwTo(cs[i],last,day):last===now()?((parts(cs[i],[last],k)||{n:0}).n):(D.live.periods[last]||{})[cs[i]]?sameDay(cs[i],last,k):0;
+    // An earlier month without day rows: its share of the month, as Team Performance does.
+    if(x==null&&k!=="nw"&&last!==now()){ var w=parts(cs[i],[last],k); x=w?w.n*Math.min(1,day/C.daysIn(last)):0; }
     if(x==null) return null; t+=x;
   }
   return t;
@@ -465,7 +470,7 @@ function teamMove(k,b,pb){
 }
 var UNIT={m:"month",q:"quarter",h:"half-year","12":"12 months",y:"year",Y:"year"};
 var NCOL={m:6,q:4,h:3,"12":2,y:2,Y:3}, NCHART={m:12,q:6,h:4,"12":3,y:3,Y:3};
-var cspan="m", rspan="m";
+var cspan="m", rspan="m", rcmp="pace", bmode="own", bmin=4;
 var tspan="m";
 function trendTxt(st){ if(st.last==null) return '<span class="dim">—</span>'; return st.last===1?'<span class="up">▲ '+st.run+" up</span>":st.last===-1?'<span class="down">▼ '+st.run+" down</span>":'<span class="dim">● same</span>'; }
 
@@ -595,22 +600,45 @@ function renderDir(){
     if(run) return pct(toDay(null,tb,k),toDay(null,pb,k),lower,cutLab(pb));
     return pct(a,b,lower,pb.lab); };
   var endM=tb.ms[tb.ms.length-1], endP=pb.ms[pb.ms.length-1];
-  // Revenue and sessions, worked out as on Team Performance: totals over the window to date,
-  // the month running as the sheets have it to date, against the same stretch one period
-  // earlier cut to the same day.
-  var rb=block(month,rspan), rp=cmpBlock(rb,rspan), rrun=rb.ms.indexOf(np)>=0&&!!rp.cut;
-  var rv=tot(rb.ms,"rev"), ss=tot(rb.ms,"ses"), rvP=rrun?toDay(null,rp,"rev"):tot(rp.ms,"rev"), ssP=rrun?toDay(null,rp,"ses"):tot(rp.ms,"ses");
+  // Revenue and sessions, worked out as on Team Performance: totals over the window to date, the
+  // month running as the sheets have it to date. Compared, as you choose, with the period before
+  // or the same period last year (to the same point or whole), or the average of the 3 or 6
+  // months before - and the figure it is compared with is shown beside the change.
+  var rb=block(month,rspan), run=rb.ms.indexOf(np)>=0&&!!D.live.cutoffDay, day=D.live.cutoffDay;
+  var unitW={m:"month",q:"quarter",h:"half-year",y:"year","12":"12 months",Y:"year"}[rspan];
+  var whole=rspan==="m"?"whole month":"whole months";
+  var opts=[["pace","vs last "+unitW+", to the same day"],["prev","vs last "+unitW+", "+whole],["yoy","vs the same "+(rspan==="m"?"month":unitW)+" last year, to the same day"],["yoyfull","vs the same "+(rspan==="m"?"month":unitW)+" last year, "+whole]];
+  if(rspan==="y"||rspan==="12"||rspan==="Y") opts=[["pace","vs last year, to the same day"],["prev","vs last year, "+whole]];
+  if(rspan==="m") opts.push(["avg3","vs the 3 months before, on average"],["avg6","vs the 6 months before, on average"]);
+  if(!opts.some(function(o){ return o[0]===rcmp; })) rcmp="pace";
+  $("rsCmp").innerHTML=opts.map(function(o){ return '<option value="'+o[0]+'"'+(o[0]===rcmp?" selected":"")+">"+o[1]+"</option>"; }).join("");
+  var first=Object.keys(D.live.periods).sort()[0];
+  var cmpList=(function(){
+    var sh={m:1,q:3,h:6,y:12,"12":12,Y:12}[rspan], cut=run&&(rcmp==="pace"||rcmp==="yoy"||rcmp==="avg3"||rcmp==="avg6");
+    var sp2=rspan==="Y"?(run?"y":"Y"):rspan, list=[];
+    if(rcmp==="avg3"||rcmp==="avg6"){ for(var i=1;i<=(rcmp==="avg3"?3:6);i++) list.push(block(C.prevP(rb.end,i),"m")); }
+    else list.push(block(C.prevP(rb.end,(rcmp==="yoy"||rcmp==="yoyfull")?12:sh),sp2));
+    list.forEach(function(b){ b.cut=cut?day:null; });
+    return list.every(function(b){ return b.ms[0]>=first; })?list:[];
+  })();
+  var valOf=function(b,k){ return b.cut?toDay(null,b,k):tot(b.ms,k); };
+  var base=function(k){ if(!cmpList.length) return null; var t=0; for(var i=0;i<cmpList.length;i++){ var v=valOf(cmpList[i],k); if(v==null) return null; t+=v; } return t/cmpList.length; };
+  var rv=tot(rb.ms,"rev"), ss=tot(rb.ms,"ses"), rvP=base("rev"), ssP=base("ses");
   var days=rb.ms.reduce(function(t,p){ return t+(p===np?C.lastDay(D.live,p):C.daysIn(p)); },0);
   var rt=rv!=null&&ss?rv/ss:null, rtP=rvP!=null&&ssP?rvP/ssP:null;
-  var vs=function(a,b,dec){ if(a==null||b==null||!b) return '<span class="dim">nothing to compare with</span>'; var d=(a-b)/b*100;
-    if(Math.abs(d)<0.5) return '<span class="dim">same as '+cutLab(rp)+"</span>";
-    return '<span class="'+(d>0?"up":"down")+'">'+(d>0?"+":"")+d.toFixed(dec?1:0)+"%</span> vs "+cutLab(rp); };
+  // The period compared with, by name: what the "then" figure is.
+  var mName=function(b){ return b.ms.length===1?C.label(b.ms[0]):b.lab; };   // a single month with its year: "Nov 2025"
+  var thenLab=!cmpList.length?"":cmpList.length>1?"a month on average, "+C.label(cmpList[cmpList.length-1].ms[0],true)+"–"+C.label(cmpList[0].ms[0])+(cmpList[0].cut?", days 1–"+day:""):
+    mName(cmpList[0])+(cmpList[0].cut?(cmpList[0].ms.length>1?", to day "+day+" of its last month":", days 1–"+day):"");
+  var vs=function(a,b,fmt,dec){ if(a==null||b==null||!b) return '<span class="dim">nothing to compare with</span>'; var d=(a-b)/b*100;
+    var ch=Math.abs(d)<0.5?'<span class="dim">no change</span>':'<span class="'+(d>0?"up":"down")+'">'+(d>0?"+":"")+d.toFixed(dec?1:0)+"%</span>";
+    return ch+'<br><span class="then">then '+fmt(b)+" · "+thenLab+"</span>"; };
+  var R0=function(x){ return C.full(Math.round(x)); }, R1=function(x){ return x.toFixed(1); };
   $("rsT").textContent=rb.lab+(rb.part&&rb.ms.indexOf(np)>=0?" so far":"")+" · the team";
   $("rsTiles").innerHTML=
-    tile("Team revenue · AED",rv!=null?C.full(Math.round(rv)):"—",vs(rv,rvP)+(rv!=null&&days?"<br>"+C.full(Math.round(rv/days))+" a day over "+days+" days":""),1)+
-    tile("Team sessions",ss!=null?C.full(ss):"—",vs(ss,ssP)+(ss!=null&&days?"<br>"+(ss/days).toFixed(1)+" a day over "+days+" days":""))+
-    tile("Rate per session · AED",rt!=null?rt.toFixed(1):"—",vs(rt,rtP,1));
-  renderAttention(cs,np);
+    tile("Team revenue · AED",rv!=null?C.full(Math.round(rv)):"—",vs(rv,rvP,R0)+(rv!=null&&days?"<br>"+C.full(Math.round(rv/days))+" a day over "+days+" days":""),1)+
+    tile("Team sessions",ss!=null?C.full(ss):"—",vs(ss,ssP,R0)+(ss!=null&&days?"<br>"+(ss/days).toFixed(1)+" a day over "+days+" days":""))+
+    tile("Rate per session · AED",rt!=null?rt.toFixed(1):"—",vs(rt,rtP,R1,1));
   renderGlance(cs);
   renderBusy();
   renderDaily();
@@ -661,17 +689,27 @@ function renderBusy(){
   $("bT").textContent=b.lab+(b.part?" so far":"")+" · sessions on an average day of each weekday";
   if(!any){ $("bTbl").innerHTML='<tbody><tr><td class="l dim">No day-by-day figures for this window.</td></tr></tbody>'; $("bNote").textContent=""; return; }
   var avg=function(a){ return a.map(function(v,i){ return cnt[i]?v/cnt[i]:null; }); };
+  var nCo=cs.filter(function(c){ return by[c].some(function(v){ return v>0; }); }).length;
   var row=function(nm,a,bold){
     var v=avg(a), mx=Math.max.apply(null,v.filter(function(x){ return x!=null; })), mn=Math.min.apply(null,v.filter(function(x){ return x!=null; })), top=v.indexOf(mx), low=v.indexOf(mn);
     if(!(mx>0)) return "";
-    // Red = the coach's quietest day, through amber, to green = their busiest.
-    return "<tr><td class=\"l\">"+(bold?"<b>"+nm+"</b>":nm)+"</td>"+v.map(function(x,i){ var t=x==null||mx===mn?0.5:(x-mn)/(mx-mn);
-      return '<td class="d'+(i===top?" top":"")+'" style="background:hsl('+Math.round(t*125)+',58%,'+(26+t*6).toFixed(0)+'%);color:#fff">'+(x==null?"—":x.toFixed(1))+"</td>"; }).join("")+
+    // Against their own week: red = the coach's quietest day, through amber, to green = their busiest.
+    // Against a minimum: green at the minimum and above (the team row: per coach), red below it.
+    var per=bold&&nCo?nCo:1;
+    return "<tr><td class=\"l\">"+(bold?"<b>"+nm+"</b>":nm)+"</td>"+v.map(function(x,i){
+      var bg;
+      if(bmode==="min") bg=x==null?"var(--line)":(x/per>=bmin?"hsl(125,52%,30%)":"hsl(0,58%,32%)");
+      else { var t=x==null||mx===mn?0.5:(x-mn)/(mx-mn); bg="hsl("+Math.round(t*125)+",58%,"+(26+t*6).toFixed(0)+"%)"; }
+      return '<td class="d'+(i===top?" top":"")+'" style="background:'+bg+';color:#fff"'+(bold&&bmode==="min"&&x!=null?' title="'+(x/per).toFixed(1)+' a coach"':"")+">"+(x==null?"—":x.toFixed(1))+"</td>"; }).join("")+
       '<td class="sep l">'+WD[top]+'</td><td class="l dim">'+WD[low]+"</td></tr>";
   };
   $("bTbl").innerHTML='<thead><tr><th class="l">Coach</th>'+WD.map(function(w,i){ return "<th>"+w+'<br><span class="dim" style="font-size:10px">'+cnt[i]+" days</span></th>"; }).join("")+'<th class="sep l">Busiest</th><th class="l">Quietest</th></tr></thead><tbody>'+
     row("Team",team,true)+cs.slice().sort(C.ivan(function(a,c){ var sa=by[a].reduce(function(t,v){ return t+v; },0), sc=by[c].reduce(function(t,v){ return t+v; },0); return sc-sa; })).map(function(c){ return row(esc(c),by[c]); }).join("")+"</tbody>";
-  $("bNote").textContent="Sessions on that weekday ÷ how many of that weekday there were. Cancellations left out.";
+  $("bNote").textContent="Sessions on that weekday ÷ how many of that weekday there were. Cancellations left out."+
+    (bmode==="min"?" Against a minimum: green = "+bmin+" or more sessions on an average day, red = fewer. The team row is set against "+bmin+" a coach ("+nCo+" coaches).":"");
+  $("bLeg").style.display=bmode==="min"?"none":"";
+  $("bMinL").style.display=bmode==="min"?"":"none";
+  Array.prototype.forEach.call($("segBmode").children,function(x){ x.classList.toggle("on",x.getAttribute("data-v")===bmode); });
 }
 function renderAttention(cs,np){
   var x=D.live.periods[np]||{}, ov=D.ov||{}, items=[];
@@ -980,12 +1018,12 @@ function copyCol(){
   else { var ta=document.createElement("textarea"); ta.value=lines; document.body.appendChild(ta); ta.select(); var ok=false; try{ ok=document.execCommand("copy"); }catch(e){} document.body.removeChild(ta); done(ok); }
 }
 
-function save(){ try{ localStorage.setItem(UI_KEY,JSON.stringify({sel:sel,win:win,list:list,span:span,tspan:tspan,bspan:bspan,cspan:cspan,rspan:rspan,k:kSel,pick:pickBy})); }catch(e){} }
+function save(){ try{ localStorage.setItem(UI_KEY,JSON.stringify({sel:sel,win:win,list:list,span:span,tspan:tspan,bspan:bspan,cspan:cspan,rspan:rspan,rcmp:rcmp,bmode:bmode,bmin:bmin,k:kSel,pick:pickBy})); }catch(e){} }
 
 C.unlock(function(d){
   D=d;
   if(!D.ov||!D.ov.kpiM) document.querySelector(".wrap").insertAdjacentHTML("afterbegin",'<div class="card section"><div class="empty">The client figures (active clients, still with us, renewals, new clients, beyond what\'s paid) arrive with the next refresh. Press Refresh now on the Performance page.</div></div>');
-  try{ var u=JSON.parse(localStorage.getItem(UI_KEY)||"{}"); sel=u.sel||""; win=spanOk(u.win,"m"); tspan=spanOk(u.tspan,"m"); bspan=spanOk(u.bspan,"q"); cspan=spanOk(u.cspan,"m"); rspan=spanOk(u.rspan,"m"); list=u.list==="bal"?"bal":"full"; span=spanOk(u.span,"m"); kSel=u.k||"ses"; pickBy=u.pick||{}; }catch(e){}
+  try{ var u=JSON.parse(localStorage.getItem(UI_KEY)||"{}"); sel=u.sel||""; win=spanOk(u.win,"m"); tspan=spanOk(u.tspan,"m"); bspan=spanOk(u.bspan,"q"); cspan=spanOk(u.cspan,"m"); rspan=spanOk(u.rspan,"m"); rcmp=/^(pace|prev|yoy|yoyfull|avg3|avg6)$/.test(u.rcmp)?u.rcmp:"pace"; bmode=u.bmode==="min"?"min":"own"; bmin=+u.bmin>0?+u.bmin:4; list=u.list==="bal"?"bal":"full"; span=spanOk(u.span,"m"); kSel=u.k||"ses"; pickBy=u.pick||{}; }catch(e){}
   if(PAGE==="dir"){ sel=""; list="bal"; showNames=true; if(!u||!u.k) kSel="rev"; }
   fillCoaches(); fillMonths();
   C.scopeSwitch($("segScope"),function(){ fillCoaches(); render(); });
@@ -998,6 +1036,9 @@ C.unlock(function(d){
   $("segWin").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ win=v; save(); render(); } });
   $("segBusy").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ bspan=v; save(); render(); } });
   $("segGlance").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ span=v; save(); render(); } });
+  $("segBmode").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ bmode=v; save(); renderBusy(); } });
+  $("bMin").addEventListener("change",function(e){ var v=Math.round(+e.target.value); if(v>0){ bmin=v; save(); renderBusy(); } });
+  $("rsCmp").addEventListener("change",function(e){ rcmp=e.target.value; save(); render(); });
   $("segRS").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ rspan=v; save(); render(); } });
   $("segChart").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ cspan=v; save(); chart(); segs(); } });
   $("segTiles").addEventListener("click",function(e){ var v=e.target.getAttribute&&e.target.getAttribute("data-v"); if(v){ tspan=v; save(); render(); } });

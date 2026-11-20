@@ -1322,12 +1322,13 @@ function delta(now,was,invert){
 /* ---------- rendering ---------- */
 function renderTiles(p){
   var now=teamTotals(p,false), was=(ui.compare==="none")?null:teamTotals(p,true);
-  var cmp=function(a,b,inv){ return was&&was.n?delta(a,b,inv):""; };
+  // The change, and the figure it is compared with ("then"), so the % is never read on its own.
+  var cmp=function(a,b,inv,fmt){ return was&&was.n?delta(a,b,inv)+(b!=null?'<span class="d flat then">then '+fmt(b)+"</span>":""):""; };
   var tiles=[
     {k:"Team sessions", v:fmtSess(now.s),
-     d:cmp(now.s,was&&was.s,false)+(now.spd==null?"":'<span class="d flat">'+now.spd.toFixed(1)+" a day over "+daysUsed(p)+" days</span>")},
-    {k:"Team revenue AED", v:fmtInt(now.r), d:cmp(now.r,was&&was.r,false), lead:true},
-    {k:"Rate / session", v:fmtRate(now.rate), d:cmp(now.rate,was&&was.rate,false)},
+     d:cmp(now.s,was&&was.s,false,fmtSess)+(now.spd==null?"":'<span class="d flat">'+now.spd.toFixed(1)+" a day over "+daysUsed(p)+" days</span>")},
+    {k:"Team revenue AED", v:fmtInt(now.r), d:cmp(now.r,was&&was.r,false,fmtInt), lead:true},
+    {k:"Rate / session", v:fmtRate(now.rate), d:cmp(now.rate,was&&was.rate,false,fmtRate)},
     PAGE==="fin"?null:{k:"Assessments", v:now.a==null?"—":fmtInt(now.a),
      d:(now.conv==null?"":'<span class="d '+(was&&was.conv!=null?(now.conv>=was.conv?"up":"down"):"flat")+'">'+now.conv.toFixed(0)+"% converted</span>")},
     {k:"Cancelled", v:now.x==null?"—":fmtInt(now.x),
