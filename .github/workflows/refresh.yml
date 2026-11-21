@@ -77,6 +77,7 @@ jobs:
           [ -f roster.enc.json ] && git add roster.enc.json || true
           [ -f proj-lock.enc.json ] && git add proj-lock.enc.json || true
           [ -f proj-override.enc.json ] && git add proj-override.enc.json || true
+          [ -f prize-settings.enc.json ] && git add prize-settings.enc.json || true
           if git diff --cached --quiet; then
             echo "Nothing new to save."
           else

@@ -64,7 +64,52 @@ export function floorOf(periods, p, c, dip) {
     fl: Math.round(avgS * se * dip.s.q), flr: avgR ? Math.round(avgR * se * dip.r.q) : null };
 }
 
-// lock: { "2026-11": { coach: { ps, pr, at, late } } }; overrides: { "2026-11": { coach: { mode, ps, pr, why, at } } }
+// Each client's projection on the sheet now: { client key: AED }, from the cl rows (index 4).
+function clientProj(v) {
+  const out = {};
+  for (const row of v.cl || []) { const a = row[4]; if (a > 0) { const k = key(row[0]); out[k] = Math.round(((out[k] || 0) + a) * 100) / 100; } }
+  return out;
+}
+// The projection checked against the clients it was made for: the clients projected when it
+// locked, and what those clients brought in (new clients after the lock are left out - they
+// count as new clients, not against the projection). own: their projection (or the figure the
+// Fitness Director set); got: those clients' revenue; n / of: clients found on the sheet / projected.
+function projectedClients(v, lk, ov) {
+  const pc = (lk && lk.pc) || clientProj(v), keys = Object.keys(pc);
+  let own = keys.reduce((a, k) => a + pc[k], 0);
+  if (ov && ov.mode === "set" && ov.pr != null) own = ov.pr;
+  if (!(own > 0)) return null;
+  let got = 0; const seen = {};
+  for (const row of v.cl || []) {
+    const k = key(row[0]); if (!(k in pc)) continue;
+    seen[k] = 1;
+    const r = row[5] != null ? row[5] : (row[1] || 0) * [...(row[2] || "")].reduce((a, ch) => a + wOf(ch), 0);
+    got += r || 0;
+  }
+  const out = { own: Math.round(own), got: Math.round(got), n: Object.keys(seen).length, of: keys.length, est: !(lk && lk.pc) || !!(lk && lk.pcLate), ng: 0, nn: 0 };
+  Object.defineProperty(out, "pcKeys", { value: pc, enumerable: false, configurable: true });   // for addNewBusiness, never written
+  return out;
+}
+
+// New and returning clients (from the Clients file, joined in scripts/join.mjs: fresh[month][coach]
+// = sheet name keys) added to each coach-month's check: ng = their revenue, nn = how many. Only
+// clients not projected on the 3rd. A client counts once even if two rows carry the name.
+export function addNewBusiness(periods, fresh, nameKey) {
+  for (const p of Object.keys(fresh || {})) for (const c of Object.keys(fresh[p])) {
+    const v = periods[p] && periods[p][c]; if (!v || !v.pk) continue;
+    const want = new Set(fresh[p][c]), pc = v.pk.pcKeys || {};
+    let ng = 0, nn = 0; const seen = new Set();
+    for (const row of v.cl || []) {
+      const nk = nameKey(row[0]); if (!want.has(nk) || pc[key(row[0])]) continue;
+      const r = row[5] != null ? row[5] : (row[1] || 0) * [...(row[2] || "")].reduce((a, ch) => a + wOf(ch), 0);
+      ng += r || 0; if (!seen.has(nk)) { seen.add(nk); nn++; }
+    }
+    v.pk.ng = Math.round(ng); v.pk.nn = nn;
+  }
+  for (const p of Object.keys(periods)) for (const v of Object.values(periods[p])) if (v.pk) delete v.pk.pcKeys;
+}
+
+// lock: { "2026-11": { coach: { ps, pr, at, late, pc: { client: AED } } } }; overrides: { "2026-11": { coach: { mode, ps, pr, why, at } } }
 export function guardProjections(periods, { now, today, todayIso, lock = {}, overrides = {}, from = PROJ_FROM }) {
   const dip = { s: dipFromHistory(periods, "s"), r: dipFromHistory(periods, "r") }, notes = [];
   let lockChanged = false;
@@ -75,7 +120,10 @@ export function guardProjections(periods, { now, today, todayIso, lock = {}, ove
       const sheet = { ps: v.ps ?? null, pr: v.pr ?? null };
       v.ps0 = sheet.ps; v.pr0 = sheet.pr;
       // 1. The lock: from the 3rd of the month running, or straight away for a month already past.
-      if (!L[c] && (p < now || today >= LOCK_DAY)) { L[c] = { ps: sheet.ps, pr: sheet.pr, at: todayIso, late: p < now || today > LOCK_DAY }; lockChanged = true; }
+      if (!L[c] && (p < now || today >= LOCK_DAY)) { L[c] = { ps: sheet.ps, pr: sheet.pr, at: todayIso, late: p < now || today > LOCK_DAY, pc: clientProj(v) }; lockChanged = true; }
+      // Locks made before the clients were kept (Nov 2026): the clients projected on the sheet when
+      // first seen, marked as taken late.
+      else if (L[c] && !L[c].pc && v.cl) { L[c].pc = clientProj(v); L[c].pcLate = true; lockChanged = true; }
       const lk = L[c] || null, ov = O[c] || null;
       const base = ov && ov.mode === "set" ? { ps: ov.ps ?? null, pr: ov.pr ?? null } : lk ? { ps: lk.ps, pr: lk.pr } : sheet;
       // 2. The floor.
@@ -93,6 +141,7 @@ export function guardProjections(periods, { now, today, todayIso, lock = {}, ove
       }
       if (ps != null) v.ps = ps; else delete v.ps;
       if (pr != null) v.pr = pr; else delete v.pr;
+      const pk = projectedClients(v, lk, ov); if (pk) v.pk = pk; else delete v.pk;
       v.pg = { st, fl: f.fl, flr: f.flr, a: f.a ?? null, se: f.se ?? null, usual: f.usual ?? null,
         lk: lk ? { ps: lk.ps, pr: lk.pr, at: lk.at, late: !!lk.late } : null,
         ov: ov ? { mode: ov.mode, why: ov.why || "", at: ov.at || "" } : null,

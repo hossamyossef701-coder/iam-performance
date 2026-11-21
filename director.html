@@ -96,9 +96,12 @@ body.v-prize #app>*:not(.head):not(#prize):not(#dnav){display:none !important;}
 #pzTbl td,#pzTbl th{text-align:center;} #pzTbl td.l,#pzTbl th.l{text-align:left;}
 #pzTbl tr.out td{opacity:.45;} #pzTbl tr.row{cursor:pointer;} #pzTbl tr.row:hover td{background:rgba(255,255,255,.03);}
 #pzTbl .pass{color:var(--up);font-weight:600;} #pzTbl .fail{color:var(--ink-faint);} #pzTbl .place{font-weight:700;color:#ef691d;}
-#pzTbl tr.det td{background:rgba(255,255,255,.02);text-align:left;padding:12px 16px;}
+.pz-set{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:14px 0 4px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.02);}
+.pz-set .lbl{font-size:13px;color:var(--ink-soft);} .pz-set input,.pz-set select{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:14px;} .pz-set input{width:72px;} .pz-stat{font-size:12.5px;color:var(--ink-faint);} .pz-stat.ok{color:var(--up);} .pz-stat.err{color:var(--down);}
+.pz-hist{flex-basis:100%;font-size:12px;color:var(--ink-faint);}
+#pzTbl tr.det>td{background:rgba(255,255,255,.02);text-align:left;padding:12px 16px;}
 .pz-k{border-collapse:collapse;margin:6px 0 10px;font-size:12.5px;} .pz-k td,.pz-k th{border:1px solid var(--line);padding:4px 8px;text-align:center;} .pz-k td.l{text-align:left;}
-.pz-k td.p1{background:rgba(46,160,90,.35);} .pz-k td.p5{background:rgba(214,170,40,.3);}
+#pzTbl .pz-k td.p1{background:rgba(46,170,90,.55);color:#fff;font-weight:600;} #pzTbl .pz-k td.p5{background:rgba(230,180,30,.55);color:#fff;font-weight:600;} #pzTbl .pz-k td.p0{background:rgba(220,60,50,.5);color:#fff;font-weight:600;}
 body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
 @media(max-width:1000px){body.v-dir .tiles{grid-template-columns:repeat(3,1fr);}}
 @media(max-width:600px){body.v-dir .tiles{grid-template-columns:repeat(2,1fr);}}
@@ -175,6 +178,15 @@ body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
     <div class="card-b">
       <div class="pz-bar"><select id="pzQ" aria-label="Quarter"></select><span class="pz-rule" id="pzRule"></span></div>
       <div id="pzWin"></div>
+      <div class="pz-set" id="pzSet">
+        <span class="lbl">Gate</span>
+        <input type="number" id="pzGate" min="1" max="30" step="0.5" inputmode="decimal" aria-label="Gate, points out of 30"><span class="lbl">of 30 · revenue counts as the same within ±</span>
+        <input type="number" id="pzRev" min="0" max="10" step="0.5" inputmode="decimal" aria-label="Revenue counts as the same within this percent"><span class="lbl">% · from</span>
+        <select id="pzFrom" aria-label="From quarter"></select>
+        <button type="button" class="btn" id="pzSave">Save</button>
+        <span class="pz-stat" id="pzStat"></span>
+        <div class="pz-hist" id="pzHist"></div>
+      </div>
       <div class="scroll"><table class="kt" id="pzTbl"></table></div>
       <p class="note" id="pzNote"></p>
     </div>
@@ -273,7 +285,11 @@ var DEFK={"ses": {"name": "Sessions delivered", "better": "Higher"}, "rev": {"na
 var FULL=["ses","rev","proj","act","spw","p3","rpc","kept","early","conv","nw","canc","less","up","chg"];
 var BAL=["rev","proj","p3","less","kept","early","conv","nw","chg","prog"];
 var AREA={rev:"Business",proj:"Business",p3:"Client commitment",less:"Client commitment",kept:"Keeping clients",early:"Keeping clients",conv:"Growing the book",nw:"Growing the book",chg:"Standards",prog:"Standards"};
-var PCT={proj:1,p3:1,kept:1,early:1,conv:1,canc:1,chg:1}, AED={rev:1,rpc:1}, DEC={spw:1,prog:1};
+var PJ=[90,110];   // projection reached: on target from 90% to 110%
+// 1 on target, 0 projected low (the projected clients alone over 110%), -1 under 90%.
+function pjScore(a,b){ return b==null?null:(a!=null&&a>PJ[1])?0:b>=PJ[0]?1:-1; }
+function pjBlock(c,bk){ return pjScore(rnd("proj",vB(c,bk,"projA")),rnd("proj",vB(c,bk,"proj"))); }
+var PCT={projT:1,projA:1,proj:1,p3:1,kept:1,early:1,conv:1,canc:1,chg:1}, AED={rev:1,rpc:1}, DEC={spw:1,prog:1};
 // For the team column: counts add up, rates take the team median.
 var SUM={ses:1,rev:1,act:1,nw:1,less:1,up:1};
 var list="full", span="m";
@@ -340,9 +356,19 @@ function val(c,p){
   if(x){
     var s=part&&x.ms!=null?x.ms:x.s, r=part&&x.mr!=null?x.mr:x.r, cx=part&&x.mx!=null?x.mx:x.x;
     put("ses",s,1); put("rev",r,1);
-    // Projection reached: revenue against the whole month's projection, as on Overview. In the
-    // month running it is the revenue to date (o.projDue says how much was due by today).
-    if(x.pr&&r!=null){ put("proj",r,x.pr,"AED "+C.full(r)+" of "+C.full(x.pr)+(part&&x.md?" (to day "+x.md+" of "+C.daysIn(p)+")":"")); if(part&&x.md) o.projDue=x.md/C.daysIn(p); }
+    // Projection reached (the KPI), against the projection set on the 3rd:
+    //   proj  = the clients projected on the 3rd + new and returning clients since (B)
+    //   projA = the clients projected on the 3rd alone (A)
+    // A over 110% = projected low (0.5). Otherwise B from 90% = on target (1); under 90% = 0.
+    // Clients who were already training but left out of the projection count in neither.
+    // projT: all revenue against the projection that counts, as on Overview (the revenue tile).
+    if(x.pr&&r!=null){ put("projT",r,x.pr); if(part&&x.md) o.projDue=x.md/C.daysIn(p); }
+    if(x.pk&&x.pk.own>0){
+      var ng=x.pk.ng||0, pa=Math.round(x.pk.got/x.pk.own*100), pb=Math.round((x.pk.got+ng)/x.pk.own*100);
+      put("projA",x.pk.got,x.pk.own);
+      put("proj",x.pk.got+ng,x.pk.own,"AED "+C.full(x.pk.got+ng)+" of the projection AED "+C.full(x.pk.own)+" ("+pb+"%): the "+x.pk.n+" clients projected on the 3rd brought AED "+C.full(x.pk.got)+" ("+pa+"%)"+(x.pk.nn?", "+x.pk.nn+" new or returning "+(x.pk.nn===1?"client":"clients")+" AED "+C.full(ng):"")+(part&&x.md?" · to day "+x.md+" of "+C.daysIn(p):"")+(x.pk.est?" · clients taken from the sheet after the 3rd":""));
+    }
+    else if(x.pr&&r!=null&&p<"2026-11") put("proj",r,x.pr,"AED "+C.full(r)+" of "+C.full(x.pr));
     // Charged cancellations: a session typed 1 on a yellow cell. Only from sheets whose
     // colours were read; without them, cancelled = the 0s alone and charged is left blank.
     var rows=x.cl||[], last=C.lastDay(live,p), y=0, z=0, coloured=false, ssum=0, rsum=0;
@@ -374,8 +400,10 @@ function val(c,p){
     if(rt) put("early",rt.ok,rt.n,rt.ok+" of "+rt.n+" renewals before the last paid session"+(rt.red?" ("+rt.red+" ended by a red mark)":""));
   }
   // The head coach's training programme score (phase 1-6), once that sheet is linked.
+  // Nov and Dec 2026: 0 for everyone (the score starts in Jan 2027).
   var pg=live.prog&&live.prog[p]&&live.prog[p][c];
-  if(pg!=null) put("prog",pg,1,"phase "+pg);
+  if(p==="2026-11"||p==="2026-12"){ if(x) put("prog",0,1,"starts in Jan 2027"); }
+  else if(pg!=null) put("prog",pg,1,"phase "+pg);
   return (cache[key]=o);
 }
 // A coach over a block of months: the parts added up; null when no month has the figure.
@@ -410,7 +438,9 @@ function tipOf(c,b,k){
 function rnd(k,v){ if(v==null||!isFinite(v)) return null; return DEC[k]?Math.round(v*10)/10:k==="ses"?Math.round(v*2)/2:Math.round(v); }
 function show(k,v){ v=rnd(k,v); if(v==null) return '<span class="dim">—</span>'; return DEC[k]?v.toFixed(1):PCT[k]?v+"%":C.full(v); }
 // +1 better than the block before, -1 worse, 0 the same, null when either is missing.
-function move(k,a,b){ a=rnd(k,a); b=rnd(k,b); if(a==null||b==null) return null; var d=a>b?1:a<b?-1:0; return better(k)==="Lower"?-d:d; }
+function move(k,a,b){ a=rnd(k,a); b=rnd(k,b); if(a==null||b==null) return null; var d=k==="rev"?revCmp(a,b,REV_SAME_NOW()):a>b?1:a<b?-1:0; return better(k)==="Lower"?-d:d; }
+// Revenue within +/- t% of the month before counts as the same (t set on the Prize page, 2 by default).
+function revCmp(a,b,t){ var w=Math.abs(b)*t/100; return a>b+w?1:a<b-w?-1:0; }
 
 /* ---- Blocks of months: a month, a calendar quarter, or 6 / 12 months ending at the chosen month ---- */
 /* Every part of the page picks from the same five, each with its own picker: the summary tiles,
@@ -470,6 +500,7 @@ function reviewed(sp){ sp=sp||span; return block(month,sp); }
 // rates as they stand; projection reached and the other counts are not coloured until it ends.
 function moveB(c,k,b,pb){
   var run=running(b);
+  if(k==="proj") return run?null:pjBlock(c,b);
   if(!run||(PCT[k]&&k!=="proj")) return move(k,vB(c,b,k),vB(c,pb,k));
   if((k==="rev"||k==="ses"||k==="nw")&&pb.cut) return move(k,toDay(c,b,k),toDay(c,pb,k));
   return null;
@@ -507,12 +538,13 @@ function state(c,k,sp){
   sp=sp||span; var r=reviewed(sp), s=[r]; while(s.length<(sp==="y"||sp==="Y"?3:13)) s.unshift(block(prevEnd(s[0],sp),sp));
   // The latest move: the block shown against the same point before; then the whole blocks before it.
   var last=c?moveB(c,k,r,cmpBlock(r,sp)):teamMove(k,r,cmpBlock(r,sp)); if(last==null) return {last:null,run:0};
-  var mv=[]; for(var j=1;j<s.length-1;j++) mv.push(move(k,vB(c,s[j],k),vB(c,s[j-1],k)));
+  var mv=[]; for(var j=1;j<s.length-1;j++) mv.push(k==="proj"?pjBlock(c,s[j]):move(k,vB(c,s[j],k),vB(c,s[j-1],k)));
   var run=1; for(var i=mv.length-1;i>=0&&mv[i]===last;i--) run++;
   return {last:last,run:run};
 }
 function teamMove(k,b,pb){
   var run=running(b);
+  if(k==="proj") return run?null:pjBlock(null,b);
   if(!run||(PCT[k]&&k!=="proj")) return move(k,vB(null,b,k),vB(null,pb,k));
   if(SUM[k]&&(k==="rev"||k==="ses"||k==="nw")&&pb.cut) return move(k,toDay(null,b,k),toDay(null,pb,k));
   return null;
@@ -574,7 +606,7 @@ function renderOne(){
   $("tiles").innerHTML=tile("Better in "+cr.lab+(cr.part?" so far":""),up+"<small>of "+ks.length+"</small>","than "+tcmp,1)+
     tile("Worse",dn+"<small>of "+ks.length+"</small>",same?same+" the same":"")+
     tile("Look at first",worst!=null?esc(DEFK[worst].name):"Nothing slipped",worst!=null?"down "+tsts[worst].run+" "+unitT+(tsts[worst].run>1&&(tspan==="m"||tspan==="q"||tspan==="y")?"s":"")+" in a row":"",0,1)+
-    tile("Revenue, "+tr.lab+(tr.part?" so far":""),rev?C.aed(rev.n):"—",agg(c,tr.ms,"proj")!=null?Math.round(agg(c,tr.ms,"proj"))+"% of projection":"")+
+    tile("Revenue, "+tr.lab+(tr.part?" so far":""),rev?C.aed(rev.n):"—",agg(c,tr.ms,"projT")!=null?Math.round(agg(c,tr.ms,"projT"))+"% of projection":"")+
     tile("Score, "+cr.lab+(cr.part?" so far":""),at<0?"—":Math.round(rows[at].s)+"<small>"+ordinal(at+1)+" of "+rows.length+"</small>",at<0?"":(rows[at].up>rows[at].dn?"beat "+tcmp:"did not beat "+tcmp));
   $("kK").textContent="1+1 numbers · "+c;
   $("kT").textContent=(list==="bal"?"Balanced list":"The KPI sheet's rows")+", "+bs[0].lab+" to "+bs[bs.length-1].lab+(span==="m"?"":" · totals over the stretch");
@@ -1107,17 +1139,42 @@ function pzPoints(c){
     var any=false, pts={}, vals={};
     PZ_KEYS.forEach(function(k){ vals[k]=rnd(k,agg(c,[m],k)); if(vals[k]!=null&&k!=="prog") any=true; });
     PZ_KEYS.forEach(function(k){
-      // Training programme score: full marks until it is recorded. Projection reached: full marks in
-      // the 2026 trial (projections only began in Nov 2026); real from Q1 2027.
-      if(k==="prog"||(k==="proj"&&m<PRIZE.start)){ pts[k]=any?1:null; return; }
+      if(!any){ pts[k]=null; return; }
+      // Training programme score: full marks in the trial up to Oct 2026, 0 in Nov and Dec 2026,
+      // then better than the month before as for every KPI (nothing recorded = 0).
+      if(k==="prog"&&m<"2026-11"){ pts[k]=1; return; }
+      if(k==="prog"&&m<"2027-01"){ pts[k]=0; vals[k]=0; return; }
+      if(k==="prog"&&vals[k]==null){ pts[k]=0; return; }
+      // Projection reached: not against the month before but against the band - 90-110% = 1,
+      // over 110% = 0.5 (projected low), under 90% or no projection = 0. Before projections began
+      // (Nov 2026): full marks in the trial.
+      if(k==="proj"){ if(m<"2026-11"){ pts[k]=1; return; } var sc=pjScore(rnd("proj",agg(c,[m],"projA")),vals[k]); pts[k]=sc===1?1:sc===0?0.5:0; return; }
       var a=vals[k], b=prevV[k]; if(a==null||b==null){ pts[k]=null; return; }
-      var up=better(k)==="Lower"?a<b:a>b;
-      pts[k]=up?1:(a===b?((prev[k]||0)>0?0.5:0):0);
+      var cmp=k==="rev"?revCmp(a,b,revSameFor(qOf(m))):(a>b?1:a<b?-1:0); if(better(k)==="Lower") cmp=-cmp;
+      pts[k]=cmp===1?1:(cmp===0?((prev[k]||0)>0?0.5:0):0);
     });
     var sc=null; if(any){ sc=0; PZ_KEYS.forEach(function(k){ if(pts[k]!=null) sc+=pts[k]; }); }
     out[m]={pts:pts,vals:vals,score:sc}; prev=pts; prevV=vals;
   });
   return (pzCache[c]=out);
+}
+// The gate, set on this page: { gates: { "2027-Q1": 15, "2027-Q3": 18 } } - each value holds from
+// its quarter until the next one. Saved encrypted (main passphrase) in prize-settings.enc.json
+// through the GitHub API with the token saved under Refresh access. Nothing saved: PRIZE.gate.
+var PZ_SET={gates:{}}, PZ_FILE="prize-settings.enc.json", PASSW="";
+function gateFor(q){ var g=PRIZE.gate; Object.keys(PZ_SET.gates||{}).sort().forEach(function(k){ if(k<=q) g=+PZ_SET.gates[k]; }); return g; }
+// Revenue counts as the same within +/- this %, from the quarter it is set: { revSame: { "2027-Q1": 2 } }.
+var REV_SAME=2;
+function revSameFor(q){ var t=REV_SAME; Object.keys(PZ_SET.revSame||{}).sort().forEach(function(k){ if(k<=q) t=+PZ_SET.revSame[k]; }); return t; }
+function REV_SAME_NOW(){ return revSameFor(qOf(now())); }
+// Still with us? A coach who leaves before the end of the first week of the next quarter gets no
+// prize. Read from the sheets: a session on the 8th or later of the next quarter's first month =
+// still here; that month over with none = left; until then = waiting.
+function pzStay(c,q){
+  var nx=addMonths(qMonths(q)[2],1), np=now(); if(nx>np) return "na";
+  var rows=((D.live.periods[nx]||{})[c]||{}).cl||[];
+  var here=rows.some(function(r){ var m=r[2]||""; for(var i=7;i<m.length;i++) if(wOf(m[i])>0) return true; return false; });
+  return here?"here":(nx<np?"left":"wait");
 }
 function pzQuarter(q){
   var ms=qMonths(q), trial=ms[0]<PRIZE.start, np=now(), done=ms.filter(function(m){ return m<np; }), left=ms.filter(function(m){ return m>=np; }).length;
@@ -1127,11 +1184,13 @@ function pzQuarter(q){
     var tot=sc.reduce(function(t,v){ return t+(v||0); },0), rev=0;
     ms.forEach(function(m){ var r=parts(c,[m],"rev"); if(r) rev+=r.n; });
     var from=pzFrom(c,trial), elig=from<=ms[0];
-    return {c:c,sc:sc,tot:tot,rev:rev,elig:elig,from:from,pass:tot>=PRIZE.gate,possible:tot+10*left};
+    var stay=ms[2]<np?pzStay(c,q):"na";
+    return {c:c,sc:sc,tot:tot,rev:rev,elig:elig,from:from,pass:tot>=gateFor(q),possible:tot+10*left,stay:stay};
   });
   rows.sort(function(a,b){ return b.rev-a.rev; });
-  var pool=rows.filter(function(r){ return r.elig&&r.pass; });
-  return {q:q,ms:ms,trial:trial,done:done.length===3,left:left,rows:rows,pool:pool};
+  var pool=rows.filter(function(r){ return r.elig&&r.pass&&r.stay!=="left"; });
+  var prov=pool.slice(0,3).some(function(r){ return r.stay==="wait"; });
+  return {q:q,ms:ms,trial:trial,done:done.length===3,left:left,rows:rows,pool:pool,prov:prov,next:addMonths(ms[2],1)};
 }
 function pzHard(c,year){
   var P=pzPoints(c), st=[];
@@ -1143,6 +1202,56 @@ function pzHard(c,year){
   return st.slice(0,3);
 }
 function qLabel(q){ return q.slice(5)+" "+q.slice(0,4); }
+function pzForm(qn){
+  var fq=[], q=qn; for(var i=0;i<5;i++){ fq.push(q); q=qOf(addMonths(qMonths(q)[0],3)); }
+  var keep=$("pzFrom").value; $("pzFrom").innerHTML=fq.map(function(x,i){ return '<option value="'+x+'">'+qLabel(x)+(i===0?" (running)":"")+"</option>"; }).join("");
+  if(fq.indexOf(keep)>=0) $("pzFrom").value=keep;
+  if(document.activeElement!==$("pzGate")) $("pzGate").value=gateFor($("pzFrom").value);
+  if(document.activeElement!==$("pzRev")) $("pzRev").value=revSameFor($("pzFrom").value);
+  var g=PZ_SET.gates||{}, rv=PZ_SET.revSame||{}, ks=Object.keys(g).concat(Object.keys(rv)).filter(function(k,i,a){ return a.indexOf(k)===i; }).sort();
+  $("pzHist").textContent=(ks.length?"Set so far: "+ks.map(function(k){ return qLabel(k)+": gate "+gateFor(k)+", revenue ±"+revSameFor(k)+"%"; }).join(" · ")+". Before that: gate "+PRIZE.gate+", revenue ±"+REV_SAME+"%. ":"Gate "+PRIZE.gate+" and revenue ±"+REV_SAME+"% for every quarter until you change them. ")+"A change holds from the quarter you pick until the next change, so finished quarters keep their result.";
+}
+function pzLoadSet(){
+  return C.loadEnc(PZ_FILE).then(function(e){ return C.decrypt(e,PASSW); })
+    .then(function(o){ PZ_SET=o&&o.gates?o:{gates:{}}; }, function(e){ if(!/HTTP 404/.test(e&&e.message||"")) pzStat("Couldn't read the saved gate ("+(e&&e.name==="OperationError"?"made with another passphrase":e&&e.message)+"); using "+PRIZE.gate+".","err"); });
+}
+function pzStat(t,c){ var e=$("pzStat"); e.textContent=t; e.className="pz-stat"+(c?" "+c:""); }
+function pzEncrypt(obj,pass){
+  var b64=function(u){ var x=""; for(var i=0;i<u.length;i++) x+=String.fromCharCode(u[i]); return btoa(x); };
+  var salt=crypto.getRandomValues(new Uint8Array(16)), iv=crypto.getRandomValues(new Uint8Array(12));
+  return crypto.subtle.importKey("raw",new TextEncoder().encode(String(pass).trim()),"PBKDF2",false,["deriveKey"])
+    .then(function(base){ return crypto.subtle.deriveKey({name:"PBKDF2",salt:salt,iterations:250000,hash:"SHA-256"},base,{name:"AES-GCM",length:256},false,["encrypt"]); })
+    .then(function(k){ return crypto.subtle.encrypt({name:"AES-GCM",iv:iv},k,new TextEncoder().encode(JSON.stringify(obj))); })
+    .then(function(ct){ return {v:1,it:250000,salt:b64(salt),iv:b64(iv),ct:b64(new Uint8Array(ct))}; });
+}
+function pzSave(){
+  var c={}; try{ c=JSON.parse(localStorage.getItem("iamlive:cfg")||"{}"); }catch(e){}
+  var from=$("pzFrom").value, g=Math.round(+$("pzGate").value*2)/2, rs=Math.round(+$("pzRev").value*2)/2;
+  if(!c.pat){ pzStat("Refresh access isn't set on this device - save a token under Refresh access on Team Performance first.","err"); return; }
+  if(!(g>=1&&g<=30)){ pzStat("The gate is a number from 1 to 30.","err"); return; }
+  if(!($("pzRev").value!==""&&rs>=0&&rs<=10)){ pzStat("The revenue margin is a number from 0 to 10.","err"); return; }
+  var url="https://api.github.com/repos/hossamyossef701-coder/iam-performance/contents/"+PZ_FILE, sha=null, H={Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28",Authorization:"Bearer "+c.pat};
+  $("pzSave").disabled=true; pzStat("Saving…");
+  fetch(url+"?ref=main&t="+Date.now(),{headers:H})
+    .then(function(r){ if(r.status===404) return null; if(!r.ok) throw new Error("GitHub replied "+r.status+" reading the file"); return r.json(); })
+    .then(function(j){ if(!j) return {gates:{}}; sha=j.sha; return C.decrypt(JSON.parse(atob(String(j.content).replace(/\s/g,""))),PASSW); })
+    .then(function(all){
+      all=all&&all.gates?all:{gates:{}};
+      // Changes for later quarters stay as they are.
+      all.gates[from]=g; (all.revSame||(all.revSame={}))[from]=rs; PZ_SET=all;
+      return pzEncrypt(all,PASSW);
+    })
+    .then(function(env){ var body={message:"Prize settings: gate "+g+", revenue ±"+rs+"% from "+from,content:btoa(JSON.stringify(env)),branch:"main"}; if(sha) body.sha=sha;
+      return fetch(url,{method:"PUT",headers:H,body:JSON.stringify(body)}); })
+    .then(function(r){
+      $("pzSave").disabled=false;
+      if(r.status===200||r.status===201){ pzStat("Saved. From "+qLabel(from)+": gate "+g+", revenue ±"+rs+"%.","ok"); pzCache={}; cache={}; render(); return; }
+      if(r.status===401||r.status===403||r.status===404) throw new Error("the saved token can't write files - give it Contents: read and write");
+      if(r.status===409) throw new Error("the file changed meanwhile - press Save again");
+      throw new Error("GitHub replied "+r.status);
+    })
+    .catch(function(e){ $("pzSave").disabled=false; pzStat("Not saved: "+(e&&e.message||e),"err"); });
+}
 function renderPrize(){
   var np=now(), qs=[], q0=qOf("2026-01"), qn=qOf(np);
   for(var p="2026-01";qOf(p)<=qn;p=addMonths(p,3)) qs.push(qOf(p));
@@ -1150,33 +1259,37 @@ function renderPrize(){
   $("pzQ").innerHTML=qs.slice().reverse().map(function(q){ return '<option value="'+q+'"'+(q===pzQ?" selected":"")+">"+qLabel(q)+(q<qOf(PRIZE.start)?" · trial":"")+(q===qn?" · running":"")+"</option>"; }).join("");
   var R=pzQuarter(pzQ), lab=function(m){ return C.label(m,true); };
   $("pzT").textContent=qLabel(pzQ)+(R.trial?" · trial run on 2026 figures":"")+(R.done?"":" · so far");
-  $("pzRule").textContent="Gate "+PRIZE.gate+" of 30 · "+C.full(PRIZE.amount)+" AED · highest revenue of those who pass";
+  var GATE=gateFor(pzQ);
+  $("pzRule").textContent="Gate "+GATE+" of 30 · "+C.full(PRIZE.amount)+" AED · highest revenue of those who pass";
   // The winner, or none.
   var W=R.pool;
   if(!R.done&&W.length) $("pzWin").innerHTML='<div class="pz-none">Quarter still running. Leading now: <b>'+esc(W[0].c)+"</b>, "+C.full(Math.round(W[0].rev))+" AED with "+W[0].tot+" points.</div>";
-  else if(!R.done) $("pzWin").innerHTML='<div class="pz-none">Quarter still running. Nobody has reached '+PRIZE.gate+" yet.</div>";
-  else if(!W.length) $("pzWin").innerHTML='<div class="pz-none"><b>No winner.</b> Nobody reached '+PRIZE.gate+" of 30, so there is no prize this quarter.</div>";
+  else if(!R.done) $("pzWin").innerHTML='<div class="pz-none">Quarter still running. Nobody has reached '+GATE+" yet.</div>";
+  else if(!W.length) $("pzWin").innerHTML='<div class="pz-none"><b>No winner.</b> Nobody reached '+GATE+" of 30, so there is no prize this quarter.</div>";
   else $("pzWin").innerHTML='<div class="pz-win">'+W.slice(0,3).map(function(r,i){
-    return '<div class="w'+(i===0?" first":"")+'"><div class="k">'+["Winner · "+C.full(PRIZE.amount)+" AED","2nd","3rd"][i]+'</div><div class="n">'+esc(r.c)+'</div><div class="s">'+C.full(Math.round(r.rev))+" AED · "+r.tot+" of 30</div></div>"; }).join("")+"</div>";
+    return '<div class="w'+(i===0?" first":"")+'"><div class="k">'+["Winner · "+C.full(PRIZE.amount)+" AED","2nd","3rd"][i]+'</div><div class="n">'+esc(r.c)+'</div><div class="s">'+C.full(Math.round(r.rev))+" AED · "+r.tot+" of 30</div></div>"; }).join("")+"</div>"+
+    (R.prov?'<div class="pz-none" style="margin-top:10px"><b>Provisional.</b> Confirmed once '+W.slice(0,3).filter(function(r){ return r.stay==="wait"; }).map(function(r){ return esc(r.c); }).join(" and ")+" logs a session on or after the 8th of "+C.label(R.next,true)+". Anyone who leaves before then drops out and the next coach moves up.</div>":"");
   var places={}; if(R.done) W.slice(0,3).forEach(function(r,i){ places[r.c]=i+1; });
   var head='<thead><tr><th class="l">Coach</th><th>Revenue (AED)</th>'+R.ms.map(function(m){ return "<th>"+lab(m)+"</th>"; }).join("")+"<th>Quarter</th><th>Gate</th><th>Place</th></tr></thead>";
   var body=R.rows.map(function(r,i){
-    var gate=!r.elig?'<span class="fail">from '+C.label(r.from,true)+"</span>":r.pass?'<span class="pass">✓ '+PRIZE.gate+"+</span>":(!R.done&&r.possible>=PRIZE.gate?'<span class="fail">'+(PRIZE.gate-r.tot)+" to go</span>":'<span class="fail">✗</span>');
+    var gate=r.pass&&r.elig&&r.stay==="left"?'<span class="fail">left before the 8th</span>':!r.elig?'<span class="fail">from '+C.label(r.from,true)+"</span>":r.pass?'<span class="pass">✓ '+GATE+"+</span>":(!R.done&&r.possible>=GATE?'<span class="fail">'+(GATE-r.tot)+" to go</span>":'<span class="fail">✗</span>');
     var cells=R.ms.map(function(m,j){ return "<td>"+(m>=np?'<span class="dim">'+(m===np?"running":"")+"</span>":r.sc[j]==null?"—":r.sc[j])+"</td>"; }).join("");
     return '<tr class="row'+(r.elig?"":" out")+'" data-i="'+i+'"><td class="l"><b>'+esc(r.c)+"</b></td><td>"+C.full(Math.round(r.rev))+"</td>"+cells+"<td><b>"+r.tot+"</b></td><td>"+gate+'</td><td class="place">'+(places[r.c]||"")+"</td></tr>"+
       '<tr class="det" data-d="'+i+'" style="display:none"><td colspan="'+(6+R.ms.length)+'"></td></tr>';
   }).join("");
   $("pzTbl").innerHTML=head+"<tbody>"+body+"</tbody>";
-  $("pzNote").textContent="Click a coach for each KPI's points and the three KPIs they find hardest. Points: 1 = better than the month before, 0.5 = the same while holding a rise, 0 = otherwise. "+
-    "Training programme score counts as full marks until it is recorded"+(R.trial?"; in the trial, projection reached counts as full marks too (projections began in Nov 2026)":"")+". The month running is not scored until it ends. "+
-    (R.trial?"Trial: a coach takes part from 6 months after their first month on the sheets.":"Everyone on the team takes part from Q1 2027; Kartik from Q2 2027; a new coach 6 months after joining.");
+  pzForm(qn);
+  $("pzNote").textContent="Click a coach for each KPI's points and the three KPIs they find hardest. Points: 1 = better than the month before, 0.5 = the same while holding a rise, 0 = otherwise; revenue within ±"+revSameFor(pzQ)+"% of the month before counts as the same. "+
+    "Projection reached is scored on its own: the clients projected on the 3rd alone over 110% = 0.5 (projected low); otherwise, with new and returning clients added, 90% or more = 1; under 90% or no projection = 0. Training programme score: 0 in Nov and Dec 2026, scored from Jan 2027"+(R.trial?"; in the trial before Nov 2026, both count as full marks":"")+". The month running is not scored until it ends. "+
+    (R.trial?"Trial: a coach takes part from 6 months after their first month on the sheets.":"Everyone on the team takes part from Q1 2027; Kartik from Q2 2027; a new coach 6 months after joining.")+
+    " A coach who leaves before the end of the first week of the next quarter gets no prize (read from the sheets: no session on or after the 8th).";
   Array.prototype.forEach.call(document.querySelectorAll("#pzTbl tr.row"),function(tr){ tr.addEventListener("click",function(){
     var i=tr.getAttribute("data-i"), d=document.querySelector('#pzTbl tr.det[data-d="'+i+'"]'), r=R.rows[+i];
     if(d.style.display===""){ d.style.display="none"; return; }
     var P=pzPoints(r.c), done=R.ms.filter(function(m){ return m<np; });
     var t='<table class="pz-k"><tr><th class="l">KPI</th>'+done.map(function(m){ return "<th>"+lab(m)+"</th>"; }).join("")+"</tr>"+
       PZ_KEYS.map(function(k){ return '<tr><td class="l">'+esc(PZ_NAME[k])+"</td>"+done.map(function(m){ var o=P[m], v=o?o.pts[k]:null, x=o?o.vals[k]:null;
-        return '<td class="'+(v===1?"p1":v===0.5?"p5":"")+'" title="'+(x==null?"no figure":show(k,x).replace(/<[^>]+>/g,""))+'">'+(v==null?"—":v)+"</td>"; }).join("")+"</tr>"; }).join("")+"</table>";
+        return '<td class="'+(v===1?"p1":v===0.5?"p5":v===0?"p0":"")+'" title="'+(x==null?"no figure":show(k,x).replace(/<[^>]+>/g,""))+'">'+(v==null?"—":v)+"</td>"; }).join("")+"</tr>"; }).join("")+"</table>";
     var h=pzHard(r.c,R.ms[0].slice(0,4));
     t+=h.length?'<div class="pz-rule">Hardest to score a full point in '+R.ms[0].slice(0,4)+": "+h.map(function(x){ return esc(PZ_NAME[x.k])+" · "+x.ones+" of "+x.n+" months"; }).join(" · ")+"</div>":"";
     d.firstChild.innerHTML=t; d.style.display="";
@@ -1186,7 +1299,11 @@ function renderPrize(){
 /* Copy: the reviewed column's numbers in the list's order, tab-separated, ready to paste across
    the month's row on the KPI sheet's Log tab. */
 function copyCol(){
-  var r=reviewed(), lines=KEYS().map(function(k){ var v=rnd(k,vB(sel||null,r,k)); return v==null?"":String(v); }).join("\t"), b=$("btnCopy"), t=b.textContent;
+  // After the KPIs, one more figure for the KPI sheet: projection reached by the clients projected
+  // on the 3rd alone (its own column after the KPIs), which decides the 0.5 for projecting low.
+  var r=reviewed(), ks=KEYS(), vals=ks.map(function(k){ var v=rnd(k,vB(sel||null,r,k)); return v==null?"":String(v); });
+  if(ks.indexOf("proj")>=0){ var a=rnd("proj",vB(sel||null,r,"projA")); vals.push(a==null?"":String(a)); }
+  var lines=vals.join("\t"), b=$("btnCopy"), t=b.textContent;
   function done(ok){ b.textContent=ok?"Copied":"Copy failed"; setTimeout(function(){ b.textContent=t; },1400); }
   if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(lines).then(function(){ done(true); },function(){ done(false); });
   else { var ta=document.createElement("textarea"); ta.value=lines; document.body.appendChild(ta); ta.select(); var ok=false; try{ ok=document.execCommand("copy"); }catch(e){} document.body.removeChild(ta); done(ok); }
@@ -1194,13 +1311,20 @@ function copyCol(){
 
 function save(){ try{ localStorage.setItem(UI_KEY,JSON.stringify({sel:sel,win:win,list:list,span:span,tspan:tspan,bspan:bspan,cspan:cspan,rspan:rspan,rcmp:rcmp,bmode:bmode,bmin:bmin,basis:basis,k:kSel,pick:pickBy})); }catch(e){} }
 
-C.unlock(function(d){
+C.unlock(function(d,pw){
   D=d;
   if(!D.ov||!D.ov.kpiM) document.querySelector(".wrap").insertAdjacentHTML("afterbegin",'<div class="card section"><div class="empty">The client figures (active clients, still with us, renewals, new clients, beyond what\'s paid) arrive with the next refresh. Press Refresh now on the Performance page.</div></div>');
   try{ var u=JSON.parse(localStorage.getItem(UI_KEY)||"{}"); sel=u.sel||""; win=spanOk(u.win,"m"); tspan=spanOk(u.tspan,"m"); bspan=spanOk(u.bspan,"q"); cspan=spanOk(u.cspan,"m"); rspan=spanOk(u.rspan,"m"); rcmp=/^(pace|prev|yoy|yoyfull|avg3|avg6)$/.test(u.rcmp)?u.rcmp:"pace"; bmode=u.bmode==="min"?"min":"own"; bmin=+u.bmin>0?+u.bmin:4; basis=u.basis==="whole"?"whole":"mtd"; list=u.list==="bal"?"bal":"full"; span=spanOk(u.span,"m"); kSel=u.k||"ses"; pickBy=u.pick||{}; }catch(e){}
   if(PAGE==="dir"){ sel=""; list="bal"; showNames=true; if(!u||!u.k) kSel="rev"; }
   fillCoaches(); fillMonths();
-  if(PAGE==="prize") $("pzQ").addEventListener("change",function(e){ pzQ=e.target.value; render(); });
+  if(PAGE==="prize"){
+    $("pzQ").addEventListener("change",function(e){ pzQ=e.target.value; render(); });
+    $("pzFrom").addEventListener("change",function(){ $("pzGate").value=gateFor($("pzFrom").value); });
+    $("pzSave").addEventListener("click",pzSave);
+  }
+  // The prize settings (gate, revenue margin) on every page here: Coach review and Fitness colour
+  // revenue with the same margin.
+  PASSW=pw; pzLoadSet().then(function(){ pzCache={}; cache={}; render(); });
   C.scopeSwitch($("segScope"),function(){ fillCoaches(); render(); });
   $("selCoach").addEventListener("change",function(e){ sel=e.target.value; save(); render(); });
   $("selMonth").addEventListener("change",function(e){ month=e.target.value; render(); });

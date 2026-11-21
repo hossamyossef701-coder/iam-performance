@@ -12,9 +12,9 @@ import { parseCoachSheet, probeSheet, sheetNameToPeriod, coachFromFilename } fro
 import { parseAssessments } from "./assess.mjs";
 import { encryptJSON, decryptJSON } from "./crypto.mjs";
 import { buildClientsModel } from "./clients-model.mjs";
-import { buildOverview, convWithoutPackage } from "./join.mjs";
+import { buildOverview, convWithoutPackage, nameKey } from "./join.mjs";
 import { colourFamily } from "./parse.mjs";
-import { guardProjections } from "./projection.mjs";
+import { guardProjections, addNewBusiness } from "./projection.mjs";
 
 const COLOUR_NAME = { r: "red (last session)", g: "green (first session)", y: "yellow (charged)", o: "orange (cover)", b: "blue (assessment)", p: "purple (rewarded)" };
 const colourLog = {};
@@ -51,7 +51,7 @@ const ORDER = (env.FETCH_STRATEGIES || "badger,od,odkey,spshares,zip,rest,browse
 
 if (!SHARE_URL || !PASS) { console.error("SHARE_URL and DATA_PASSPHRASE secrets must both be set."); process.exit(2); }
 const L = makeLogger(SHARE_URL);
-console.log("refresh build 2026-11-19a (projection lock, floor and overrides)");  // proves which version the job is running
+console.log("refresh build 2026-11-21b (projection check: projected clients + new and returning clients)");  // proves which version the job is running
 
 // One typed character of difference, so "Shayla" finds "Shyla".
 function near(a, b) {
@@ -176,7 +176,7 @@ function dayTotals(cl) {
 
 async function rekey() {
   if (!OLD_PASS || OLD_PASS === PASS) return;
-  for (const name of ["history.enc.json", "proj-lock.enc.json", "proj-override.enc.json"]) {
+  for (const name of ["history.enc.json", "proj-lock.enc.json", "proj-override.enc.json", "prize-settings.enc.json"]) {
     const fp = path.join(OUT, name); if (!fs.existsSync(fp)) continue;
     const e = JSON.parse(fs.readFileSync(fp, "utf8"));
     try { await decryptJSON(e, PASS); continue; } catch {}          // already under the new passphrase
@@ -293,9 +293,10 @@ async function main() {
       // ps/pr: the month's projected sessions and revenue. Only on sheets that carry the columns;
       // a 0 means the columns are there but nothing has been typed in them yet.
       if (r.projection) { bucket[coach].ps = r.projection.s; bucket[coach].pr = r.projection.r; bucket[coach].pm = r.projection.missing; }
-      // cl: each client's row day by day, for the last 13 months only. Names as the coach typed
+      // cl: each client's row day by day, for the last 13 months only: [name, price, days, colours,
+      // projected AED (null: the sheet has no projection columns), revenue]. Names as the coach typed
       // them; this file is encrypted with the Performance passphrase like everything in it.
-      if (r.people && r.people.length && t.p >= CL_FROM) bucket[coach].cl = r.people.map((x) => [x.n, x.p, x.m, x.k]);
+      if (r.people && r.people.length && t.p >= CL_FROM) bucket[coach].cl = r.people.map((x) => [x.n, x.p, x.m, x.k, x.pp ?? null, x.r ?? null]);
       // How many day cells carried each colour: printed below, so a coach's own shades can be checked.
       if (r.colours && t.p >= CL_FROM) { const cc = colourLog[coach] || (colourLog[coach] = {}); for (const [k, v] of Object.entries(r.colours)) {
         // "other" is itself a tally by fill colour; the rest are counts.
@@ -421,6 +422,9 @@ async function main() {
         return p === now && x.mr != null ? { r: x.mr, s: x.ms } : { r: x.r || 0, s: x.s || 0 };
       };
       const ov = buildOverview({ inner: clientsInner, periods, links: nameLinks, now, cutoffDay: today, revenueOf });
+      // New and returning clients count towards the projection check (projection reached KPI).
+      addNewBusiness(periods, ov.fresh, nameKey);
+      { const t = []; for (const p of Object.keys(ov.fresh || {}).sort()) for (const c of Object.keys(ov.fresh[p])) { const v = periods[p][c]; if (v && v.pk && v.pk.nn) t.push(`${p} ${c} ${v.pk.nn} (${v.pk.ng} AED)`); } if (t.length) L.log("New and returning clients added to the projection check: " + t.join(", ")); }
       // Converted on the Assessments tab but no package in the Clients file around that month:
       // the conversion counts, the new client does not, until the package is logged.
       ov.convNoPk = convWithoutPackage(assessRows, clientsInner, now);

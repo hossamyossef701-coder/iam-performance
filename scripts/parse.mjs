@@ -291,7 +291,7 @@ export function parseCoachSheet(arr, opts) {
   //    and the figure itself when it has not. Group training is counted separately by the
   //    sheet, so it ends the client block.
   let sumS = 0, sumR = 0, sumC = 0, sumPS = 0, maxPrice = 0, clients = 0;
-  let projS = 0, projR = 0, projPS = 0, projClients = 0, projActive = 0, projMissing = 0;
+  let projS = 0, projR = 0, projPS = 0, projRow = 0, projClients = 0, projActive = 0, projMissing = 0;
   // Each client's own row, day by day: what training frequency and "training less often" are
   // worked out from. One character per day of the month: "." nothing, "1" a session,
   // "h" an online half, "0" cancelled, "2"-"9" that many sessions, "x" anything else positive.
@@ -310,6 +310,7 @@ export function parseCoachSheet(arr, opts) {
     // the parser did not recognise is added on top of the clients it already totals.
     if (!isClientRow(row)) continue;
     clients++;
+    let me = null;                           // this client's entry in people, filled in below
     if (dayCols.length) {
       const m = Array(31).fill(".");
       for (const { c, d } of dayCols) if (d >= 1 && d <= 31) m[d - 1] = markOf(num(row[c]));
@@ -324,7 +325,8 @@ export function parseCoachSheet(arr, opts) {
         }
         k = kk.join("");
       }
-      people.push({ n: String(row[nameCol]).trim().replace(/\s+/g, " "), p: num(row[ppsCol]), m: m.join(""), k });
+      me = { n: String(row[nameCol]).trim().replace(/\s+/g, " "), p: num(row[ppsCol]), m: m.join(""), k };
+      people.push(me);
     }
     const s = num(row[sessionsCol]); if (s != null) sumS += s;
     const rv = num(row[moneyCol]); if (rv != null) sumR += rv;
@@ -337,6 +339,17 @@ export function parseCoachSheet(arr, opts) {
     if (ps != null) { projS += ps; if (p != null) projPS += ps * p; }
     if (pr != null) projR += pr;
     if ((ps || 0) > 0 || (pr || 0) > 0) projClients++;
+    // Each client's own projection (AED): the Projection (AED) cell, or - where that cell is empty
+    // though sessions are projected - those sessions at the client's price, which is what the cell
+    // computes. The month's projection is the sum of these, so a row whose formula was deleted
+    // still counts. Kept per client too (with the client's revenue), so the projection can be
+    // checked against the clients it was made for.
+    if (projSCol >= 0 || projRCol >= 0) {
+      const pp = (pr || 0) > 0 ? pr : (ps || 0) > 0 && p != null ? Math.round(ps * p * 100) / 100 : 0;
+      projRow += pp;
+      if (me) me.pp = pp;
+    }
+    if (me) me.r = rv;
     // A client with sessions this month but nothing projected for them: the projection is only
     // partly filled in, or the client joined after it was set. Either way it reads low.
     if (projSCol >= 0 || projRCol >= 0) {
@@ -412,13 +425,13 @@ export function parseCoachSheet(arr, opts) {
     const round = (v) => Math.round(v * 100) / 100;
     projection = {
       s: projSCol >= 0 ? round(projS) : null,
-      // The money column, unless it is empty while sessions are projected (its formulas missing
-      // or deleted): then those sessions at each client's price - exactly what it should hold.
-      r: projRCol >= 0 && !(projR === 0 && projPS > 0) ? round(projR) : (projSCol >= 0 ? round(projPS) : null),
+      // Client by client: the Projection (AED) cell, or where it is empty though sessions are
+      // projected (its formula missing or deleted), those sessions at the client's price.
+      r: projRCol >= 0 || projSCol >= 0 ? round(projRow) : null,
       clients: projClients,
       active: projActive,             // clients with sessions this month
       missing: projMissing,           // ...of whom this many have no projection
-      priced: projRCol < 0 || (projR === 0 && projPS > 0),   // true: worked out from projected sessions x price
+      priced: projRCol < 0 || (projR === 0 && projPS > 0),   // true: worked out from projected sessions x price throughout
     };
     if (projRCol >= 0 && projSCol >= 0 && projPS > 0 && projR === 0) {
       warnings.push(`the Projection (AED) column is empty though sessions are projected - used projected sessions x price (${Math.round(projPS)}) instead`);

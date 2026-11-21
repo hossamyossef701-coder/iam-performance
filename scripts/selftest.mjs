@@ -5,7 +5,7 @@ import { buildClientsModel } from "./clients-model.mjs";
 import { parseCoachSheet, sheetNameToPeriod, colourFamily } from "./parse.mjs";
 import { parseAssessments, monthToPeriod } from "./assess.mjs";
 import { buildOverview, convWithoutPackage } from "./join.mjs";
-import { guardProjections } from "./projection.mjs";
+import { guardProjections, addNewBusiness } from "./projection.mjs";
 
 const W = 48;
 const row = (pairs) => { const r = Array(W).fill(null); for (const [i, v] of pairs) r[i] = v; return r; };
@@ -496,6 +496,25 @@ check("sheet names", ["Oct 2026", "Sept 2026", "October 2026", " October 2022", 
     overrides: { "2026-11": { C: { mode: "set", ps: 200, pr: 60000, why: "agreed" }, A: { mode: "nofloor", why: "leave" } } } });
   check("override set: your figure counts", [P["2026-11"].C.pg.st, P["2026-11"].C.ps, P["2026-11"].C.pr], ["override", 200, 60000]);
   check("override no floor: the locked projection counts as given", [P["2026-11"].A.pg.st, P["2026-11"].A.ps], ["override", 30]);
+  // The projection against the clients it was made for: a client projected at the lock counts,
+  // a new client who arrives after it does not, and later edits to a client's projection don't.
+  {
+    const Q = { "2026-12": { K: { s: 20, r: 6000, ps: 20, pr: 6000, cl: [["Amy", 300, "1111", null, 3000, 2700], ["Ben", 300, "1111", null, 3000, 3300]] } } };
+    const lk = {};
+    guardProjections(Q, { now: "2026-12", today: 3, todayIso: "2026-12-03", lock: lk });
+    const v = Q["2026-12"].K;
+    v.cl.push(["New client", 300, "11", null, 0, 1500]);    // joins after the 3rd
+    v.cl[0][4] = 9000;                                          // Amy's projection raised after the lock
+    guardProjections(Q, { now: "2026-12", today: 20, todayIso: "2026-12-20", lock: lk });
+    check("projection checked on the clients projected at the lock", [v.pk.own, v.pk.got, v.pk.n, v.pk.of], [6000, 6000, 2, 2]);
+    check("lock keeps each client's projection", [lk["2026-12"].K.pc.amy, lk["2026-12"].K.pc.ben], [3000, 3000]);
+    // New and returning clients (from the Clients file) are added; a client already training but
+    // left out of the projection is not.
+    v.cl.push(["Old forgotten", 300, "11", null, 0, 600]);
+    guardProjections(Q, { now: "2026-12", today: 21, todayIso: "2026-12-21", lock: lk });
+    addNewBusiness(Q, { "2026-12": { K: ["new client"] } }, (n) => String(n).toLowerCase().trim());
+    check("new and returning clients count towards the projection, forgotten ones don't", [v.pk.got, v.pk.ng, v.pk.nn], [6000, 1500, 1]);
+  }
 }
 
 if (failures) { console.error(`\n${failures} self-test(s) failed - refusing to publish figures.`); process.exit(1); }

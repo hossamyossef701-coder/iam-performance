@@ -158,6 +158,27 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
     } else notInFile.push({ coach: o.coach, name: o.name, last: lastMonth });
   }
 
+  /* 3b. New and returning clients, per coach and month (from Nov 2026, when projections began) ----
+     A row on the coach's sheet whose client has a New or Returning package with this coach,
+     bought this month or the month before (paid before the 3rd, started after it), and who had no
+     session on this coach's sheet the month before. The projection set on the 3rd could not
+     include them, so their revenue is added to it as new business (scripts/projection.mjs). Not
+     written to any file: fresh is not enumerable. */
+  const fresh = {};
+  const prevMonth = (p) => { let y = +p.slice(0, 4), m = +p.slice(5, 7) - 1; if (m < 1) { m = 12; y--; } return y + "-" + String(m).padStart(2, "0"); };
+  for (const [k, id] of linkOf) {
+    const o = sheetNames.get(k), c = clients.get(id); if (!c) continue;
+    for (const p of o.months) {
+      if (p < "2026-11") continue;
+      const pm = prevMonth(p), from = serial(pm + "-01"), to = serial(p + "-" + String(daysIn(p)).padStart(2, "0"));
+      const bought = c.pk.some((x) => (x.type === "New" || x.type === "Returning") && x.date >= from && x.date <= to && (x.coaches || [x.coach]).some((y) => sameCoach(y, o.coach)));
+      if (!bought) continue;
+      let before = 0; for (const [d, w] of o.days) if (d >= from && d < serial(p + "-01")) before += w;
+      if (before > 0) continue;
+      ((fresh[p] || (fresh[p] = {}))[o.coach] || (fresh[p][o.coach] = [])).push(o.key);
+    }
+  }
+
   /* 4. Each linked client's days, all coaches together ---- */
   const daysOf = new Map();                            // id -> Map(serial -> w)
   const redsOf = new Map();                            // id -> Set(serial): last sessions marked in red
@@ -515,7 +536,7 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
   }
   for (const k in roster) roster[k].sort((a, b) => String(a[0]).localeCompare(String(b[0])));
 
-  return {
+  const out = {
     v: 1, today: iso(today), now, grace: inner.grace, loggedFrom: iso(inner.loggedFrom),
     // Each linked sheet name (coach|name words) -> the client's name in the Clients file, so the
     // Coach review page can show one name per client.
@@ -529,6 +550,8 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
     activeByCoach: inner.clients.filter((c) => c.status === "Active").reduce((o, c) => {
       const k = c.coach || ((c.pk.filter((p) => p.date <= today).pop() || {}).coach) || "(no coach)"; o[k] = (o[k] || 0) + 1; return o; }, {}),
   };
+  Object.defineProperty(out, "fresh", { value: fresh, enumerable: false });
+  return out;
 }
 
 // Converted assessments of the last 3 months with no package in the Clients file within a month
