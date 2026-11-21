@@ -11,7 +11,7 @@
 // Each dashboard its own home-screen app: the manifest (and the app's name) follow the page, so
 // "Add to Home Screen" on the Overview opens the Overview, not Team Performance.
 (function(){var f=(location.pathname.split("/").pop()||"").replace(/\.html$/,"");
-var n={overview:"Overview",finance:"Finance",report:"Team Performance",director:"Fitness",coach:"Coach review",clients:"Clients",business:"Business",roster:"Head coach"}[f];
+var n={overview:"Overview",finance:"Finance",report:"Team Performance",director:"Fitness",coach:"Coach review",prize:"Prize",clients:"Clients",business:"Business",roster:"Head coach"}[f];
 if(!n){f="report";n="Team Performance";}
 document.write('<link rel="manifest" href="./'+f+'.webmanifest"><meta name="apple-mobile-web-app-title" content="'+n+'">');})();
 </script>
@@ -82,6 +82,23 @@ body.v-dir #scoreCard,body.v-dir #kCard,body.v-dir #one,body.v-dir #selCoach,bod
 .bmin input{width:56px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:13px;}
 .then{color:var(--ink-faint);font-size:12px;} #rsTiles .tile .sub{line-height:1.6;}
 body:not(.v-dir) #dir{display:none;}
+body:not(.v-prize) #prize{display:none;}
+body.v-prize #app>*:not(.head):not(#prize):not(#dnav){display:none !important;}
+.pz-bar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;margin:0 0 14px;}
+.pz-bar select{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;}
+.pz-rule{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-faint);line-height:1.7;}
+.pz-win{display:flex;flex-wrap:wrap;gap:12px;margin:0 0 16px;}
+.pz-win .w{flex:1;min-width:200px;border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--panel);}
+.pz-win .w.first{border-color:#ef691d;box-shadow:0 0 0 1px #ef691d inset;}
+.pz-win .w .k{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint);}
+.pz-win .w .n{font-size:22px;font-weight:600;margin:6px 0 2px;} .pz-win .w .s{font-size:12.5px;color:var(--ink-soft);}
+.pz-none{border:1px dashed var(--line);border-radius:12px;padding:14px 16px;color:var(--ink-soft);margin:0 0 16px;}
+#pzTbl td,#pzTbl th{text-align:center;} #pzTbl td.l,#pzTbl th.l{text-align:left;}
+#pzTbl tr.out td{opacity:.45;} #pzTbl tr.row{cursor:pointer;} #pzTbl tr.row:hover td{background:rgba(255,255,255,.03);}
+#pzTbl .pass{color:var(--up);font-weight:600;} #pzTbl .fail{color:var(--ink-faint);} #pzTbl .place{font-weight:700;color:#ef691d;}
+#pzTbl tr.det td{background:rgba(255,255,255,.02);text-align:left;padding:12px 16px;}
+.pz-k{border-collapse:collapse;margin:6px 0 10px;font-size:12.5px;} .pz-k td,.pz-k th{border:1px solid var(--line);padding:4px 8px;text-align:center;} .pz-k td.l{text-align:left;}
+.pz-k td.p1{background:rgba(46,160,90,.35);} .pz-k td.p5{background:rgba(214,170,40,.3);}
 body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
 @media(max-width:1000px){body.v-dir .tiles{grid-template-columns:repeat(3,1fr);}}
 @media(max-width:600px){body.v-dir .tiles{grid-template-columns:repeat(2,1fr);}}
@@ -150,6 +167,16 @@ body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
     <div class="card-b" style="padding-top:6px">
       <details class="more" style="margin:8px 0 0"><summary>KPIs in the score</summary><div class="body" id="sPick"></div></details>
       <p class="note" id="sNote"></p>
+    </div>
+  </div>
+
+  <div id="prize" class="card section">
+    <div class="card-h"><div><div class="k">Quarterly prize</div><div class="t" id="pzT"></div></div></div>
+    <div class="card-b">
+      <div class="pz-bar"><select id="pzQ" aria-label="Quarter"></select><span class="pz-rule" id="pzRule"></span></div>
+      <div id="pzWin"></div>
+      <div class="scroll"><table class="kt" id="pzTbl"></table></div>
+      <p class="note" id="pzNote"></p>
     </div>
   </div>
 
@@ -229,13 +256,15 @@ body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
 var C=window.IAM, $=C.$, esc=C.esc, D=null, sel="", month="", kSel="ses", showNames=false;
 // Two views of one file (scripts/selftest.mjs keeps director.html identical to this one): Coach
 // review, for the 1+1 with one coach, and Director, the team at a glance. The file name picks.
-var PAGE=/director\.html$/i.test(location.pathname)?"dir":"coach";
-var UI_KEY=PAGE==="dir"?"iamdir:ui":"iamcoach:ui";
+// prize.html (a third copy): the quarterly prize, worked out from the same KPIs. Main passphrase only.
+var PAGE=/director\.html$/i.test(location.pathname)?"dir":/prize\.html$/i.test(location.pathname)?"prize":"coach";
+var UI_KEY=PAGE==="dir"?"iamdir:ui":PAGE==="prize"?"iamprize:ui":"iamcoach:ui";
+if(PAGE==="prize"){ document.body.classList.add("v-prize"); document.title="Prize — I AM Performance"; Array.prototype.forEach.call(document.querySelectorAll("h1"),function(h){ h.textContent="Prize"; }); }
 if(PAGE==="dir"){
   document.body.classList.add("v-dir"); document.title="Fitness — I AM Performance";
   Array.prototype.forEach.call(document.querySelectorAll("h1"),function(h){ h.textContent="Fitness"; });
 }
-IAMNAV.draw(PAGE==="dir"?"director.html":"coach.html");
+IAMNAV.draw(PAGE==="dir"?"director.html":PAGE==="prize"?"prize.html":"coach.html");
 
 /* ---- The KPIs ----
    Two lists, switched with "Full list / Balanced": the full 15 (the KPI sheet's rows), and the
@@ -518,6 +547,7 @@ function nameCell(k){
 
 function render(){
   cache={};
+  if(PAGE==="prize"){ renderPrize(); return; }
   if(KEYS().indexOf(kSel)<0) kSel=KEYS()[0];
   segs();
   $("stamp").innerHTML="Read "+new Date(D.ov?D.ov.generated:D.live.generated).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"})+"";
@@ -717,7 +747,8 @@ function renderBusy(){
   // that weekday (trained on at least half of them): a day off, or a coach who drops in now and
   // then, is not "quiet".
   var hiC=[], loC=[];
-  for(var w=0;w<7;w++){ cs.forEach(function(c){ var x=cnt[w]?by[c][w]/cnt[w]:0; if(!(x>0)) return;
+  // Ivan is left out of both (shown in the table, not ranked).
+  for(var w=0;w<7;w++){ cs.forEach(function(c){ if(c===C.LAST) return; var x=cnt[w]?by[c][w]/cnt[w]:0; if(!(x>0)) return;
     if(!hiC[w]||x>hiC[w].v) hiC[w]={c:c,v:x};
     if(on[c][w]>=cnt[w]/2&&(!loC[w]||x<loC[w].v)) loC[w]={c:c,v:x}; }); }
   var row=function(nm,a,bold,coach){
@@ -738,7 +769,7 @@ function renderBusy(){
     row("Team",team,true)+cs.slice().sort(C.ivan(function(a,c){ var sa=by[a].reduce(function(t,v){ return t+v; },0), sc=by[c].reduce(function(t,v){ return t+v; },0); return sc-sa; })).map(function(c){ return row(esc(c),by[c],false,c); }).join("")+"</tbody>"+
     '<tfoot><tr class="bx"><td class="l">Busiest coach</td>'+WD.map(function(w,i){ return '<td class="nm">'+(hiC[i]?esc(hiC[i].c)+"<br><span class=\"dim\">"+hiC[i].v.toFixed(1)+"</span>":"—")+"</td>"; }).join("")+'<td></td><td></td></tr>'+
     '<tr class="bx"><td class="l">Least busy coach</td>'+WD.map(function(w,i){ return '<td class="nm lo-t">'+(loC[i]?esc(loC[i].c)+"<br><span class=\"dim\">"+loC[i].v.toFixed(1)+"</span>":"—")+"</td>"; }).join("")+'<td></td><td></td></tr></tfoot>';
-  $("bNote").textContent="Sessions on that weekday ÷ how many of that weekday there were. Cancellations left out. Dashed box = the least busy coach that weekday, of the coaches who usually work it (trained on at least half of those days)."+
+  $("bNote").textContent="Sessions on that weekday ÷ how many of that weekday there were. Cancellations left out. Dashed box = the least busy coach that weekday, of the coaches who usually work it (trained on at least half of those days). Ivan is not ranked."+
     (bmode==="min"?" Against a minimum: green = "+bmin+" or more sessions on an average day, red = fewer. The team row is set against "+bmin+" a coach ("+nCo+" coaches).":"");
   $("bLeg").style.display=bmode==="min"?"none":"";
   $("bMinL").style.display=bmode==="min"?"":"none";
@@ -1042,6 +1073,116 @@ function clientList(c){
   }).join("");
 }
 
+/* ---------- The quarterly prize ----------
+   Balanced KPIs, one coach at a time, month by month: 1 point for a KPI better than the month
+   before, 0.5 for exactly the same while holding a rise (it keeps earning 0.5 while the gain
+   holds), 0 otherwise. A quarter adds its three months (out of 30). Coaches at 15 or more pass;
+   of those, the highest revenue for the quarter wins 1,000 AED; nobody at 15 = no prize. The
+   prize runs from Q1 2027; the 2026 quarters are a trial on the same data. */
+var PRIZE={start:"2027-01", gate:15, amount:1000,
+  out:["Ivan","Hossam"],                       // not in the prize, not listed
+  from:{Kartik:"2027-04"},                     // first quarter a coach takes part in (6 months after joining)
+  allFrom:"2027-01"};                          // everyone already on the team takes part from Q1 2027
+var PZ_KEYS=["rev","proj","p3","less","kept","early","conv","nw","chg","prog"];
+// The names on the coaches' KPI sheet.
+var PZ_NAME={rev:"Revenue (AED)",proj:"Projection reached (%)",p3:"Clients at 3+ a week (%)",less:"Clients training less often",kept:"Existing clients still with us (%)",early:"Renewed before the last paid session (%)",conv:"Assessments converted (%)",nw:"New clients",chg:"Charged Session (%)",prog:"Training programme score"};
+var pzQ="";
+function qOf(p){ return p.slice(0,4)+"-Q"+(Math.floor((+p.slice(5,7)-1)/3)+1); }
+function qMonths(q){ var y=q.slice(0,4), n=+q.slice(6); return [1,2,3].map(function(i){ var m=(n-1)*3+i; return y+"-"+(m<10?"0":"")+m; }); }
+function addMonths(p,n){ var y=+p.slice(0,4), m=+p.slice(5,7)+n; while(m>12){ m-=12; y++; } while(m<1){ m+=12; y--; } return y+"-"+(m<10?"0":"")+m; }
+function firstOn(c){ var ps=Object.keys(D.live.periods).sort(); for(var i=0;i<ps.length;i++){ var v=D.live.periods[ps[i]][c]; if(v&&(v.s||0)>0) return ps[i]; } return null; }
+// The quarter a coach first takes part in.
+function pzFrom(c,trial){
+  var f=firstOn(c); if(!f) return "9999-99";
+  if(trial) return addMonths(f,6);                       // the 2026 trial: 6 months after their first month on the sheets
+  if(PRIZE.from[c]) return PRIZE.from[c];
+  return f<PRIZE.allFrom?PRIZE.allFrom:addMonths(f,6);   // joined later: 6 months after their first month
+}
+// Each KPI's points, month by month, for one coach (the chain needs every month before).
+var pzCache={};
+function pzPoints(c){
+  if(pzCache[c]) return pzCache[c];
+  var ps=Object.keys(D.live.periods).sort().filter(function(p){ return p>="2025-11"&&p<now(); }), out={}, prev={}, prevV={};
+  ps.forEach(function(m){
+    var any=false, pts={}, vals={};
+    PZ_KEYS.forEach(function(k){ vals[k]=rnd(k,agg(c,[m],k)); if(vals[k]!=null&&k!=="prog") any=true; });
+    PZ_KEYS.forEach(function(k){
+      // Training programme score: full marks until it is recorded. Projection reached: full marks in
+      // the 2026 trial (projections only began in Nov 2026); real from Q1 2027.
+      if(k==="prog"||(k==="proj"&&m<PRIZE.start)){ pts[k]=any?1:null; return; }
+      var a=vals[k], b=prevV[k]; if(a==null||b==null){ pts[k]=null; return; }
+      var up=better(k)==="Lower"?a<b:a>b;
+      pts[k]=up?1:(a===b?((prev[k]||0)>0?0.5:0):0);
+    });
+    var sc=null; if(any){ sc=0; PZ_KEYS.forEach(function(k){ if(pts[k]!=null) sc+=pts[k]; }); }
+    out[m]={pts:pts,vals:vals,score:sc}; prev=pts; prevV=vals;
+  });
+  return (pzCache[c]=out);
+}
+function pzQuarter(q){
+  var ms=qMonths(q), trial=ms[0]<PRIZE.start, np=now(), done=ms.filter(function(m){ return m<np; }), left=ms.filter(function(m){ return m>=np; }).length;
+  var cs={}; ms.forEach(function(m){ var per=D.live.periods[m]||{}; Object.keys(per).forEach(function(c){ if((per[c].s||0)>0||(per[c].ms||0)>0) cs[c]=1; }); });
+  var rows=Object.keys(cs).filter(function(c){ return PRIZE.out.indexOf(c)<0; }).map(function(c){
+    var P=pzPoints(c), sc=ms.map(function(m){ return m<np&&P[m]?P[m].score:null; });
+    var tot=sc.reduce(function(t,v){ return t+(v||0); },0), rev=0;
+    ms.forEach(function(m){ var r=parts(c,[m],"rev"); if(r) rev+=r.n; });
+    var from=pzFrom(c,trial), elig=from<=ms[0];
+    return {c:c,sc:sc,tot:tot,rev:rev,elig:elig,from:from,pass:tot>=PRIZE.gate,possible:tot+10*left};
+  });
+  rows.sort(function(a,b){ return b.rev-a.rev; });
+  var pool=rows.filter(function(r){ return r.elig&&r.pass; });
+  return {q:q,ms:ms,trial:trial,done:done.length===3,left:left,rows:rows,pool:pool};
+}
+function pzHard(c,year){
+  var P=pzPoints(c), st=[];
+  ["rev","p3","less","kept","early","conv","nw","chg"].concat(year>="2027"?["proj"]:[]).forEach(function(k){
+    var n=0, ones=0; Object.keys(P).forEach(function(m){ if(m.slice(0,4)!==year) return; var v=P[m].pts[k]; if(v==null) return; n++; if(v===1) ones++; });
+    if(n>=3) st.push({k:k,n:n,ones:ones,r:ones/n});
+  });
+  st.sort(function(a,b){ return a.r-b.r||b.n-a.n; });
+  return st.slice(0,3);
+}
+function qLabel(q){ return q.slice(5)+" "+q.slice(0,4); }
+function renderPrize(){
+  var np=now(), qs=[], q0=qOf("2026-01"), qn=qOf(np);
+  for(var p="2026-01";qOf(p)<=qn;p=addMonths(p,3)) qs.push(qOf(p));
+  if(qs.indexOf(pzQ)<0) pzQ=qn;
+  $("pzQ").innerHTML=qs.slice().reverse().map(function(q){ return '<option value="'+q+'"'+(q===pzQ?" selected":"")+">"+qLabel(q)+(q<qOf(PRIZE.start)?" · trial":"")+(q===qn?" · running":"")+"</option>"; }).join("");
+  var R=pzQuarter(pzQ), lab=function(m){ return C.label(m,true); };
+  $("pzT").textContent=qLabel(pzQ)+(R.trial?" · trial run on 2026 figures":"")+(R.done?"":" · so far");
+  $("pzRule").textContent="Gate "+PRIZE.gate+" of 30 · "+C.full(PRIZE.amount)+" AED · highest revenue of those who pass";
+  // The winner, or none.
+  var W=R.pool;
+  if(!R.done&&W.length) $("pzWin").innerHTML='<div class="pz-none">Quarter still running. Leading now: <b>'+esc(W[0].c)+"</b>, "+C.full(Math.round(W[0].rev))+" AED with "+W[0].tot+" points.</div>";
+  else if(!R.done) $("pzWin").innerHTML='<div class="pz-none">Quarter still running. Nobody has reached '+PRIZE.gate+" yet.</div>";
+  else if(!W.length) $("pzWin").innerHTML='<div class="pz-none"><b>No winner.</b> Nobody reached '+PRIZE.gate+" of 30, so there is no prize this quarter.</div>";
+  else $("pzWin").innerHTML='<div class="pz-win">'+W.slice(0,3).map(function(r,i){
+    return '<div class="w'+(i===0?" first":"")+'"><div class="k">'+["Winner · "+C.full(PRIZE.amount)+" AED","2nd","3rd"][i]+'</div><div class="n">'+esc(r.c)+'</div><div class="s">'+C.full(Math.round(r.rev))+" AED · "+r.tot+" of 30</div></div>"; }).join("")+"</div>";
+  var places={}; if(R.done) W.slice(0,3).forEach(function(r,i){ places[r.c]=i+1; });
+  var head='<thead><tr><th class="l">Coach</th><th>Revenue (AED)</th>'+R.ms.map(function(m){ return "<th>"+lab(m)+"</th>"; }).join("")+"<th>Quarter</th><th>Gate</th><th>Place</th></tr></thead>";
+  var body=R.rows.map(function(r,i){
+    var gate=!r.elig?'<span class="fail">from '+C.label(r.from,true)+"</span>":r.pass?'<span class="pass">✓ '+PRIZE.gate+"+</span>":(!R.done&&r.possible>=PRIZE.gate?'<span class="fail">'+(PRIZE.gate-r.tot)+" to go</span>":'<span class="fail">✗</span>');
+    var cells=R.ms.map(function(m,j){ return "<td>"+(m>=np?'<span class="dim">'+(m===np?"running":"")+"</span>":r.sc[j]==null?"—":r.sc[j])+"</td>"; }).join("");
+    return '<tr class="row'+(r.elig?"":" out")+'" data-i="'+i+'"><td class="l"><b>'+esc(r.c)+"</b></td><td>"+C.full(Math.round(r.rev))+"</td>"+cells+"<td><b>"+r.tot+"</b></td><td>"+gate+'</td><td class="place">'+(places[r.c]||"")+"</td></tr>"+
+      '<tr class="det" data-d="'+i+'" style="display:none"><td colspan="'+(6+R.ms.length)+'"></td></tr>';
+  }).join("");
+  $("pzTbl").innerHTML=head+"<tbody>"+body+"</tbody>";
+  $("pzNote").textContent="Click a coach for each KPI's points and the three KPIs they find hardest. Points: 1 = better than the month before, 0.5 = the same while holding a rise, 0 = otherwise. "+
+    "Training programme score counts as full marks until it is recorded"+(R.trial?"; in the trial, projection reached counts as full marks too (projections began in Nov 2026)":"")+". The month running is not scored until it ends. "+
+    (R.trial?"Trial: a coach takes part from 6 months after their first month on the sheets.":"Everyone on the team takes part from Q1 2027; Kartik from Q2 2027; a new coach 6 months after joining.");
+  Array.prototype.forEach.call(document.querySelectorAll("#pzTbl tr.row"),function(tr){ tr.addEventListener("click",function(){
+    var i=tr.getAttribute("data-i"), d=document.querySelector('#pzTbl tr.det[data-d="'+i+'"]'), r=R.rows[+i];
+    if(d.style.display===""){ d.style.display="none"; return; }
+    var P=pzPoints(r.c), done=R.ms.filter(function(m){ return m<np; });
+    var t='<table class="pz-k"><tr><th class="l">KPI</th>'+done.map(function(m){ return "<th>"+lab(m)+"</th>"; }).join("")+"</tr>"+
+      PZ_KEYS.map(function(k){ return '<tr><td class="l">'+esc(PZ_NAME[k])+"</td>"+done.map(function(m){ var o=P[m], v=o?o.pts[k]:null, x=o?o.vals[k]:null;
+        return '<td class="'+(v===1?"p1":v===0.5?"p5":"")+'" title="'+(x==null?"no figure":show(k,x).replace(/<[^>]+>/g,""))+'">'+(v==null?"—":v)+"</td>"; }).join("")+"</tr>"; }).join("")+"</table>";
+    var h=pzHard(r.c,R.ms[0].slice(0,4));
+    t+=h.length?'<div class="pz-rule">Hardest to score a full point in '+R.ms[0].slice(0,4)+": "+h.map(function(x){ return esc(PZ_NAME[x.k])+" · "+x.ones+" of "+x.n+" months"; }).join(" · ")+"</div>":"";
+    d.firstChild.innerHTML=t; d.style.display="";
+  }); });
+}
+
 /* Copy: the reviewed column's numbers in the list's order, tab-separated, ready to paste across
    the month's row on the KPI sheet's Log tab. */
 function copyCol(){
@@ -1059,6 +1200,7 @@ C.unlock(function(d){
   try{ var u=JSON.parse(localStorage.getItem(UI_KEY)||"{}"); sel=u.sel||""; win=spanOk(u.win,"m"); tspan=spanOk(u.tspan,"m"); bspan=spanOk(u.bspan,"q"); cspan=spanOk(u.cspan,"m"); rspan=spanOk(u.rspan,"m"); rcmp=/^(pace|prev|yoy|yoyfull|avg3|avg6)$/.test(u.rcmp)?u.rcmp:"pace"; bmode=u.bmode==="min"?"min":"own"; bmin=+u.bmin>0?+u.bmin:4; basis=u.basis==="whole"?"whole":"mtd"; list=u.list==="bal"?"bal":"full"; span=spanOk(u.span,"m"); kSel=u.k||"ses"; pickBy=u.pick||{}; }catch(e){}
   if(PAGE==="dir"){ sel=""; list="bal"; showNames=true; if(!u||!u.k) kSel="rev"; }
   fillCoaches(); fillMonths();
+  if(PAGE==="prize") $("pzQ").addEventListener("change",function(e){ pzQ=e.target.value; render(); });
   C.scopeSwitch($("segScope"),function(){ fillCoaches(); render(); });
   $("selCoach").addEventListener("change",function(e){ sel=e.target.value; save(); render(); });
   $("selMonth").addEventListener("change",function(e){ month=e.target.value; render(); });
@@ -1082,7 +1224,7 @@ C.unlock(function(d){
 });
 if("serviceWorker" in navigator){ navigator.serviceWorker.register("./sw.js").catch(function(){}); }
 // For checking the figures from the browser console or a test: read-only access to the model.
-window.IAMCHECK={toDay:toDay,cmpBlock:cmpBlock,nwTo:nwTo,teamOf:teamOf,val:val,parts:parts,agg:agg,block:block,reviewed:function(sp){ return reviewed(sp); },teamB:teamB,coaches:function(){ return coaches(); },months:function(){ return months(); },now:function(){ return now(); },fileName:function(c){ return fileName(c); },D:function(){ return D; },month:function(){ return month; }};
+window.IAMCHECK={pzQuarter:function(q){ return pzQuarter(q); },pzPoints:function(c){ return pzPoints(c); },toDay:toDay,cmpBlock:cmpBlock,nwTo:nwTo,teamOf:teamOf,val:val,parts:parts,agg:agg,block:block,reviewed:function(sp){ return reviewed(sp); },teamB:teamB,coaches:function(){ return coaches(); },months:function(){ return months(); },now:function(){ return now(); },fileName:function(c){ return fileName(c); },D:function(){ return D; },month:function(){ return month; }};
 })();
 </script>
 </body>

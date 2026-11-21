@@ -11,6 +11,7 @@
     ["clients.html", "Clients", '<circle cx="9" cy="8.5" r="3.3"/><path d="M3 19.5c0-3.3 2.7-5.8 6-5.8s6 2.5 6 5.8"/><path d="M15.5 5.2a3.3 3.3 0 0 1 0 6.6M21 19.5c0-2.5-1.5-4.6-3.8-5.4"/>'],
     ["business.html", "Business", '<rect x="3" y="7.5" width="18" height="12.5" rx="2"/><path d="M9 7.5V5.5a1.2 1.2 0 0 1 1.2-1.2h3.6A1.2 1.2 0 0 1 15 5.5v2M3 13h18"/>'],
     ["coach.html", "Coach review", '<rect x="5" y="4.5" width="14" height="16.5" rx="2"/><path d="M9.5 3.5h5v3h-5z"/><path d="M9 13.5l2.2 2.2L15.5 11"/>'],
+    ["prize.html", "Prize", '<path d="M8 4.5h8v4.5a4 4 0 0 1-8 0z"/><path d="M8 6H5.2a2.6 2.6 0 0 0 2.9 3.6M16 6h2.8a2.6 2.6 0 0 1-2.9 3.6"/><path d="M12 13v3.5M8.5 20h7M9.5 20l.8-3.5h3.4l.8 3.5"/>'],
     ["roster.html", "Head coach", '<path d="M9.5 6.5h11M9.5 12h11M9.5 17.5h11"/><circle cx="5" cy="6.5" r="1.2"/><circle cx="5" cy="12" r="1.2"/><circle cx="5" cy="17.5" r="1.2"/>']
   ];
   var CSS =
@@ -44,7 +45,7 @@
     var app = document.getElementById("app") || document.body, el = document.getElementById("dnav");
     if (!el) { el = document.createElement("nav"); el.id = "dnav"; el.className = "dnav"; el.setAttribute("aria-label", "Dashboards"); app.insertBefore(el, app.firstChild); }
     var tabs = TABS.filter(function (t) { return !allowed || !allowed.length || allowed.indexOf(t[0]) >= 0 || t[0] === active; });
-    el.style.setProperty("--n", tabs.length); el.style.setProperty("--m", Math.min(tabs.length, 4));
+    el.style.setProperty("--n", tabs.length); el.style.setProperty("--m", tabs.length > 8 ? 5 : Math.min(tabs.length, 4));
     el.innerHTML = tabs.map(function (t) {
       return '<a href="./' + t[0] + '"' + (t[0] === active ? ' class="on" aria-current="page"' : "") + '><svg viewBox="0 0 24 24" aria-hidden="true">' + t[2] + "</svg><span>" + t[1] + "</span></a>";
     }).join("");

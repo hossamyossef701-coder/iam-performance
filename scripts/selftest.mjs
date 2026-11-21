@@ -514,5 +514,8 @@ if (failures) { console.error(`\n${failures} self-test(s) failed - refusing to p
   const dir = fs.existsSync(path.join(root, "director.html")) ? fs.readFileSync(path.join(root, "director.html"), "utf8") : null;
   if (dir !== coach) { console.error("FAIL: director.html differs from coach.html - copy coach.html over it (cp coach.html director.html)"); process.exit(1); }
   console.log("ok  director.html matches coach.html");
+  const prz = fs.existsSync(path.join(root, "prize.html")) ? fs.readFileSync(path.join(root, "prize.html"), "utf8") : null;
+  if (prz !== coach) { console.error("FAIL: prize.html differs from coach.html - copy coach.html over it (cp coach.html prize.html)"); process.exit(1); }
+  console.log("ok  prize.html matches coach.html");
 }
 console.log("\nAll layout self-tests passed.");
