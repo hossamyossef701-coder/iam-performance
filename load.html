@@ -139,12 +139,18 @@ tfoot td:first-child{background:var(--panel-2);}
 /* per coach: sessions done against sessions projected */
 .pc-head{display:flex;justify-content:space-between;gap:10px;margin-top:4px;padding:10px 0 4px;border-top:1px solid var(--line-soft);
   font-family:var(--f-mono);font-size:9.5px;letter-spacing:.17em;text-transform:uppercase;color:var(--ink-faint);}
-.pc-row{display:grid;grid-template-columns:112px minmax(140px,1fr) 96px 104px 48px 76px 190px;gap:2px 16px;align-items:center;padding:7px 0;}
+.pc-row{display:grid;grid-template-columns:112px minmax(120px,1fr) 128px 150px 48px 190px;gap:2px 16px;align-items:center;padding:7px 0;min-height:42px;box-sizing:border-box;}
+/* The team's revenue and sessions: the same columns as each coach, a little bolder. */
+.pc-row.tm .nm{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-soft);font-weight:600;}
+.pc-row.tm .pp{font-size:16px;}
+.pc-row.tm .ss{font-weight:600;}
+/* laptops: everything stays on one line; the month % is in the heading, so its column goes */
+@media(min-width:641px) and (max-width:1100px){.pc-row{grid-template-columns:96px minmax(80px,1fr) 124px 140px 44px 160px;gap:2px 12px;}}
 /* Sessions behind or ahead of pace: the first figure after the bar, for a screenshot per coach. */
 .pc-row .gp{font-family:var(--f-mono);font-size:13px;font-weight:600;text-align:right;white-space:nowrap;}
 .pc-row .gp.down{color:var(--down);} .pc-row .gp.up{color:var(--up);} .pc-row .gp.flat{color:var(--ink-soft);font-weight:400;}
 /* how far through the month we are, beside each coach's progress, and the gap between the two */
-.pc-row .pm{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-faint);text-align:right;line-height:1.4;white-space:nowrap;}
+.pc-row .pm{display:none;}
 
 .pc-row+.pc-row{border-top:1px solid var(--line-soft);}
 .pc-row .nm{font-size:13.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -152,13 +158,22 @@ tfoot td:first-child{background:var(--panel-2);}
 .pc-row .ss .dim{color:var(--ink-faint);}
 .pc-row .pp{font-family:var(--f-mono);font-size:14px;font-weight:600;text-align:right;}
 .pc-row .rv{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-faint);text-align:right;line-height:1.45;white-space:nowrap;}
-.pc-row .rv .near{display:block;}
-.pc-row .rv .trk{display:block;color:var(--ink-faint);font-size:11px;} .pc-row .rv .trk.warn{color:var(--watch);}
+.pc-row .rv{overflow:hidden;text-overflow:ellipsis;}
+.pc-row .nb{color:var(--watch);font-size:11px;margin-left:4px;}
+.pc-notes{margin-top:6px;}
+.pc-note{font-family:var(--f-mono);font-size:11px;line-height:1.55;color:var(--ink-faint);padding:3px 0;}
+.pc-note b{color:var(--ink-soft);font-weight:600;margin-right:8px;}
+.pc-note .near,.pc-note .trk{display:inline;} .pc-note .near+.near:before,.pc-note .near+.trk:before{content:" \00b7  ";color:var(--ink-faint);}
+.pc-note .near{color:var(--watch);} .pc-note .trk{color:var(--ink-faint);} .pc-note .trk.warn{color:var(--watch);}
 .pc-row.unset .nm{color:var(--ink-soft);}
+/* phones: every row the same four lines - name, behind / ahead and %; the bar; done / projected
+   and the month; the AED line. Name to behind / ahead is the first line alone. */
 @media(max-width:640px){
-  .pc-row{grid-template-columns:1fr auto auto auto auto;gap:5px 12px;}
+  .pc-row{grid-template-columns:1fr auto auto;gap:5px 12px;min-height:0;}
+  .pc-row .nm{grid-column:1;grid-row:1;} .pc-row .gp{grid-column:2;grid-row:1;} .pc-row .pp{grid-column:3;grid-row:1;}
   .pc-row .pj-track{grid-column:1/-1;grid-row:2;}
-  .pc-row .rv{grid-column:1/-1;grid-row:3;text-align:left;}
+  .pc-row .ss{grid-column:1/-1;grid-row:3;text-align:left;}
+  .pc-row .rv{grid-column:1/-1;grid-row:4;text-align:left;min-height:1.45em;}
 }
 .pj-track{position:relative;display:block;height:8px;border-radius:4px;background:var(--panel-3);}
 .pj-track.sm{display:inline-block;width:72px;height:6px;border-radius:3px;}
@@ -858,34 +873,12 @@ function renderProj(p){
   var target=projTarget(p), live=runningTo(p), closed=(rangeTo(p)!==currentPeriod());
   if(isV(p)){ var all=rangeOf(p), withP=all.filter(function(q){ return projTeam(q).set.length; }); }
   var total=t.set.length+t.unset.length;
-  var who=t.set.length?("Set by "+t.set.length+" of "+total+(total===1?" coach":" coaches")):"No coach has set a projection yet";
+  var who=t.set.length?(t.set.length+" of "+total+" set"):"None set yet";
   // Who has not set it, and who left clients out, is on each coach's own row below.
-  if(t.set.length&&t.unset.length) who+=' \u00b7 <b>'+t.unset.length+" not set</b>"+(t.outS?' <span title="Their sessions are counted everywhere else and shown on their rows below; with nothing to measure them against they stay out of the % here">('+fmtSess(t.outS)+" sessions shown, not in the %)</span>":"");
-  if(t.partly.length) who+=' \u00b7 <b title="Coaches with clients training this month who have no projection on the sheet - new clients included">'+t.partly.length+" with clients not projected</b>";
-  if(isV(p)&&withP.length<all.length) who+=" \u00b7 projection in "+withP.length+" of "+all.length+" months: "+withP.map(label).join(", ");
+  if(isV(p)&&withP.length<all.length) who+=" \u00b7 in "+withP.length+" of "+all.length+" months";
   var tip=live?(isV(p)?"Pace mark: the share of the window's projection due by today":"Pace mark: a straight line to the full projection, day "+daysUsed(p)+" of "+monthDays(p)):"";
-  // gapFmt: how a shortfall is written. A pace target is fractional, so sessions round to whole ones there.
-  function line(lbl,pct,done,goal,fmt,unit,gapFmt){
-    if(!goal) return "";
-    var st=projState(pct,target), note, cls;
-    if(closed){
-      var over=done-goal;
-      note=(Math.abs(over)<0.5)?"finished on projection":("finished "+gapFmt(Math.abs(over))+(over>0?" above":" short"));
-      cls=st;
-    } else if(live){
-      var gap=done-goal*target/100;
-      note=(Math.abs(gap)<0.5)?"on pace":(gapFmt(Math.abs(gap))+(gap>0?" ahead of pace":" behind pace"));
-      cls=st;
-    } else { note=isV(p)?"bookings ahead included in "+label(rangeTo(p)):"booked so far, bookings ahead included"; cls="flat"; }
-    return '<div class="proj-row" title="'+lbl+': '+fmt(done)+" of "+fmt(goal)+unit+" ("+pct.toFixed(1)+'%)">'+
-      '<span class="lbl">'+lbl+'</span><span class="pct '+st+'">'+pct.toFixed(0)+"%</span>"+
-      projBar(pct,target,st,false,tip)+
-      '<span class="fig">'+fmt(done)+" <span class=\"dim\">of</span> "+fmt(goal)+unit+'<span class="d '+cls+'">'+note+"</span></span></div>";
-  }
   el.innerHTML='<div class="proj-head"><span class="k">Projection \u00b7 '+label(p)+(rangeTo(p)===currentPeriod()?" so far":"")+'</span>'+(PAGE==="full"?panelSeg("segProj",ui.pspan):"")+'<span class="who">'+who+"</span></div>"+
-    (t.set.length?(line("Revenue",t.pctR,t.r,t.pr,fmtInt," AED",function(v){ return fmtInt(v)+" AED"; })+
-                   line("Sessions",t.pctS,t.s,t.ps,fmtSess,"",function(v){ var n=Math.round(v); return n+(n===1?" session":" sessions"); })+
-                   coachRows(p,target,tip))
+    (t.set.length?coachRows(p,target,tip,t)
                  :'<div class="proj-foot">The projection columns are on the sheets but nothing has been entered in them yet.</div>');
 }
 /* Each coach on one line: sessions done against sessions projected - to date, or everything
@@ -906,9 +899,9 @@ function trackNote(c){
   var t=trackOf(c); if(!t) return "";
   var lean=t.n>=2&&t.low*2>=t.n+1?"projects low":t.n>=2&&t.high*2>=t.n+1?"projects high":"";
   var tip="Projection against what the clients projected on the 3rd brought in, last "+t.n+(t.n===1?" month":" months")+": "+t.list.join(", ")+". On target 90-110%; over 110% = projected low; under 90% = projected high.";
-  return '<span class="trk'+(lean?" warn":"")+'" title="'+tip+'">track record: on target '+t.on+" of "+t.n+(t.low?" \u00b7 "+t.low+" low":"")+(t.high?" \u00b7 "+t.high+" high":"")+(lean?" \u00b7 "+lean:"")+"</span>";
+  return '<span class="trk'+(lean?" warn":"")+'" title="'+tip+'">on target '+t.on+"/"+t.n+(lean?" \u00b7 "+lean:"")+"</span>";
 }
-function coachRows(p,target,tip){
+function coachRows(p,target,tip,t){
   var basis=runningTo(p)?"sessions to date / projected":(rangeTo(p)!==currentPeriod()?"sessions delivered / projected":"sessions booked / projected");
   var rows=coachesIn(p).map(function(c){ return {c:c, q:projOf(p,c)}; }).filter(function(x){ return x.q; });
   rows.forEach(function(x){ var q=x.q; x.pct=!q.set?null:(q.pctS!=null?q.pctS:q.pctR); });
@@ -919,18 +912,38 @@ function coachRows(p,target,tip){
   },function(x){ return x.c; }));
   // The month so far: only while it is running and counted to date (a closed month is all of it).
   var running=runningTo(p)&&target<99.5;
-  var head=!running?basis:isV(p)?basis+" \u00b7 due by today: "+target.toFixed(0)+"% of the window's projection":basis+" \u00b7 month so far: "+target.toFixed(0)+"% (day "+daysUsed(p)+" of "+monthDays(p)+")";
+  var head=!running?"":isV(p)?"due "+target.toFixed(0)+"%":"month "+target.toFixed(0)+"%";
   var pm=function(pct){
-    if(!running||pct==null) return "<span></span>";
+    if(!running||pct==null) return '<span class="pm"></span>';
     return isV(p)?'<span class="pm" title="Share of the window\'s projection due by today">due '+target.toFixed(0)+"%</span>"
       :'<span class="pm" title="How far through the month we are: day '+daysUsed(p)+" of "+monthDays(p)+'">month '+target.toFixed(0)+"%</span>";
   };
-  return '<div class="pc-head"><span>By coach</span><span>'+head+" \u00b7 behind / ahead = against what was due by "+(running?"today":"the end")+"</span></div>"+rows.map(function(x){
+  // The team: revenue and sessions in the same columns as each coach - behind / ahead, done /
+  // projected, %, the month so far.
+  var live=runningTo(p), closed=(rangeTo(p)!==currentPeriod());
+  function teamRow(lbl,pct,done,goal,fmt,aed){
+    if(!goal) return "";
+    var st=projState(pct,target), due=goal*target/100, gap=done-due;
+    var gp=Math.abs(gap)<(aed?50:0.5)?'<span class="gp flat" title="On pace">on pace</span>'
+      :'<span class="gp '+(gap<0?"down":"up")+'" title="'+(gap<0?"Behind":"Ahead of")+" what was due by "+(running?"today":"the end")+": "+fmtInt(due)+(aed?" AED":" sessions")+'">'+fmtInt(Math.abs(gap))+(aed?" AED":"")+(gap<0?" behind":" ahead")+"</span>";
+    var note="";
+    return '<div class="pc-row tm" title="'+lbl+": "+fmt(done)+" of "+fmt(goal)+(aed?" AED":"")+" ("+pct.toFixed(1)+'%)"><span class="nm">'+lbl+"</span>"+
+      projBar(pct,target,st,false,tip)+gp+
+      '<span class="ss">'+fmt(done)+' <span class="dim">/ '+fmt(goal)+"</span></span>"+
+      '<span class="pp '+st+'">'+pct.toFixed(0)+"%</span>"+pm(pct)+'<span class="rv">'+note+"</span></div>";
+  }
+  var team=t?'<div class="pc-head"><span>Team</span><span>'+head+"</span></div>"+
+    teamRow("Revenue",t.pctR,t.r,t.pr,fmtInt,true)+teamRow("Sessions",t.pctS,t.s,t.ps,fmtSess,false):"";
+  // Notes (clients not projected, floor, changes, track record) are listed under the rows, so
+  // every row is one line high and a screenshot of a coach's row shows only their figures.
+  var notes=[];
+  function noteMark(c,html){ if(!html) return ""; notes.push('<div class="pc-note"><b>'+c+"</b>"+html+"</div>"); var n=(html.match(/<span class="/g)||[]).length; return ' <span class="nb" title="See the notes under the coaches">\u2691'+(n>1?" "+n:"")+"</span>"; }
+  var body=rows.map(function(x){
     var q=x.q;
     if(!q.set){
       var why=q.has?"The projection columns are on this sheet but empty":"This sheet has no projection columns";
-      return '<div class="pc-row unset"><span class="nm">'+x.c+'</span><span class="pj-track"></span><span></span>'+
-        '<span class="ss"><span class="dim">'+fmtSess(q.s)+" / \u2014</span></span><span></span><span></span>"+
+      return '<div class="pc-row unset"><span class="nm">'+x.c+'</span><span class="pj-track"></span><span class="gp"></span>'+
+        '<span class="ss"><span class="dim">'+fmtSess(q.s)+" / \u2014</span></span>"+'<span class="pp"></span><span class="pm"></span>'+
         '<span class="rv"><span class="notset" title="'+why+'">not set</span></span></div>';
     }
     var st=projState(x.pct,target), bySess=(q.pctS!=null);
@@ -940,14 +953,16 @@ function coachRows(p,target,tip){
     var gpTxt=fmtInt(Math.abs(gap));
     var gp=Math.abs(gap)<(bySess?0.5:50)?'<span class="gp flat" title="On pace">on pace</span>'
       :'<span class="gp '+(gap<0?"down":"up")+'" title="'+(gap<0?"Behind":"Ahead of")+" what was due by now: "+(bySess?fmtInt(due)+" sessions":fmtInt(due)+" AED")+'">'+gpTxt+unitG+(gap<0?" behind":" ahead")+"</span>";
-    var flag=q.pm>0?'<span class="near" title="Clients with sessions this month but nothing projected for them. A new client lands here: their sessions count on top of the projection">'+q.pm+" without a projection</span>":"";
+    var flag=q.pm>0?'<span class="near" title="Clients with sessions this month but nothing projected for them. A new client lands here: their sessions count on top of the projection">'+q.pm+" not projected</span>":"";
     flag+=pgNote(q)+trackNote(x.c);
     return '<div class="pc-row"><span class="nm">'+x.c+(q.mtdMissing?' <span class="nomtd" title="This sheet has no day-by-day counts, so this row is the whole month, bookings ahead included">\u25cf</span>':"")+"</span>"+
       projBar(x.pct,target,st,false,tip)+gp+
       '<span class="ss">'+(bySess?fmtSess(q.s)+' <span class="dim">/ '+fmtSess(q.ps)+"</span>":fmtInt(q.r)+' <span class="dim">/ '+fmtInt(q.pr)+"</span>")+"</span>"+
       '<span class="pp '+st+'">'+x.pct.toFixed(0)+"%</span>"+pm(x.pct)+
-      '<span class="rv">'+(q.pr>0&&bySess?fmtInt(q.r)+" / "+fmtInt(q.pr)+" AED \u00b7 "+(q.pctR!=null?q.pctR.toFixed(0)+"%":""):(bySess?"":"revenue \u2014 no session projection"))+flag+"</span></div>";
+      '<span class="rv">'+(q.pr>0&&bySess?fmtInt(q.r)+" / "+fmtInt(q.pr)+" AED \u00b7 "+(q.pctR!=null?q.pctR.toFixed(0)+"%":""):(bySess?"":"revenue \u2014 no session projection"))+noteMark(x.c,flag)+"</span></div>";
   }).join("");
+  return team+'<div class="pc-head"><span>By coach</span><span>sessions</span></div>'+body+
+    (notes.length?'<div class="pc-notes"><div class="pc-head"><span>Notes</span><span></span></div>'+notes.join("")+"</div>":"");
 }
 /* ---------- projection changes ----------
    Only with the main passphrase (the Fitness Director). After talking to a coach you can take the
@@ -1047,11 +1062,11 @@ function pgNote(q){
   var g=q.pg; if(!g) return "";
   var why=g.fl!=null?"Floor "+fmtInt(g.fl)+" sessions: their usual "+fmtInt(g.usual)+" a month (average of the 3 months before), \u00d7"+g.se+" for the season, less "+g.a+"% (how far an honest month dips 1 time in 10)":"";
   var x="";
-  if(g.st==="below") x='<span class="near" title="Projected '+fmtSess(g.lk?g.lk.ps:q.ps0)+(g.lk?" when it locked":" on the sheet")+'. '+why+'. The higher counts.">floor counts \u00b7 '+(g.lk?"locked ":"sheet ")+fmtSess(g.lk?g.lk.ps:q.ps0)+"</span>";
-  else if(g.st==="unset") x='<span class="near" title="Nothing projected by the '+3+'rd, so the floor counts. '+why+'">not set by the 3rd \u00b7 floor counts</span>';
-  else if(g.st==="pending") x='<span class="near" title="Nothing projected yet. The projection locks on the 3rd; until then the floor stands in. '+why+'">not set yet \u00b7 locks on the 3rd</span>';
-  else if(g.st==="override") x='<span class="near" title="'+dEsc((g.ov&&g.ov.why)||"No reason given")+(g.ov&&g.ov.at?" \u00b7 "+dEsc(g.ov.at):"")+'">'+(g.ov&&g.ov.mode==="nofloor"?"as projected, no floor (your change)":"set by you")+"</span>";
-  if(g.changed&&g.st!=="override") x+='<span class="near" title="Changed on the sheet after it locked'+(g.lk&&g.lk.at?" on "+g.lk.at:"")+'. The locked figure counts; to use the new one, change it under Projection changes below.">sheet now '+fmtSess(g.changed.ps)+" \u00b7 not counted</span>";
+  if(g.st==="below") x='<span class="near" title="Projected '+fmtSess(g.lk?g.lk.ps:q.ps0)+(g.lk?" when it locked":" on the sheet")+'. '+why+'. The higher counts.">floor \u00b7 '+(g.lk?"locked ":"sheet ")+fmtSess(g.lk?g.lk.ps:q.ps0)+"</span>";
+  else if(g.st==="unset") x='<span class="near" title="Nothing projected by the '+3+'rd, so the floor counts. '+why+'">not set by the 3rd \u00b7 floor</span>';
+  else if(g.st==="pending") x='<span class="near" title="Nothing projected yet. The projection locks on the 3rd; until then the floor stands in. '+why+'">not set yet</span>';
+  else if(g.st==="override") x='<span class="near" title="'+dEsc((g.ov&&g.ov.why)||"No reason given")+(g.ov&&g.ov.at?" \u00b7 "+dEsc(g.ov.at):"")+'">'+(g.ov&&g.ov.mode==="nofloor"?"no floor (you)":"set by you")+"</span>";
+  if(g.changed&&g.st!=="override") x+='<span class="near" title="Changed on the sheet after it locked'+(g.lk&&g.lk.at?" on "+g.lk.at:"")+'. The locked figure counts; to use the new one, change it under Projection changes below.">sheet now '+fmtSess(g.changed.ps)+"</span>";
   return x;
 }
 /* ---------- formatting ---------- */
