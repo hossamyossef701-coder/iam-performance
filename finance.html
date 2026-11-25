@@ -886,19 +886,19 @@ function renderProj(p){
    Revenue sits beside it, smaller. Best progress first; coaches with no projection last. */
 /* Track record: how close each coach's projection came, over their last 6 finished months.
    Only the clients projected on the 3rd count (new clients after it are left out), against that
-   projection: 90-110% on target, over 110% projected low, under 90% projected high. */
+   projection: 85-115% on target, over 115% projected low, under 85% projected high. */
 function trackOf(c){
   if(!LIVE||!LIVE.periods) return null;
   var ms=Object.keys(LIVE.periods).filter(function(m){ return m>="2026-11"&&m<currentPeriod(); }).sort().slice(-6), o={on:0,low:0,high:0,n:0,list:[]};
   ms.forEach(function(m){ var v=(LIVE.periods[m]||{})[c], k=v&&v.pk; if(!k||!(k.own>0)) return;
-    var pct=k.got/k.own*100; o.n++; if(pct>110) o.low++; else if(pct<90) o.high++; else o.on++;
+    var pct=k.got/k.own*100; o.n++; if(pct>115) o.low++; else if(pct<85) o.high++; else o.on++;
     o.list.push(label(m)+" "+pct.toFixed(0)+"%"); });
   return o.n?o:null;
 }
 function trackNote(c){
   var t=trackOf(c); if(!t) return "";
   var lean=t.n>=2&&t.low*2>=t.n+1?"projects low":t.n>=2&&t.high*2>=t.n+1?"projects high":"";
-  var tip="Projection against what the clients projected on the 3rd brought in, last "+t.n+(t.n===1?" month":" months")+": "+t.list.join(", ")+". On target 90-110%; over 110% = projected low; under 90% = projected high.";
+  var tip="Projection against what the clients projected on the 3rd brought in, last "+t.n+(t.n===1?" month":" months")+": "+t.list.join(", ")+". On target 85-115%; over 115% = projected low; under 85% = projected high.";
   return '<span class="trk'+(lean?" warn":"")+'" title="'+tip+'">on target '+t.on+"/"+t.n+(lean?" \u00b7 "+lean:"")+"</span>";
 }
 function coachRows(p,target,tip,t){

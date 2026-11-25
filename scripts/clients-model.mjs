@@ -462,6 +462,18 @@ export function buildClientsModel(sheets, opts = {}) {
     kept[k] = { d: iso(d), by };
   }
 
+  /* ---- Who referred a client: "Brought in by" names a coach (first name is enough), or a client,
+     whose coach on the day of the purchase gets the referral. ---- */
+  const refCoaches = new Set([...Object.keys(coachStatus), ...packages.map((x) => x.coach).filter(Boolean)]);
+  const coachFirst = new Map(); for (const n of refCoaches) { const f = n.toLowerCase().split(/\s+/)[0]; if (!coachFirst.has(f)) coachFirst.set(f, n); }
+  const clientByName = new Map(); for (const c of clients.values()) if (c.name) clientByName.set(c.name.toLowerCase().replace(/\s+/g, " ").trim(), c);
+  const referrer = (pk) => {
+    const b = (pk.by || "").toLowerCase().replace(/\s+/g, " ").trim(); if (!b) return null;
+    for (const n of refCoaches) if (n.toLowerCase() === b) return n;
+    const c = clientByName.get(b); if (c) return coachOn(c, pk.date) || null;
+    return coachFirst.get(b.split(" ")[0]) || null;
+  };
+
   /* ---- Month by month, per coach: the client figures the Coach review page tracks ----
      act = active at the month's end (today for the month running). ks/kk = clients with the coach
      the day before the month started / of them, still with us at its end (the grace period counts
@@ -474,7 +486,7 @@ export function buildClientsModel(sheets, opts = {}) {
       const s0 = toSerial(y, m, 1); if (s0 > today) break;
       const e = Math.min(toSerial(m === 12 ? y + 1 : y, m === 12 ? 1 : m + 1, 1) - 1, today);
       const p = iso(s0).slice(0, 7);
-      const cell = (c) => { const b = monthly.by[c || "(no coach)"] || (monthly.by[c || "(no coach)"] = {}); return b[p] || (b[p] = { act: 0, ks: 0, kk: 0, nw: 0, rn: 0, re: 0 }); };
+      const cell = (c) => { const b = monthly.by[c || "(no coach)"] || (monthly.by[c || "(no coach)"] = {}); return b[p] || (b[p] = { act: 0, ks: 0, kk: 0, nw: 0, rn: 0, re: 0, ref: 0 }); };
       for (const [, k] of activeOn(e)) cell(k).act++;
       const W1 = withUs(e);
       for (const [id, x] of withUs(s0 - 1)) { const o = cell(x.coach); o.ks++; if (W1.has(id)) o.kk++; }
@@ -482,6 +494,12 @@ export function buildClientsModel(sheets, opts = {}) {
       // nd: the day of the month of each, so a month running can be set against the same day before.
       for (const pk of packages) if (pk.type === "New" && pk.date >= s0 && pk.date <= e && own(pk)) { const o = cell(pk.coach); o.nw++; (o.nd || (o.nd = [])).push(pk.date - s0 + 1); }
       for (const x of decisions) if (x.E >= s0 && x.E <= e && (x.outcome === "kept" || x.outcome === "moved")) { const o = cell(x.coach); o.rn++; if (x.at <= x.E) o.re++; }
+      // ref = referrals: New or Returning packages whose source is a referral, credited to the coach
+      // who brought the client in (referrer(): a coach named in "Brought in by", or the coach of the
+      // client named there), whoever the client then trains with.
+      for (const pk of packages) if ((pk.type === "New" || pk.type === "Returning") && pk.date >= s0 && pk.date <= e && own(pk) && /referral/i.test(pk.src || "")) {
+        const who = referrer(pk); if (who) cell(who).ref++;
+      }
       if (m === 12) { y++; m = 1; } else m++;
     }
     /* Kept over a stretch of months, each client counted once: of the clients with the coach the

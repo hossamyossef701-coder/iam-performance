@@ -200,7 +200,7 @@ body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
       <div id="pzWin"></div>
       <div class="pz-set" id="pzSet">
         <span class="lbl">Gate</span>
-        <input type="number" id="pzGate" min="1" max="30" step="0.5" inputmode="decimal" aria-label="Gate, points out of 30"><span class="lbl">of 30 · revenue counts as the same within ±</span>
+        <input type="number" id="pzGate" min="1" max="48" step="0.5" inputmode="decimal" aria-label="Gate, points out of 48"><span class="lbl">of 48 · revenue counts as the same within ±</span>
         <input type="number" id="pzRev" min="0" max="10" step="0.5" inputmode="decimal" aria-label="Revenue counts as the same within this percent"><span class="lbl">% · from</span>
         <select id="pzFrom" aria-label="From quarter"></select>
         <button type="button" class="btn" id="pzSave">Save</button>
@@ -306,12 +306,12 @@ IAMNAV.draw(PAGE==="dir"?"director.html":PAGE==="prize"?"prize.html":"coach.html
 /* ---- The KPIs ----
    Two lists, switched with "Full list / Balanced": the full 15 (the KPI sheet's rows), and the
    balanced 10 - five areas, two KPIs each, so no one area carries a coach. */
-var DEFK={"ses": {"name": "Sessions delivered", "better": "Higher"}, "rev": {"name": "Revenue (AED)", "better": "Higher"}, "proj": {"name": "Projection reached (%)", "better": "Higher"}, "act": {"name": "Active clients", "better": "Higher"}, "spw": {"name": "Sessions a week per client", "better": "Higher"}, "p3": {"name": "Clients at 3+ a week (%)", "better": "Higher"}, "rpc": {"name": "Revenue per client (AED)", "better": "Higher"}, "kept": {"name": "Existing clients still with us (%)", "better": "Higher"}, "early": {"name": "Renewed before the last paid session (%)", "better": "Higher"}, "conv": {"name": "Assessments converted (%)", "better": "Higher"}, "nw": {"name": "New clients", "better": "Higher"}, "canc": {"name": "Cancelled sessions (%)", "better": "Lower"}, "less": {"name": "Clients training less often", "better": "Lower"}, "up": {"name": "Clients training beyond what's paid", "better": "Lower"}, "chg": {"name": "Cancellations charged (%)", "better": "Higher"}, "prog": {"name": "Training programme phase", "better": "Higher"}};
+var DEFK={"ses": {"name": "Sessions delivered", "better": "Higher"}, "rev": {"name": "Revenue (AED)", "better": "Higher"}, "proj": {"name": "Projection reached (%)", "better": "Higher"}, "act": {"name": "Active clients", "better": "Higher"}, "spw": {"name": "Sessions a week per client", "better": "Higher"}, "p3": {"name": "Clients at 3+ a week (%)", "better": "Higher"}, "rpc": {"name": "Revenue per client (AED)", "better": "Higher"}, "kept": {"name": "Existing clients still with us (%)", "better": "Higher"}, "early": {"name": "Renewed before the last paid session (%)", "better": "Higher"}, "conv": {"name": "Assessments converted (%)", "better": "Higher"}, "nw": {"name": "New clients", "better": "Higher"}, "canc": {"name": "Cancelled sessions (%)", "better": "Lower"}, "less": {"name": "Clients training less often", "better": "Lower"}, "up": {"name": "Clients training beyond what's paid", "better": "Lower"}, "chg": {"name": "Cancellations charged (%)", "better": "Higher"}, "ref": {"name": "Referrals", "better": "Higher"}, "prog": {"name": "Training programme phase", "better": "Higher"}};
 var FULL=["ses","rev","proj","act","spw","p3","rpc","kept","early","conv","nw","canc","less","up","chg"];
-var BAL=["rev","proj","p3","less","kept","early","conv","nw","chg","prog"];
-var AREA={rev:"Business",proj:"Business",p3:"Client commitment",less:"Client commitment",kept:"Keeping clients",early:"Keeping clients",conv:"Growing the book",nw:"Growing the book",chg:"Standards",prog:"Standards"};
-var PJ=[90,110];   // projection reached: on target from 90% to 110%
-// 1 on target, 0 projected low (the projected clients alone over 110%), -1 under 90%.
+var BAL=["rev","proj","p3","less","kept","early","conv","nw","chg","ref","prog"];
+var AREA={rev:"Business",proj:"Business",p3:"Client commitment",less:"Client commitment",kept:"Keeping clients",early:"Keeping clients",conv:"Growing the book",nw:"Growing the book",chg:"Standards",ref:"Growing the book",prog:"Standards"};
+var PJ=[85,115];   // projection reached: on target from 85% to 115%
+// 1 on target, 0 projected low (the projected clients alone over 115%), -1 under 85%.
 function pjScore(a,b){ return b==null?null:(a!=null&&a>PJ[1])?0:b>=PJ[0]?1:-1; }
 function pjBlock(c,bk){ return pjScore(rnd("proj",vB(c,bk,"projA")),rnd("proj",vB(c,bk,"proj"))); }
 var PCT={projT:1,projA:1,proj:1,p3:1,kept:1,early:1,conv:1,canc:1,chg:1}, AED={rev:1,rpc:1}, DEC={spw:1,prog:1};
@@ -384,7 +384,7 @@ function val(c,p){
     // Projection reached (the KPI), against the projection set on the 3rd:
     //   proj  = the clients projected on the 3rd + new and returning clients since (B)
     //   projA = the clients projected on the 3rd alone (A)
-    // A over 110% = projected low (0.5). Otherwise B from 90% = on target (1); under 90% = 0.
+    // A over 115% = projected low (0.5). Otherwise B from 85% = on target (1); under 85% = 0.
     // Clients who were already training but left out of the projection count in neither.
     // projT: all revenue against the projection that counts, as on Overview (the revenue tile).
     if(x.pr&&r!=null){ put("projT",r,x.pr); if(part&&x.md) o.projDue=x.md/C.daysIn(p); }
@@ -418,8 +418,11 @@ function val(c,p){
   if(as&&as.a) put("conv",as.c,as.a,as.c+" of "+as.a+" assessments");
   var K=D.ov&&D.ov.kpiM, f=fileName(c);
   if(K&&K.from&&p>=K.from){
-    var m=(f&&K.by[f]&&K.by[f][p])||{act:0,ks:0,kk:0,nw:0};
+    var m=(f&&K.by[f]&&K.by[f][p])||{act:0,ks:0,kk:0,nw:0,ref:0};
     put("act",m.act,1); put("nw",m.nw,1);
+    // Referrals: clients whose package source is a referral and who were brought in by this coach
+    // (named in "Brought in by", or the coach of the client named there), whoever trains them.
+    put("ref",m.ref||0,1,(m.ref||0)+" referred "+((m.ref||0)===1?"client":"clients")+" who bought");
     put("kept",m.kk,m.ks,m.kk+" of "+m.ks+" clients");
     var rt=K.rt&&f&&K.rt[f]&&K.rt[f][p];
     if(rt) put("early",rt.ok,rt.n,rt.ok+" of "+rt.n+" renewals before the last paid session"+(rt.red?" ("+rt.red+" ended by a red mark)":""));
@@ -1157,16 +1160,19 @@ function clientList(c){
 /* ---------- The quarterly prize ----------
    Balanced KPIs, one coach at a time, month by month: 1 point for a KPI better than the month
    before, 0.5 for exactly the same while holding a rise (it keeps earning 0.5 while the gain
-   holds), 0 otherwise. A quarter adds its three months (out of 30). Coaches at 15 or more pass;
+   holds), 0 otherwise; referrals 2 points each, up to 6 a month. A quarter adds its three months (out of 48). Coaches at the gate or more pass;
    of those, the highest revenue for the quarter wins 1,000 AED; nobody at 15 = no prize. The
    prize runs from Q1 2027; the 2026 quarters are a trial on the same data. */
 var PRIZE={start:"2027-01", gate:15, amount:1000,
   out:["Ivan","Hossam"],                       // not in the prize, not listed
   from:{Kartik:"2027-04"},                     // first quarter a coach takes part in (6 months after joining)
   allFrom:"2027-01"};                          // everyone already on the team takes part from Q1 2027
-var PZ_KEYS=["rev","proj","p3","less","kept","early","conv","nw","chg","prog"];
+var PZ_KEYS=["rev","proj","p3","less","kept","early","conv","nw","chg","ref","prog"];
+var PZ_BEST={p3:100,kept:100,early:100,conv:100,chg:100,less:0,prog:6};
+var PZ_MAX=48;   // a quarter: 3 months x (10 KPIs at 1 point + referrals up to 6)
+var REF_PTS=2, REF_CAP=6;   // referrals: 2 points for each referred client who bought, up to 6 a month
 // The names on the coaches' KPI sheet.
-var PZ_NAME={rev:"Revenue (AED)",proj:"Projection reached (%)",p3:"Clients at 3+ a week (%)",less:"Clients training less often",kept:"Existing clients still with us (%)",early:"Renewed before the last paid session (%)",conv:"Assessments converted (%)",nw:"New clients",chg:"Charged Session (%)",prog:"Training programme score"};
+var PZ_NAME={rev:"Revenue (AED)",proj:"Projection reached (%)",p3:"Clients at 3+ a week (%)",less:"Clients training less often",kept:"Existing clients still with us (%)",early:"Renewed before the last paid session (%)",conv:"Assessments converted (%)",nw:"New clients",chg:"Charged Session (%)",ref:"Referrals",prog:"Training programme score"};
 var pzQ="";
 function qOf(p){ return p.slice(0,4)+"-Q"+(Math.floor((+p.slice(5,7)-1)/3)+1); }
 function qMonths(q){ var y=q.slice(0,4), n=+q.slice(6); return [1,2,3].map(function(i){ var m=(n-1)*3+i; return y+"-"+(m<10?"0":"")+m; }); }
@@ -1194,10 +1200,15 @@ function pzPoints(c){
       if(k==="prog"&&m<"2026-11"){ pts[k]=1; return; }
       if(k==="prog"&&m<"2027-01"){ pts[k]=0; vals[k]=0; return; }
       if(k==="prog"&&vals[k]==null){ pts[k]=0; return; }
-      // Projection reached: not against the month before but against the band - 90-110% = 1,
-      // over 110% = 0.5 (projected low), under 90% or no projection = 0. Before projections began
+      // Projection reached: not against the month before but against the band - 85-115% = 1,
+      // over 115% = 0.5 (projected low), under 85% or no projection = 0. Before projections began
       // (Nov 2026): full marks in the trial.
       if(k==="proj"){ if(m<"2026-11"){ pts[k]=1; return; } var sc=pjScore(rnd("proj",agg(c,[m],"projA")),vals[k]); pts[k]=sc===1?1:sc===0?0.5:0; return; }
+      // Referrals: 2 points in any month with at least one referred client who bought, else 0.
+      if(k==="ref"){ pts[k]=vals[k]==null?null:Math.min(REF_CAP,REF_PTS*vals[k]); return; }
+      // At the best possible value (100%, no client training less often, programme phase 6):
+      // reaching it from below scores 1; holding it scores 0.5, whatever the month before scored.
+      if(vals[k]!=null&&PZ_BEST[k]!=null&&vals[k]===PZ_BEST[k]){ pts[k]=(prevV[k]!=null&&prevV[k]!==vals[k])?1:0.5; return; }
       var a=vals[k], b=prevV[k]; if(a==null||b==null){ pts[k]=null; return; }
       var cmp=k==="rev"?revCmp(a,b,revSameFor(qOf(m))):(a>b?1:a<b?-1:0); if(better(k)==="Lower") cmp=-cmp;
       pts[k]=cmp===1?1:(cmp===0?((prev[k]||0)>0?0.5:0):0);
@@ -1234,7 +1245,7 @@ function pzQuarter(q){
     ms.forEach(function(m){ var r=parts(c,[m],"rev"); if(r) rev+=r.n; });
     var from=pzFrom(c,trial), elig=from<=ms[0];
     var stay=ms[2]<np?pzStay(c,q):"na";
-    return {c:c,sc:sc,tot:tot,rev:rev,elig:elig,from:from,pass:tot>=gateFor(q),possible:tot+10*left,stay:stay};
+    return {c:c,sc:sc,tot:tot,rev:rev,elig:elig,from:from,pass:tot>=gateFor(q),possible:tot+(10+REF_CAP)*left,stay:stay};
   });
   rows.sort(function(a,b){ return b.rev-a.rev; });
   var pool=rows.filter(function(r){ return r.elig&&r.pass&&r.stay!=="left"; });
@@ -1277,7 +1288,7 @@ function pzSave(){
   var c={}; try{ c=JSON.parse(localStorage.getItem("iamlive:cfg")||"{}"); }catch(e){}
   var from=$("pzFrom").value, g=Math.round(+$("pzGate").value*2)/2, rs=Math.round(+$("pzRev").value*2)/2;
   if(!c.pat){ pzStat("Refresh access isn't set on this device - save a token under Refresh access on Team Performance first.","err"); return; }
-  if(!(g>=1&&g<=30)){ pzStat("The gate is a number from 1 to 30.","err"); return; }
+  if(!(g>=1&&g<=PZ_MAX)){ pzStat("The gate is a number from 1 to "+PZ_MAX+".","err"); return; }
   if(!($("pzRev").value!==""&&rs>=0&&rs<=10)){ pzStat("The revenue margin is a number from 0 to 10.","err"); return; }
   var url="https://api.github.com/repos/hossamyossef701-coder/iam-performance/contents/"+PZ_FILE, sha=null, H={Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28",Authorization:"Bearer "+c.pat};
   $("pzSave").disabled=true; pzStat("Saving…");
@@ -1309,14 +1320,14 @@ function renderPrize(){
   var R=pzQuarter(pzQ), lab=function(m){ return C.label(m,true); };
   $("pzT").textContent=qLabel(pzQ)+(R.trial?" · trial run on 2026 figures":"")+(R.done?"":" · so far");
   var GATE=gateFor(pzQ);
-  $("pzRule").textContent="Gate "+GATE+" of 30 · "+C.full(PRIZE.amount)+" AED · highest revenue of those who pass";
+  $("pzRule").textContent="Gate "+GATE+" of "+PZ_MAX+" · "+C.full(PRIZE.amount)+" AED · highest revenue of those who pass";
   // The winner, or none.
   var W=R.pool;
   if(!R.done&&W.length) $("pzWin").innerHTML='<div class="pz-none">Quarter still running. Leading now: <b>'+esc(W[0].c)+"</b>, "+C.full(Math.round(W[0].rev))+" AED with "+W[0].tot+" points.</div>";
   else if(!R.done) $("pzWin").innerHTML='<div class="pz-none">Quarter still running. Nobody has reached '+GATE+" yet.</div>";
-  else if(!W.length) $("pzWin").innerHTML='<div class="pz-none"><b>No winner.</b> Nobody reached '+GATE+" of 30, so there is no prize this quarter.</div>";
+  else if(!W.length) $("pzWin").innerHTML='<div class="pz-none"><b>No winner.</b> Nobody reached '+GATE+" of "+PZ_MAX+", so there is no prize this quarter.</div>";
   else $("pzWin").innerHTML='<div class="pz-win">'+W.slice(0,3).map(function(r,i){
-    return '<div class="w'+(i===0?" first":"")+'"><div class="k">'+["Winner · "+C.full(PRIZE.amount)+" AED","2nd","3rd"][i]+'</div><div class="n">'+esc(r.c)+'</div><div class="s">'+C.full(Math.round(r.rev))+" AED · "+r.tot+" of 30</div></div>"; }).join("")+"</div>"+
+    return '<div class="w'+(i===0?" first":"")+'"><div class="k">'+["Winner · "+C.full(PRIZE.amount)+" AED","2nd","3rd"][i]+'</div><div class="n">'+esc(r.c)+'</div><div class="s">'+C.full(Math.round(r.rev))+" AED · "+r.tot+" of "+PZ_MAX+"</div></div>"; }).join("")+"</div>"+
     (R.prov?'<div class="pz-none" style="margin-top:10px"><b>Provisional.</b> Confirmed once '+W.slice(0,3).filter(function(r){ return r.stay==="wait"; }).map(function(r){ return esc(r.c); }).join(" and ")+" logs a session on or after the 8th of "+C.label(R.next,true)+". Anyone who leaves before then drops out and the next coach moves up.</div>":"");
   var places={}; if(R.done) W.slice(0,3).forEach(function(r,i){ places[r.c]=i+1; });
   var head='<thead><tr><th class="l">Coach</th><th>Revenue (AED)</th>'+R.ms.map(function(m){ return "<th>"+lab(m)+"</th>"; }).join("")+"<th>Quarter</th><th>Gate</th><th>Place</th></tr></thead>";
@@ -1328,8 +1339,8 @@ function renderPrize(){
   }).join("");
   $("pzTbl").innerHTML=head+"<tbody>"+body+"</tbody>";
   pzForm(qn);
-  $("pzNote").textContent="Click a coach for each KPI's points and the three KPIs they find hardest. Points: 1 = better than the month before, 0.5 = the same while holding a rise, 0 = otherwise; revenue within ±"+revSameFor(pzQ)+"% of the month before counts as the same. "+
-    "Projection reached is scored on its own: the clients projected on the 3rd alone over 110% = 0.5 (projected low); otherwise, with new and returning clients added, 90% or more = 1; under 90% or no projection = 0. Training programme score: 0 in Nov and Dec 2026, scored from Jan 2027"+(R.trial?"; in the trial before Nov 2026, both count as full marks":"")+". The month running is not scored until it ends. "+
+  $("pzNote").textContent="Click a coach for each KPI's points and the three KPIs they find hardest. Points: 1 = better than the month before, 0.5 = the same while holding a rise, 0 = otherwise; revenue within ±"+revSameFor(pzQ)+"% of the month before counts as the same. Referrals: 2 points for each referred client who bought, up to 6 a month (3 or more). Holding the best possible value (100%, nobody training less often) scores 0.5 every month. "+
+    "Projection reached is scored on its own: the clients projected on the 3rd alone over 115% = 0.5 (projected low); otherwise, with new and returning clients added, 85% or more = 1; under 85% or no projection = 0. Training programme score: 0 in Nov and Dec 2026, scored from Jan 2027"+(R.trial?"; in the trial before Nov 2026, both count as full marks":"")+". The month running is not scored until it ends. "+
     (R.trial?"Trial: a coach takes part from 6 months after their first month on the sheets.":"Everyone on the team takes part from Q1 2027; Kartik from Q2 2027; a new coach 6 months after joining.")+
     " A coach who leaves before the end of the first week of the next quarter gets no prize (read from the sheets: no session on or after the 8th).";
   Array.prototype.forEach.call(document.querySelectorAll("#pzTbl tr.row"),function(tr){ tr.addEventListener("click",function(){
@@ -1338,7 +1349,7 @@ function renderPrize(){
     var P=pzPoints(r.c), done=R.ms.filter(function(m){ return m<np; });
     var t='<table class="pz-k"><tr><th class="l">KPI</th>'+done.map(function(m){ return "<th>"+lab(m)+"</th>"; }).join("")+"</tr>"+
       PZ_KEYS.map(function(k){ return '<tr><td class="l">'+esc(PZ_NAME[k])+"</td>"+done.map(function(m){ var o=P[m], v=o?o.pts[k]:null, x=o?o.vals[k]:null;
-        return '<td class="'+(v===1?"p1":v===0.5?"p5":v===0?"p0":"")+'" title="'+(x==null?"no figure":show(k,x).replace(/<[^>]+>/g,""))+'">'+(v==null?"—":v)+"</td>"; }).join("")+"</tr>"; }).join("")+"</table>";
+        return '<td class="'+(v>=1?"p1":v===0.5?"p5":v===0?"p0":"")+'" title="'+(x==null?"no figure":show(k,x).replace(/<[^>]+>/g,""))+'">'+(v==null?"—":v)+"</td>"; }).join("")+"</tr>"; }).join("")+"</table>";
     var h=pzHard(r.c,R.ms[0].slice(0,4));
     t+=h.length?'<div class="pz-rule">Hardest to score a full point in '+R.ms[0].slice(0,4)+": "+h.map(function(x){ return esc(PZ_NAME[x.k])+" · "+x.ones+" of "+x.n+" months"; }).join(" · ")+"</div>":"";
     d.firstChild.innerHTML=t; d.style.display="";
