@@ -14,6 +14,8 @@
 const DAY_MS = 86400000;
 const EPOCH = Date.UTC(1899, 11, 30);
 const toSerial = (y, m, d) => Math.round((Date.UTC(y, m - 1, d) - EPOCH) / DAY_MS);
+// A renewal is on time when bought before the package expires or within this many days after.
+export const ON_TIME_DAYS = 7;
 export const iso = (n) => (n == null ? null : new Date(EPOCH + n * DAY_MS).toISOString().slice(0, 10));
 const monthOf = (n) => iso(n).slice(0, 7);
 function edate(n, months) {                        // Excel's EDATE: same day, n months later
@@ -364,7 +366,7 @@ export function buildClientsModel(sheets, opts = {}) {
   /* ---- Renewal decisions, without names, for the page to count over any window ---- */
   const dec = decisions.map((x) => ({
     k: idx.get(x.id), c: x.coach || "(no coach)", E: iso(x.E), at: x.at == null ? null : iso(x.at), o: x.outcome,
-    sz: x.unit === "Months" ? null : x.size, nsz: x.nunit === "Months" ? null : (x.nsize ?? null), early: x.at != null && x.outcome !== "lost" ? x.at <= x.E : null,
+    sz: x.unit === "Months" ? null : x.size, nsz: x.nunit === "Months" ? null : (x.nsize ?? null), early: x.at != null && x.outcome !== "lost" ? x.at <= x.E + ON_TIME_DAYS : null,
   }));
 
   /* ---- New clients since every purchase was logged: who they are, who coached them first,
@@ -493,7 +495,7 @@ export function buildClientsModel(sheets, opts = {}) {
       // Counted as the Clients page counts them: each New package in the month.
       // nd: the day of the month of each, so a month running can be set against the same day before.
       for (const pk of packages) if (pk.type === "New" && pk.date >= s0 && pk.date <= e && own(pk)) { const o = cell(pk.coach); o.nw++; (o.nd || (o.nd = [])).push(pk.date - s0 + 1); }
-      for (const x of decisions) if (x.E >= s0 && x.E <= e && (x.outcome === "kept" || x.outcome === "moved")) { const o = cell(x.coach); o.rn++; if (x.at <= x.E) o.re++; }
+      for (const x of decisions) if (x.E >= s0 && x.E <= e && (x.outcome === "kept" || x.outcome === "moved")) { const o = cell(x.coach); o.rn++; if (x.at <= x.E + ON_TIME_DAYS) o.re++; }
       // ref = referrals: New or Returning packages whose source is a referral, credited to the coach
       // who brought the client in (referrer(): a coach named in "Brought in by", or the coach of the
       // client named there), whoever the client then trains with.

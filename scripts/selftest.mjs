@@ -2,7 +2,7 @@
 // FAMILY the parser must handle, written from scratch. If a change to the parser breaks one,
 // the job stops here rather than publishing figures nobody has checked.
 import { buildClientsModel } from "./clients-model.mjs";
-import { parseCoachSheet, sheetNameToPeriod, colourFamily } from "./parse.mjs";
+import { parseCoachSheet, sheetNameToPeriod, colourFamily, salaryLost } from "./parse.mjs";
 import { parseAssessments, monthToPeriod } from "./assess.mjs";
 import { buildOverview, convWithoutPackage } from "./join.mjs";
 import { guardProjections, addNewBusiness } from "./projection.mjs";
@@ -365,31 +365,31 @@ const PROJ_HEAD = [[0, "Commitment %"], [1, "Client Name"], ...days(2, 30), [34,
     { before: [before.state, before.unpaid], after: [after.used, after.left] }, { before: ["unpaid", 3], after: [4, 20] });
 }
 
-/* 9n. The coach's red mark ends a package: a renewal bought after the red session, with sessions
-       trained in between, is late; one bought before the red session is on time. A red mark one
-       session short of the count still ends the package; with no colours the count decides. */
+/* 9s. Salary lost = the "if not wasted" CM minus the real CM, whatever the sheet's own cell says. */
+{
+  const grid = (cmW, cmA, cell, gap) => { const a = []; for (let r = 0; r < 12; r++) a.push(new Array(12).fill(null));
+    a[2][1] = "CM"; a[2][gap ? 3 : 2] = cmA; a[4][6] = "CM"; a[4][7] = cmW; a[6][6] = "TOT"; a[7][6] = "Salary Lost"; a[7][7] = cell; return a; };
+  check("salary lost: commission gap", salaryLost(grid(24412, 15117, -999, true)), { v: 9295 });
+  check("salary lost: the sheet's own cell is not used", salaryLost(grid(2000, 1500, 123)), { v: 500 });
+  check("salary lost: no commission either way is 0", salaryLost(grid(0, 0, 200)), { v: 0 });
+  check("salary lost: the 'if not wasted' CM left empty", salaryLost(grid(null, 9835, -9835)).miss, 1);
+  const g = grid(5000, 4000, 0); const errs = []; errs[4] = []; errs[4][7] = 1;
+  check("salary lost: a #REF! CM is missing, not 0", salaryLost(g, errs).miss, 1);
+  check("salary lost: no Salary Lost line", salaryLost([["Name"], ["CM", 10]]), null);
+}
+
+/* 9n. Renewals on time: bought before the package before expired, or up to 7 days after.
+       Later than that (but inside the grace period) is late; a client who left is no renewal. */
 {
   const D = (y, m, d) => Math.round((Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 86400000);
-  const pk = (date, end, size) => ({ date, end, size, unit: "Sessions", px: 5000, coach: "Sue", coaches: ["Sue"], type: "Renewal" });
-  const run = (marks, cols, pks) => buildOverview({ inner: { today: D(2026, 11, 20), grace: 90, loggedFrom: D(2026, 1, 1), vat: 5, decisions: [],
-    clients: [{ id: "C0001", name: "Lisa Roberts", coach: "Sue", status: "Active", P: pks[pks.length - 1].end, joined: D(2026, 10, 1), told: null, agreed: null, pk: pks }] },
-    periods: { "2026-10": { Sue: { cl: [["Lisa Roberts", 300, marks[0], cols[0]]] } }, "2026-11": { Sue: { cl: [["Lisa Roberts", 300, marks[1], cols[1]]] } } },
-    links: [], now: "2026-11", cutoffDay: 20, revenueOf: () => null }).kpiM.rt.Sue || {};
-  // 10 sessions 1-10 Oct, the 10th in red; trains 12 and 13 Oct; renews 14 Oct (package of 10): late.
-  const m1 = "1".repeat(10) + ".11" + ".".repeat(18), c1 = ".".repeat(9) + "r" + ".".repeat(21), empty = ".".repeat(31);
-  check("renewals: training after the red session before renewing is late",
-    run([m1, empty], [c1, empty], [pk(D(2026, 10, 1), D(2026, 12, 1), 10), pk(D(2026, 10, 14), D(2027, 1, 1), 10)])["2026-10"], { n: 1, ok: 0, red: 1 });
-  // Same, renewal bought on 10 Oct (the red day): on time.
-  check("renewals: renewing on the day of the last session is on time",
-    run([m1, empty], [c1, empty], [pk(D(2026, 10, 1), D(2026, 12, 1), 10), pk(D(2026, 10, 10), D(2027, 1, 1), 10)])["2026-10"], { n: 1, ok: 1, red: 1 });
-  // A package of 10 whose red mark is on the 11th session (one count too many on the sheet): the
-  // package ends at the red mark, so the 11th is not unpaid and a renewal on 11 Oct is on time.
-  const m2 = "1".repeat(11) + ".".repeat(20), c2 = ".".repeat(10) + "r" + ".".repeat(20);
-  check("renewals: a red mark one session past the count ends the package",
-    run([m2, empty], [c2, empty], [pk(D(2026, 10, 1), D(2026, 12, 1), 10), pk(D(2026, 10, 11), D(2027, 1, 1), 10)])["2026-10"], { n: 1, ok: 1, red: 1 });
-  // No colours at all: the count decides, so the same sheet makes the 11th session unpaid.
-  check("renewals: with no colours the count decides",
-    run([m2, empty], [null, null], [pk(D(2026, 10, 1), D(2026, 12, 1), 10), pk(D(2026, 10, 12), D(2027, 1, 1), 10)])["2026-10"], { n: 1, ok: 0, red: 0 });
+  const run = (decisions) => buildOverview({ inner: { today: D(2026, 11, 20), grace: 90, loggedFrom: D(2026, 1, 1), vat: 5, decisions, clients: [] },
+    periods: {}, links: [], now: "2026-11", cutoffDay: 20, revenueOf: () => null }).kpiM.rt.Sue || {};
+  const dec = (at, outcome = "kept") => ({ id: "C0001", coach: "Sue", E: D(2026, 10, 10), outcome, at });
+  check("renewals: bought before expiry is on time", run([dec(D(2026, 10, 2))])["2026-10"], { n: 1, ok: 1 });
+  check("renewals: bought 7 days after expiry is on time", run([dec(D(2026, 10, 17))])["2026-10"], { n: 1, ok: 1 });
+  check("renewals: bought 8 days after expiry is late", run([dec(D(2026, 10, 18))])["2026-10"], { n: 1, ok: 0 });
+  check("renewals: moving to another coach still counts for the coach whose package ran out", run([dec(D(2026, 10, 12), "moved")])["2026-10"], { n: 1, ok: 1 });
+  check("renewals: a client who left is not a renewal", run([dec(D(2026, 11, 1), "lost")])["2026-11"], undefined);
 }
 
 /* 9r. Money on the table: a package of 10 (valid 7 days) trained 1-10 Oct is used 2 sessions past

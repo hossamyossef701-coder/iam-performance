@@ -23,6 +23,21 @@ document.write('<link rel="manifest" href="./'+f+'.webmanifest"><meta name="appl
 /* The coach's own projection, as on Team Performance: done against projected, the pace mark. */
 .pj-row{display:grid;grid-template-columns:96px minmax(120px,1fr) 140px 150px 52px;gap:4px 16px;align-items:center;padding:9px 0;}
 .pj-row+.pj-row{border-top:1px solid var(--line);}
+/* Salary lost: commission lost to sessions cancelled without charge, month by month. */
+.sl-sum{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;padding:2px 0 10px;}
+.sl-sum b{font-family:var(--f-mono);font-size:24px;font-weight:600;color:var(--down);}
+.sl-sum span{font-size:13px;color:var(--ink-soft);}
+.sl-row{display:grid;grid-template-columns:110px minmax(120px,1fr) 110px;gap:4px 16px;align-items:center;padding:7px 0;}
+.sl-row+.sl-row{border-top:1px solid var(--line);}
+.sl-row .nm{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-soft);font-weight:600;}
+.sl-row .v{font-family:var(--f-mono);font-size:13px;font-weight:600;text-align:right;white-space:nowrap;}
+.sl-row .v.dim,.sl-row .dim{color:var(--ink-faint);font-weight:400;}
+.sl-bar{display:block;height:8px;border-radius:4px;background:rgba(255,255,255,.08);position:relative;}
+.sl-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:inherit;background:linear-gradient(90deg,rgba(225,75,75,.45),var(--down));}
+#slTbl td.v{font-family:var(--f-mono);text-align:right;white-space:nowrap;}
+#slTbl td.tot{font-weight:600;color:var(--down);}
+#slTbl tr.team td{border-top:1px solid var(--line-2,var(--line));font-weight:600;}
+@media(max-width:600px){.sl-row{grid-template-columns:92px minmax(50px,1fr) 84px;gap:4px 10px;}.sl-row .nm{letter-spacing:.08em;}}
 .pj-row .nm{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-soft);font-weight:600;}
 .pj-row .gp{font-family:var(--f-mono);font-size:13px;font-weight:600;text-align:right;white-space:nowrap;}
 .pj-row .ss{font-family:var(--f-mono);font-size:13px;text-align:right;white-space:nowrap;font-weight:600;} .pj-row .ss .dim{color:var(--ink-faint);font-weight:400;}
@@ -207,6 +222,18 @@ body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
         <span class="pz-stat" id="pzStat"></span>
         <div class="pz-hist" id="pzHist"></div>
       </div>
+      <div class="pz-set" id="pzCov">
+        <span class="lbl">Client coverage ·</span>
+        <select id="pzCovM" aria-label="Month"></select>
+        <select id="pzCovC" aria-label="Coach"></select>
+        <span class="lbl">on leave</span>
+        <select id="pzCovL" aria-label="Points on leave"><option value="">—</option><option>0</option><option>1</option><option>2</option></select>
+        <span class="lbl">covering report</span>
+        <select id="pzCovR" aria-label="Points for the covering report"><option value="">—</option><option>0</option><option>1</option></select>
+        <button type="button" class="btn" id="pzCovSave">Save</button>
+        <span class="pz-stat" id="pzCovStat"></span>
+        <div class="pz-hist" id="pzCovHist"></div>
+      </div>
       <div class="scroll"><table class="kt" id="pzTbl"></table></div>
       <p class="note" id="pzNote"></p>
     </div>
@@ -236,6 +263,11 @@ body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
         <div class="legend" style="margin-top:6px"><span><i style="background:rgba(94,184,122,.45)"></i><b id="gLeg" style="font-weight:400">better than the month before</b></span><span><i style="background:rgba(225,75,75,.45)"></i>worse</span><span><i style="background:rgba(255,255,255,.12)"></i>the same</span><span class="r">click a column for its chart below</span></div>
         <p class="note" id="gNote"></p>
       </div>
+    </div>
+    <div class="card section">
+      <div class="card-h"><div><div class="k">Salary lost</div><div class="t">Commission lost to sessions cancelled without charge</div></div><span class="unit">AED</span></div>
+      <div class="scroll"><table class="kt" id="slTbl"></table></div>
+      <div class="card-b" style="padding-top:6px"><p class="note" id="slNote"></p></div>
     </div>
   </div>
 
@@ -274,6 +306,10 @@ body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
         <div class="card-b"><div class="room" id="room"></div><p class="note" id="roomNote"></p></div>
       </div>
     </div>
+    <div class="card section" id="slCard" style="display:none">
+      <div class="card-h"><div><div class="k" id="slK">Salary lost</div><div class="t">Commission lost to sessions cancelled without charge</div></div><span class="unit" id="slU"></span></div>
+      <div class="card-b" id="slB" style="padding-top:4px"></div>
+    </div>
     <div class="card section">
       <div class="card-h"><div><div class="k">Their clients</div><div class="t">Sessions a week, against what was agreed</div></div><span class="unit">last 8 weeks</span></div>
       <div class="card-b">
@@ -306,10 +342,10 @@ IAMNAV.draw(PAGE==="dir"?"director.html":PAGE==="prize"?"prize.html":"coach.html
 /* ---- The KPIs ----
    Two lists, switched with "Full list / Balanced": the full 15 (the KPI sheet's rows), and the
    balanced 10 - five areas, two KPIs each, so no one area carries a coach. */
-var DEFK={"ses": {"name": "Sessions delivered", "better": "Higher"}, "rev": {"name": "Revenue (AED)", "better": "Higher"}, "proj": {"name": "Projection reached (%)", "better": "Higher"}, "act": {"name": "Active clients", "better": "Higher"}, "spw": {"name": "Sessions a week per client", "better": "Higher"}, "p3": {"name": "Clients at 3+ a week (%)", "better": "Higher"}, "rpc": {"name": "Revenue per client (AED)", "better": "Higher"}, "kept": {"name": "Existing clients still with us (%)", "better": "Higher"}, "early": {"name": "Renewed before the last paid session (%)", "better": "Higher"}, "conv": {"name": "Assessments converted (%)", "better": "Higher"}, "nw": {"name": "New clients", "better": "Higher"}, "canc": {"name": "Cancelled sessions (%)", "better": "Lower"}, "less": {"name": "Clients training less often", "better": "Lower"}, "up": {"name": "Clients training beyond what's paid", "better": "Lower"}, "chg": {"name": "Cancellations charged (%)", "better": "Higher"}, "ref": {"name": "Referrals", "better": "Higher"}, "prog": {"name": "Training programme phase", "better": "Higher"}};
+var DEFK={"ses": {"name": "Sessions delivered", "better": "Higher"}, "rev": {"name": "Revenue (AED)", "better": "Higher"}, "proj": {"name": "Projection reached (%)", "better": "Higher"}, "act": {"name": "Active clients", "better": "Higher"}, "spw": {"name": "Sessions a week per client", "better": "Higher"}, "p3": {"name": "Clients at 3+ a week (%)", "better": "Higher"}, "rpc": {"name": "Revenue per client (AED)", "better": "Higher"}, "kept": {"name": "Existing clients still with us (%)", "better": "Higher"}, "early": {"name": "Renewed by expiry + 7 days (%)", "better": "Higher"}, "conv": {"name": "Assessments converted (%)", "better": "Higher"}, "nw": {"name": "New clients", "better": "Higher"}, "canc": {"name": "Cancelled sessions (%)", "better": "Lower"}, "less": {"name": "Clients training less often", "better": "Lower"}, "up": {"name": "Clients training beyond what's paid", "better": "Lower"}, "chg": {"name": "Cancellations charged (%)", "better": "Higher"}, "ref": {"name": "Referrals", "better": "Higher"}, "prog": {"name": "Training programme phase", "better": "Higher"}, "cov": {"name": "Client coverage", "better": "Higher"}};
 var FULL=["ses","rev","proj","act","spw","p3","rpc","kept","early","conv","nw","canc","less","up","chg"];
-var BAL=["rev","proj","p3","less","kept","early","conv","nw","chg","ref","prog"];
-var AREA={rev:"Business",proj:"Business",p3:"Client commitment",less:"Client commitment",kept:"Keeping clients",early:"Keeping clients",conv:"Growing the book",nw:"Growing the book",chg:"Standards",ref:"Growing the book",prog:"Standards"};
+var BAL=["rev","proj","p3","less","kept","early","conv","nw","chg","ref","prog","cov"];
+var AREA={rev:"Business",proj:"Business",p3:"Client commitment",less:"Client commitment",kept:"Keeping clients",early:"Keeping clients",conv:"Growing the book",nw:"Growing the book",chg:"Standards",ref:"Growing the book",prog:"Standards",cov:"Standards"};
 var PJ=[85,115];   // projection reached: on target from 85% to 115%
 // 1 on target, 0 projected low (the projected clients alone over 115%), -1 under 85%.
 function pjScore(a,b){ return b==null?null:(a!=null&&a>PJ[1])?0:b>=PJ[0]?1:-1; }
@@ -425,19 +461,23 @@ function val(c,p){
     put("ref",m.ref||0,1,(m.ref||0)+" referred "+((m.ref||0)===1?"client":"clients")+" who bought");
     put("kept",m.kk,m.ks,m.kk+" of "+m.ks+" clients");
     var rt=K.rt&&f&&K.rt[f]&&K.rt[f][p];
-    if(rt) put("early",rt.ok,rt.n,rt.ok+" of "+rt.n+" renewals before the last paid session"+(rt.red?" ("+rt.red+" ended by a red mark)":""));
+    if(rt) put("early",rt.ok,rt.n,rt.ok+" of "+rt.n+" renewals by expiry + 7 days");
   }
   // The training programme score (phase 1-6), once it is recorded.
   // Nov and Dec 2026: 0 for everyone (the score starts in Jan 2027).
   var pg=live.prog&&live.prog[p]&&live.prog[p][c];
   if(p==="2026-11"||p==="2026-12"){ if(x) put("prog",0,1,"starts in Jan 2027"); }
   else if(pg!=null) put("prog",pg,1,"phase "+pg);
+  // Client coverage: points entered on the Prize tab, only in a month with leave or cover -
+  // up to 2 for the coach on leave, 1 for the covering coach's report.
+  var cv=PZ_SET.cover&&PZ_SET.cover[p]&&PZ_SET.cover[p][c];
+  if(cv&&(cv.l!=null||cv.r!=null)) put("cov",(cv.l||0)+(cv.r||0),1,[cv.l!=null?"on leave "+cv.l:"",cv.r!=null?"covering report "+cv.r:""].filter(Boolean).join(" · "));
   return (cache[key]=o);
 }
 // A coach over a block of months: the parts added up; null when no month has the figure.
 // Except "still with us": over several months each client is counted once - with the coach the
 // day before the first month, still a client at the end of the last.
-var TOTAL={ses:1,rev:1,nw:1}, LEVEL={act:1,up:1};
+var TOTAL={ses:1,rev:1,nw:1,cov:1}, LEVEL={act:1,up:1};
 function parts(c,ms,k){
   if(ms.length>1&&TOTAL[k]){ var t=0, any=false; ms.forEach(function(p){ var q=val(c,p).P[k]; if(q){ t+=q.n; any=true; } }); return any?{n:t,d:1}:null; }
   if(ms.length>1&&LEVEL[k]){ for(var i=ms.length-1;i>=0;i--){ var q1=val(c,ms[i]).P[k]; if(q1) return {n:q1.n,d:1}; } return null; }
@@ -620,6 +660,49 @@ function render(){
   chart();
 }
 
+/* Salary lost, from the coach sheets: the commission had no session been cancelled without charge,
+   minus the commission earned (sl, AED); slm = the month's salary block is missing a CM figure. */
+function slOf(c){
+  var ps=Object.keys(D.live.periods).sort(), np=now(), rows=[], tot=0, fin=0, nf=0;
+  ps.forEach(function(p){ var x=(D.live.periods[p]||{})[c]; if(!x||(x.sl==null&&!x.slm)) return;
+    var part=p===np; rows.push({p:p,v:x.sl,miss:!!x.slm,part:part});
+    if(x.sl!=null){ tot+=x.sl; if(!part){ fin+=x.sl; nf++; } } });
+  if(!rows.length) return null;
+  return {rows:rows,tot:tot,avg:nf?fin/nf:null,from:rows[0].p,to:rows[rows.length-1].p,n:rows.length,miss:rows.filter(function(r){ return r.miss; }).length,
+    now:rows.filter(function(r){ return r.part; })[0]||null};
+}
+function slSpan(o){ return o.from===o.to?C.label(o.from):C.label(o.from,o.from.slice(0,4)===o.to.slice(0,4))+" – "+C.label(o.to); }
+function renderSl(c){
+  var o=slOf(c), card=$("slCard");
+  if(!o){ card.style.display="none"; return; }
+  card.style.display="";
+  $("slK").textContent="Salary lost · "+c;
+  $("slU").textContent=slSpan(o)+" · "+o.n+" month"+(o.n>1?"s":"");
+  var max=Math.max.apply(null,o.rows.map(function(r){ return r.v||0; }).concat([1]));
+  $("slB").innerHTML='<div class="sl-sum"><b>'+C.full(Math.round(o.tot))+' AED</b><span>in total'+(o.now?", "+C.label(o.now.p,true)+" so far included":"")+(o.avg!=null?" · "+C.full(Math.round(o.avg))+" a month on average":"")+"</span></div>"+
+    o.rows.slice().reverse().map(function(r){
+      return '<div class="sl-row"><span class="nm">'+(r.part?C.label(r.p,true)+" so far":C.label(r.p))+"</span>"+
+        (r.miss?'<span class="dim">not on the sheet</span><span class="v dim">—</span>':'<span class="sl-bar"><i style="width:'+Math.max(r.v>0?1.5:0,r.v/max*100).toFixed(1)+'%"></i></span><span class="v">'+C.full(r.v)+" AED</span>")+"</div>";
+    }).join("");
+}
+function renderSlDir(){
+  var np=now(), rows=[];
+  Object.keys(D.live.periods).forEach(function(p){ Object.keys(D.live.periods[p]).forEach(function(c){ if(rows.indexOf(c)<0) rows.push(c); }); });
+  rows=rows.map(function(c){ var o=slOf(c); return o?{c:c,o:o}:null; }).filter(Boolean);
+  rows.sort(function(a,b){ if(a.c==="Ivan") return 1; if(b.c==="Ivan") return -1; return b.o.tot-a.o.tot; });
+  // The team total covers the months most coaches have (the first month most sheets carry the
+  // line), so one sheet that has it for longer does not stretch the team figure.
+  var starts={}; rows.forEach(function(r){ starts[r.o.from]=(starts[r.o.from]||0)+1; });
+  var tFrom=Object.keys(starts).sort(function(a,b){ return starts[b]-starts[a]||(a<b?-1:1); })[0], T=0, TN=0;
+  rows.forEach(function(r){ r.o.rows.forEach(function(x){ if(x.p>=tFrom&&x.v!=null) T+=x.v; }); TN+=r.o.now&&r.o.now.v!=null?r.o.now.v:0; });
+  var nowLab=C.label(np,true)+" so far";
+  $("slTbl").innerHTML='<thead><tr><th class="l">Coach</th><th class="l">Months</th><th>Total</th><th>A month on average</th><th>'+nowLab+"</th></tr></thead><tbody>"+
+    rows.map(function(r){ var o=r.o;
+      return '<tr><td class="l">'+esc(r.c)+'</td><td class="l">'+slSpan(o)+' <span class="dim">· '+o.n+(o.miss?", "+o.miss+" not on the sheet":"")+"</span></td>"+
+        '<td class="v'+(o.tot>0?" tot":"")+'">'+C.full(Math.round(o.tot))+'</td><td class="v">'+(o.avg!=null?C.full(Math.round(o.avg)):"—")+'</td><td class="v">'+(o.now?(o.now.v!=null?C.full(o.now.v):"—"):'<span class="dim">—</span>')+"</td></tr>"; }).join("")+
+    (rows.length?'<tr class="team"><td class="l">Team</td><td class="l">'+slSpan({from:tFrom,to:np})+'</td><td class="v tot">'+C.full(Math.round(T))+'</td><td></td><td class="v">'+C.full(Math.round(TN))+"</td></tr>":"")+"</tbody>";
+  $("slNote").textContent=rows.length?"Commission had no session been cancelled without charge, minus the commission earned, from each coach sheet's salary block. Totals include "+nowLab+". — = a CM figure missing on the sheet.":"No coach sheet has a Salary Lost line yet.";
+}
 /* The coach's projection for the month chosen at the top: sessions (and revenue) against what
    they projected, with the pace mark - the same bar as on Team Performance. Month running: to date,
    against the share of the month gone. */
@@ -680,7 +763,7 @@ function renderOne(){
   bindRows();
   $("kNote").innerHTML="Copy "+r.lab+" puts its "+ks.length+" numbers on the clipboard in the "+"KPI sheet's order: on the KPI sheet's Log tab click the month's first number cell and paste (they go across the row). "+
     "Colours compare each column with the same stretch one period earlier (for the lower-is-better rows a drop is green); the column running is compared to the same day. * = still running. Hover a cell for what it is made of.<br>"+defs();
-  who(c); room(c); renderTalking(c);
+  who(c); room(c); renderTalking(c); renderSl(c);
 }
 
 function renderTeam(){
@@ -779,6 +862,7 @@ function renderDir(){
   renderGlance(cs);
   renderBusy();
   renderDaily();
+  renderSlDir();
 }
 /* Sessions day by day for the month chosen at the top: each coach's sessions on each date, from
    the coach sheets. In the month running, the days after today show what is already booked
@@ -908,7 +992,7 @@ function renderAttention(cs,np){
 function renderGlance(cs){
   // The block of the month chosen at the top, the month running included ("Nov so far").
   var r=block(month,span), pb=cmpBlock(r,span);
-  var ks=BAL.filter(function(k){ return k!=="prog"||cs.some(function(c){ return agg(c,r.ms,k)!=null; }); });
+  var ks=BAL.filter(function(k){ return (k!=="prog"&&k!=="cov")||cs.some(function(c){ return agg(c,r.ms,k)!=null; }); });
   if(ks.indexOf(kSel)<0) kSel=ks[0];
   var rows=scoreRows(span,r), byC={}; rows.forEach(function(x,i){ byC[x.c]={s:x.s,i:i+1,up:x.up,dn:x.dn,n:x.n}; });
   $("gT").textContent=r.lab+(r.part?" so far":"")+": each coach against their own "+cutLab(pb)+(span==="m"?"":" · totals over the stretch");
@@ -938,7 +1022,7 @@ function renderGlance(cs){
 // Sessions or revenue of one coach in month p up to the day the month running has reached.
 function sameDay(c,p,k){ var rows=((D.live.periods[p]||{})[c]||{}).cl, day=D.live.cutoffDay; if(!rows||!day) return null; var t=0;
   rows.forEach(function(row){ var m=row[2]||""; for(var i=0;i<Math.min(day,m.length);i++){ var w=wOf(m[i]); t+=k==="rev"?w*(row[1]||0):w; } }); return t; }
-var SHORT={rev:"Revenue",proj:"Projection<br>reached",p3:"Clients<br>3+ a week",less:"Training<br>less often",kept:"Still<br>with us",early:"Renewed<br>before last",conv:"Assessments<br>converted",nw:"New<br>clients",chg:"Cancellations<br>charged",prog:"Programme<br>phase"};
+var SHORT={rev:"Revenue",proj:"Projection<br>reached",p3:"Clients<br>3+ a week",less:"Training<br>less often",kept:"Still<br>with us",early:"Renewed<br>before last",conv:"Assessments<br>converted",nw:"New<br>clients",chg:"Cancellations<br>charged",prog:"Programme<br>phase",cov:"Client<br>coverage"};
 
 /* ---- 1+1 talking points ----
    For one coach over a reviewed block: what is going well (near the top of the team on a KPI,
@@ -1055,7 +1139,7 @@ function renderScoreRows(rows,A,ks,pk){
   Array.prototype.forEach.call($("sPick").querySelectorAll("input"),function(b){ b.addEventListener("change",function(){ pick()[+b.getAttribute("data-i")]=b.checked; save(); render(); }); });
   $("sNote").innerHTML="Score: for each KPI ticked below, the coaches with a figure are placed against each other over the stretch: the best gets 100 points, the lowest 0, a tie counts half. "+
     (list==="bal"?"The points are averaged within each area, then the five areas are averaged, so every area weighs the same. ":"The average of the KPIs' points. ")+
-    "Hover a score for each KPI's points. Rates are worked out over the whole stretch, counts are totals. Rates built on a few cases (assessments converted, renewed before the last paid session, still with us, cancellations charged, clients at 3+ a week) are ranked with "+FAIR_N+" extra cases at the team's rate, so 1 of 1 does not beat 4 of 5; the tables show the real figure. "+
+    "Hover a score for each KPI's points. Rates are worked out over the whole stretch, counts are totals. Rates built on a few cases (assessments converted, renewed by expiry + 7 days, still with us, cancellations charged, clients at 3+ a week) are ranked with "+FAIR_N+" extra cases at the team's rate, so 1 of 1 does not beat 4 of 5; the tables show the real figure. "+
     "Every window runs to date, the month running included. Beat their own results before = more KPIs better than worse against the same coach over the same stretch one period earlier, to the same day (sessions, revenue and new clients); rates as they stand.";
   return rows;
 }
@@ -1064,7 +1148,7 @@ function defs(){
   return "<b>Definitions.</b> Sessions and revenue: from the coach sheets (revenue without VAT). Projection reached: revenue against the projection set at the start of the month. "+
     "Sessions a week per client, clients at 3+ a week, revenue per client: from each client's row on the coach sheets, clients who trained at least once in the month. "+
     "Active clients: on the Clients file at the month's end. Existing clients still with us: of the clients with the coach the day before the month (or the quarter, or the stretch) began, how many are still clients at its end, each client counted once (inside the grace period counts as still with us). "+
-    "Renewed before the last paid session: of the renewals bought in the month, how many came before the client trained past the last session of the package before (the session marked red on the coach sheet, or by counting the sessions where it is not marked). Assessments converted: from the assessment tracker. "+
+    "Renewed by expiry + 7 days: of the renewals bought in the month, how many were bought before the package before expired or within 7 days after. Assessments converted: from the assessment tracker. "+
     "New clients: New packages in the Clients file. Cancelled: (cancelled + charged) ÷ (trained, charged included, + cancelled). Training less often: clients at half their usual sessions a week or less over the month (or the quarter), against their own average over the 3 months before it. "+
     "Beyond what's paid: clients who trained in the month past every session paid for by its end. Cancellations charged: sessions typed 1 on a yellow cell ÷ (those + the 0s). A 0 is any cancellation not charged, with notice or not: the sheet cannot tell them apart, so this is the share of all cancellations that were charged. "+
     "Training programme phase: the score (1-6) for the coach's programme design; blank until it is recorded. Team median: all coaches lined up on the KPI, the one in the middle.";
@@ -1167,12 +1251,12 @@ var PRIZE={start:"2027-01", gate:15, amount:1000,
   out:["Ivan","Hossam"],                       // not in the prize, not listed
   from:{Kartik:"2027-04"},                     // first quarter a coach takes part in (6 months after joining)
   allFrom:"2027-01"};                          // everyone already on the team takes part from Q1 2027
-var PZ_KEYS=["rev","proj","p3","less","kept","early","conv","nw","chg","ref","prog"];
+var PZ_KEYS=["rev","proj","p3","less","kept","early","conv","nw","chg","ref","prog","cov"];
 var PZ_BEST={p3:100,kept:100,early:100,conv:100,chg:100,less:0,prog:6};
-var PZ_MAX=48;   // a quarter: 3 months x (10 KPIs at 1 point + referrals up to 6)
+var PZ_MAX=48;   // a quarter: 3 months x (10 KPIs at 1 point + referrals up to 6); client coverage comes on top
 var REF_PTS=2, REF_CAP=6;   // referrals: 2 points for each referred client who bought, up to 6 a month
 // The names on the coaches' KPI sheet.
-var PZ_NAME={rev:"Revenue (AED)",proj:"Projection reached (%)",p3:"Clients at 3+ a week (%)",less:"Clients training less often",kept:"Existing clients still with us (%)",early:"Renewed before the last paid session (%)",conv:"Assessments converted (%)",nw:"New clients",chg:"Charged Session (%)",ref:"Referrals",prog:"Training programme score"};
+var PZ_NAME={rev:"Revenue (AED)",proj:"Projection reached (%)",p3:"Clients at 3+ a week (%)",less:"Clients training less often",kept:"Existing clients still with us (%)",early:"Renewed by expiry + 7 days (%)",conv:"Assessments converted (%)",nw:"New clients",chg:"Charged Session (%)",ref:"Referrals",prog:"Training programme score",cov:"Client coverage"};
 var pzQ="";
 function qOf(p){ return p.slice(0,4)+"-Q"+(Math.floor((+p.slice(5,7)-1)/3)+1); }
 function qMonths(q){ var y=q.slice(0,4), n=+q.slice(6); return [1,2,3].map(function(i){ var m=(n-1)*3+i; return y+"-"+(m<10?"0":"")+m; }); }
@@ -1192,7 +1276,7 @@ function pzPoints(c){
   var ps=Object.keys(D.live.periods).sort().filter(function(p){ return p>="2025-11"&&p<now(); }), out={}, prev={}, prevV={};
   ps.forEach(function(m){
     var any=false, pts={}, vals={};
-    PZ_KEYS.forEach(function(k){ vals[k]=rnd(k,agg(c,[m],k)); if(vals[k]!=null&&k!=="prog") any=true; });
+    PZ_KEYS.forEach(function(k){ vals[k]=rnd(k,agg(c,[m],k)); if(vals[k]!=null&&k!=="prog"&&k!=="cov") any=true; });
     PZ_KEYS.forEach(function(k){
       if(!any){ pts[k]=null; return; }
       // Training programme score: full marks in the trial up to Oct 2026, 0 in Nov and Dec 2026,
@@ -1206,6 +1290,9 @@ function pzPoints(c){
       if(k==="proj"){ if(m<"2026-11"){ pts[k]=1; return; } var sc=pjScore(rnd("proj",agg(c,[m],"projA")),vals[k]); pts[k]=sc===1?1:sc===0?0.5:0; return; }
       // Referrals: 2 points in any month with at least one referred client who bought, else 0.
       if(k==="ref"){ pts[k]=vals[k]==null?null:Math.min(REF_CAP,REF_PTS*vals[k]); return; }
+      // Client coverage: the points entered (up to 2 on leave + 1 for a covering report); blank
+      // in a month with no leave and no cover.
+      if(k==="cov"){ pts[k]=vals[k]==null?null:vals[k]; return; }
       // At the best possible value (100%, no client training less often, programme phase 6):
       // reaching it from below scores 1; holding it scores 0.5, whatever the month before scored.
       if(vals[k]!=null&&PZ_BEST[k]!=null&&vals[k]===PZ_BEST[k]){ pts[k]=(prevV[k]!=null&&prevV[k]!==vals[k])?1:0.5; return; }
@@ -1312,6 +1399,59 @@ function pzSave(){
     })
     .catch(function(e){ $("pzSave").disabled=false; pzStat("Not saved: "+(e&&e.message||e),"err"); });
 }
+/* Client coverage, entered here: { cover: { "2027-03": { "Sue": { l: 2, r: null } } } } in the same
+   encrypted file. On leave (5+ working days): 2 = plan sent 3+ days before and half or more of the
+   active clients covered; 1 = plan sent and every client offered cover; 0 = no plan. Covering
+   coach: 1 = complete report within 3 days of the leave ending. */
+function covRows(){ var ps=Object.keys(D.live.periods).sort(), np=now(); var ms=ps.filter(function(p){ return p<=np; }).slice(-6).reverse(); return ms; }
+function covCoaches(m){ var per=D.live.periods[m]||{}, cs=Object.keys(per).filter(function(c){ return (per[c].s||0)>0||(per[c].ms||0)>0; });
+  cs.sort(function(a,b){ if(a==="Ivan") return 1; if(b==="Ivan") return -1; return a<b?-1:1; }); return cs; }
+function covFill(keepC){
+  var m=$("pzCovM").value||covRows()[0], cs=covCoaches(m), c=keepC&&cs.indexOf(keepC)>=0?keepC:($("pzCovC").value&&cs.indexOf($("pzCovC").value)>=0?$("pzCovC").value:cs[0]);
+  $("pzCovC").innerHTML=cs.map(function(x){ return '<option'+(x===c?" selected":"")+">"+esc(x)+"</option>"; }).join("");
+  var e=((PZ_SET.cover||{})[m]||{})[c]||{};
+  $("pzCovL").value=e.l==null?"":String(e.l); $("pzCovR").value=e.r==null?"":String(e.r);
+  var all=(PZ_SET.cover||{})[m]||{}, ks=Object.keys(all).sort();
+  $("pzCovHist").textContent=(ks.length?C.label(m,true)+": "+ks.map(function(k){ var v=all[k]; return k+" "+[v.l!=null?"on leave "+v.l:"",v.r!=null?"report "+v.r:""].filter(Boolean).join(", "); }).join(" · ")+". ":"Nothing entered for "+C.label(m,true)+". ")+
+    "On leave (5+ working days): 2 = plan sent 3+ days before and half or more of the active clients covered · 1 = plan sent, every client offered cover · 0 = no plan. Covering coach: 1 = complete report within 3 days of the leave ending. — = not scored this month.";
+}
+function covForm(){
+  var ms=covRows(), keep=$("pzCovM").value;
+  $("pzCovM").innerHTML=ms.map(function(m){ return '<option value="'+m+'">'+C.label(m,true)+(m===now()?" (running)":"")+"</option>"; }).join("");
+  if(ms.indexOf(keep)>=0) $("pzCovM").value=keep;
+  covFill();
+}
+function pzWrite(change,msg,stat,btn,okText){
+  var c={}; try{ c=JSON.parse(localStorage.getItem("iamlive:cfg")||"{}"); }catch(e){}
+  if(!c.pat){ stat("Refresh access isn't set on this device - save a token under Refresh access on Team Performance first.","err"); return; }
+  var url="https://api.github.com/repos/hossamyossef701-coder/iam-performance/contents/"+PZ_FILE, sha=null, H={Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28",Authorization:"Bearer "+c.pat};
+  btn.disabled=true; stat("Saving…");
+  fetch(url+"?ref=main&t="+Date.now(),{headers:H})
+    .then(function(r){ if(r.status===404) return null; if(!r.ok) throw new Error("GitHub replied "+r.status+" reading the file"); return r.json(); })
+    .then(function(j){ if(!j) return {gates:{}}; sha=j.sha; return C.decrypt(JSON.parse(atob(String(j.content).replace(/\s/g,""))),PASSW); })
+    .then(function(all){ all=all&&all.gates?all:{gates:{}}; change(all); PZ_SET=all; return pzEncrypt(all,PASSW); })
+    .then(function(env){ var body={message:msg,content:btoa(JSON.stringify(env)),branch:"main"}; if(sha) body.sha=sha;
+      return fetch(url,{method:"PUT",headers:H,body:JSON.stringify(body)}); })
+    .then(function(r){
+      btn.disabled=false;
+      if(r.status===200||r.status===201){ stat(okText,"ok"); pzCache={}; cache={}; render(); return; }
+      if(r.status===401||r.status===403||r.status===404) throw new Error("the saved token can't write files - give it Contents: read and write");
+      if(r.status===409) throw new Error("the file changed meanwhile - press Save again");
+      throw new Error("GitHub replied "+r.status);
+    })
+    .catch(function(e){ btn.disabled=false; stat("Not saved: "+(e&&e.message||e),"err"); });
+}
+function covStat(t,c){ var e=$("pzCovStat"); e.textContent=t; e.className="pz-stat"+(c?" "+c:""); }
+function covSave(){
+  var m=$("pzCovM").value, c=$("pzCovC").value, l=$("pzCovL").value, r=$("pzCovR").value;
+  if(!m||!c){ covStat("Pick a month and a coach.","err"); return; }
+  var L=l===""?null:+l, R=r===""?null:+r;
+  pzWrite(function(all){ var cv=all.cover||(all.cover={}), mm=cv[m]||(cv[m]={});
+      if(L==null&&R==null) delete mm[c]; else mm[c]={l:L,r:R};
+      if(!Object.keys(mm).length) delete cv[m]; },
+    "Client coverage: "+c+" "+m, covStat, $("pzCovSave"),
+    "Saved: "+c+", "+C.label(m,true)+(L==null&&R==null?" - cleared":(L!=null?" · on leave "+L:"")+(R!=null?" · report "+R:""))+".");
+}
 function renderPrize(){
   var np=now(), qs=[], q0=qOf("2026-01"), qn=qOf(np);
   for(var p="2026-01";qOf(p)<=qn;p=addMonths(p,3)) qs.push(qOf(p));
@@ -1339,7 +1479,8 @@ function renderPrize(){
   }).join("");
   $("pzTbl").innerHTML=head+"<tbody>"+body+"</tbody>";
   pzForm(qn);
-  $("pzNote").textContent="Click a coach for each KPI's points and the three KPIs they find hardest. Points: 1 = better than the month before, 0.5 = the same while holding a rise, 0 = otherwise; revenue within ±"+revSameFor(pzQ)+"% of the month before counts as the same. Referrals: 2 points for each referred client who bought, up to 6 a month (3 or more). Holding the best possible value (100%, nobody training less often) scores 0.5 every month. "+
+  covForm();
+  $("pzNote").textContent="Click a coach for each KPI's points and the three KPIs they find hardest. Points: 1 = better than the month before, 0.5 = the same while holding a rise, 0 = otherwise; revenue within ±"+revSameFor(pzQ)+"% of the month before counts as the same. Referrals: 2 points for each referred client who bought, up to 6 a month (3 or more). Client coverage: the points entered below, only in a month with leave or cover (up to 2 on leave, 1 for a covering report), on top of the 48. Holding the best possible value (100%, nobody training less often) scores 0.5 every month. "+
     "Projection reached is scored on its own: the clients projected on the 3rd alone over 115% = 0.5 (projected low); otherwise, with new and returning clients added, 85% or more = 1; under 85% or no projection = 0. Training programme score: 0 in Nov and Dec 2026, scored from Jan 2027"+(R.trial?"; in the trial before Nov 2026, both count as full marks":"")+". The month running is not scored until it ends. "+
     (R.trial?"Trial: a coach takes part from 6 months after their first month on the sheets.":"Everyone on the team takes part from Q1 2027; Kartik from Q2 2027; a new coach 6 months after joining.")+
     " A coach who leaves before the end of the first week of the next quarter gets no prize (read from the sheets: no session on or after the 8th).";
@@ -1381,6 +1522,9 @@ C.unlock(function(d,pw){
     $("pzQ").addEventListener("change",function(e){ pzQ=e.target.value; render(); });
     $("pzFrom").addEventListener("change",function(){ $("pzGate").value=gateFor($("pzFrom").value); });
     $("pzSave").addEventListener("click",pzSave);
+    $("pzCovM").addEventListener("change",function(){ covFill($("pzCovC").value); });
+    $("pzCovC").addEventListener("change",function(){ covFill($("pzCovC").value); });
+    $("pzCovSave").addEventListener("click",covSave);
   }
   // The prize settings (gate, revenue margin) on every page here: Coach review and Fitness colour
   // revenue with the same margin.

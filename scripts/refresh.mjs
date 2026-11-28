@@ -33,6 +33,18 @@ function fillGrid(ws) {
   }
   return out;
 }
+// The cells holding a formula error (#REF!, #VALUE!...), in the same grid: sheet_to_json leaves
+// them empty, which would read as 0.
+function errGrid(ws) {
+  if (!ws || !ws["!ref"]) return [];
+  const R = XLSX.utils.decode_range(ws["!ref"]), out = [];
+  for (const addr of Object.keys(ws)) {
+    if (addr[0] === "!" || !ws[addr] || ws[addr].t !== "e") continue;
+    const a = XLSX.utils.decode_cell(addr);
+    (out[a.r - R.s.r] || (out[a.r - R.s.r] = []))[a.c - R.s.c] = 1;
+  }
+  return out;
+}
 
 const env = process.env;
 const SHARE_URL = (env.SHARE_URL || "").trim();
@@ -151,7 +163,7 @@ async function writeClients(assess, rt) {
   const model = { ...clientsModel };
   delete model.generated;
   model.assess = assess !== undefined ? assess : (prev && prev.assess) || null;
-  // rt: renewals per coach and month, on time or after the last paid session (from the coach sheets).
+  // rt: renewals per coach and month, on time (by expiry + 7 days) or later (from the Clients file).
   model.rt = rt !== undefined ? rt : (prev && prev.rt) || null;
   if (prev) {
     const { generated: g, ...rest } = prev;
@@ -260,8 +272,8 @@ async function main() {
         // sessions are booked ahead and the sheet's totals include them.
         // The fill colour of every cell, as a family (red = last session of a package, green = first,
         // yellow = a charged cancellation, orange = cover...): the same grid as the values.
-        const fills = fillGrid(wb.Sheets[t.n]);
-        r = parseCoachSheet(arr, t.p === now ? { cutoffDay: today, fills } : { fills });
+        const fills = fillGrid(wb.Sheets[t.n]), errs = errGrid(wb.Sheets[t.n]);
+        r = parseCoachSheet(arr, t.p === now ? { cutoffDay: today, fills, errs } : { fills, errs });
       } catch (e) {
         entry.errors.push(`${t.p}: this month's tab could not be read (${String(e && e.message || e).slice(0, 80)})`);
         continue;
@@ -293,6 +305,10 @@ async function main() {
       // ps/pr: the month's projected sessions and revenue. Only on sheets that carry the columns;
       // a 0 means the columns are there but nothing has been typed in them yet.
       if (r.projection) { bucket[coach].ps = r.projection.s; bucket[coach].pr = r.projection.r; bucket[coach].pm = r.projection.missing; }
+      // sl: salary lost, AED (commission had no session been cancelled without charge, minus the
+      // commission earned), on sheets with a "Salary Lost" line; slm: the line is there but a CM
+      // figure is missing or an error. Performance passphrase only, like everything in this file.
+      if (r.salary) { if (r.salary.miss) { bucket[coach].slm = 1; entry.warnings.push(`${t.p}: salary lost could not be worked out - a CM figure in the salary block is empty or an error`); } else bucket[coach].sl = r.salary.v; }
       // cl: each client's row day by day, for the last 13 months only: [name, price, days, colours,
       // projected AED (null: the sheet has no projection columns), revenue]. Names as the coach typed
       // them; this file is encrypted with the Performance passphrase like everything in it.
@@ -460,7 +476,7 @@ async function main() {
         const g = (f) => t[f] || [0, 0];
         L.log(`Money on the table (everything followed, ${lk.packages} packages past expiry): ${g("xf")[0]} extension fees not charged, ${g("xc")[0]} charged; ${g("ax")[0]} sessions after expiry with no fee; ${g("ul")[0]} sessions never paid; ${g("fl")[0]} packages used up late, ${g("fo")[0]} on time`); }
       const rc = ov.kpiM.rtCover;
-      L.log(`Renewals on time: ${rc.measured} of ${rc.all} renewals followed on the coach sheets, ${rc.red} ended by a red mark; ${rc.misfit} red mark(s) too far from the package size to use`);
+      L.log(`Renewals on time (by expiry + 7 days): ${rc.all - rc.late} of ${rc.all} renewals; ${rc.late} later`);
       // The Clients page's Coaches table shows renewals on time too (no names: coach and month counts).
       try { await writeClients(undefined, { by: ov.kpiM.rt, cover: rc }); } catch (e) { console.log("Clients: renewals on time not added - " + String(e.message || e).split("\n")[0]); }
     } catch (e) {

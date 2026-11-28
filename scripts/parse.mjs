@@ -501,5 +501,39 @@ export function parseCoachSheet(arr, opts) {
     }
   }
 
-  return { sessions, revenue, cancelled, rate, clients, derived, dayCols: dayCols.length, dayRow: dayRowIdx, mtd, projection, people, colours, warnings };
+  const salary = salaryLost(arr, opts && opts.errs);
+  return { sessions, revenue, cancelled, rate, clients, derived, dayCols: dayCols.length, dayRow: dayRowIdx, mtd, projection, people, colours, warnings, salary };
+}
+
+/* Salary lost: the commission a coach would have earned had no session been cancelled without
+   charge, minus the commission earned. The sheets that carry it have a "Salary Lost" line under a
+   second salary block ("Total Revenue for coach if not wasted"), whose CM is the commission on
+   that bigger figure; the CM of the real salary sits in the block to its left. The "Salary Lost"
+   cell itself is not used: its formula differs from sheet to sheet (the sign is reversed on some,
+   bonuses or group classes are taken off on others), while the two CM figures mean the same on
+   every sheet. Returns null when the sheet has no such line; { v } in AED; or { miss } when the
+   line is there but a CM is missing or an error. */
+export function salaryLost(arr, errs) {
+  let at = null;
+  for (let r = 0; r < arr.length && !at; r++) { const row = arr[r]; if (!row) continue;
+    for (let c = 0; c < row.length; c++) if (norm(row[c]) === "salary lost") { at = { r, c }; break; } }
+  if (!at) return null;
+  const bad = (r, c) => !!(errs && errs[r] && errs[r][c]);      // #REF!, #VALUE! ... in that cell
+  // The figure beside a label: the next cell, or the one after it when the next is empty.
+  const right = (r, c, reach) => { const row = arr[r] || [];
+    for (let k = c + 1; k <= c + reach; k++) { if (bad(r, k)) return NaN; const v = row[k]; if (v == null || v === "") continue; return typeof v === "number" ? v : num(v); }
+    return null; };
+  let cmW;                                     // the "if not wasted" CM: above, in the Salary Lost column
+  for (let r = at.r - 1; r >= Math.max(0, at.r - 10) && cmW === undefined; r--) if (norm((arr[r] || [])[at.c]) === "cm") cmW = right(r, at.c, 1);
+  let cmA;                                     // the real CM: the "CM" label in a column to its left
+  for (let r = 0; r < arr.length && cmA === undefined; r++) { const row = arr[r]; if (!row) continue;
+    for (let c = Math.max(0, at.c - 10); c < at.c; c++) if (norm(row[c]) === "cm") { cmA = right(r, c, 2); break; } }
+  if (cmW === undefined && cmA === undefined) return null;
+  const w = cmW ?? null, a = cmA ?? null;
+  if (Number.isNaN(w) || Number.isNaN(a)) return { miss: 1, w: null, a: null };
+  if (!w && !a) return { v: 0 };                             // no commission either way (fixed salary)
+  if (w == null || a == null || (w === 0 && a > 0)) return { miss: 1, w, a };
+  const v = w - a;
+  if (v < -1) return { miss: 1, w, a };                      // more earned than possible: a typing slip
+  return { v: Math.max(0, Math.round(v)) };
 }

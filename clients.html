@@ -850,12 +850,12 @@ function coaches(){
   function kc(still,start,same,wait){ if(!start) return '<span class="dim">—</span>'; var v=Math.round(still/start*100);
     return '<span class="'+(v>=75?"up":v<50?"down":"")+'" title="With us on '+fmtDate(K.d)+": "+start+". Still with us today: "+still+(same!=null?" ("+same+" with the same coach)":"")+(wait?". Of those, "+wait+" are past their package and still inside the grace period":"")+'">'+v+'%</span> <span class="dim" style="font-size:11px">'+still+" of "+start+"</span>"+(wait?'<div class="dim" style="font-size:11px;line-height:1.2">'+wait+" deciding</div>":""); }
   $("coachUnit").textContent="clients whose package ran out "+winLabel()+" · AED";
-  var head="<thead><tr>"+[["Coach","l"],["Active",""],["Up for<br>renewal",""],["Existing clients<br>still with us",""],["Stayed · moved coach · left","l"],["Renewed before the<br>last paid session",""],["New clients still<br>here at 3 months",""],["At 6<br>months",""],["Assessments<br>converted",""],["New<br>clients",""],["Package<br>sales",""]]
+  var head="<thead><tr>"+[["Coach","l"],["Active",""],["Up for<br>renewal",""],["Existing clients<br>still with us",""],["Stayed · moved coach · left","l"],["Renewed by expiry<br>+ 7 days",""],["New clients still<br>here at 3 months",""],["At 6<br>months",""],["Assessments<br>converted",""],["New<br>clients",""],["Package<br>sales",""]]
     .map(function(c){ return '<th class="'+c[1]+'">'+c[0]+"</th>"; }).join("")+"</tr></thead>";
   var body=M.coaches.map(function(r){
     var mine=list.filter(function(d){ return d.c===r.c; }), o=stayedLeft(mine), n=o.kept+o.moved+o.lost;
-    // Renewals bought in the period: on time = before the client trained past the last paid
-    // session of the package before (from the coach sheets: the red mark, or the count).
+    // Renewals bought in the period: on time = bought before the package before expired, or
+    // within 7 days after.
     var rtb=(M.rt&&M.rt.by&&M.rt.by[r.c])||{}, early=0, renN=0; Object.keys(rtb).forEach(function(q){ if(q>=s0.slice(0,7)){ early+=rtb[q].ok; renN+=rtb[q].n; } }); var ren={length:renN};
     var up=M.up.coach[r.c]||{n:0,aed:0};
     // New clients and sales by calendar month, from the month the period starts in.
@@ -1029,7 +1029,7 @@ function checks(){
     "<b>Up for renewal</b>: a package ending in the next 30 days, or one that ran out in the last "+S.grace+" days with nothing new. Valued at the client's last package.",
     "<b>Stayed, moved coach, left</b>: counted in clients, once each per coach: the last time their package ran out in the period. Stayed = bought again with the same coach within "+S.grace+" days. Moved = bought again with another coach. Left = nothing new within "+S.grace+" days.",
     "<b>Existing clients still with us</b>: of the clients with the coach on the first day of the period, how many are still clients today (with any coach). A client past their package and inside the grace period counts as still with us and is shown as deciding; a client counts as gone once the grace period runs out or they say they are stopping. It covers every client, not only new ones.",
-    "<b>Renewed before the last paid session</b>: of the renewals bought in the period, the share bought before the client trained past the last session of the package before: the session the coach marked red, or, where none is marked, the one the session count reaches. A client who finishes early and renews before training again is on time; one who trains unpaid sessions first is not. Only renewals the coach sheets can follow are counted"+(M.rt&&M.rt.cover?" ("+M.rt.cover.measured+" of the "+M.rt.cover.all+" renewals since logging began)":"")+".",
+    "<b>Renewed by expiry + 7 days</b>: of the renewals bought in the period, the share bought before the package before expired or within 7 days after. A client who buys again after the grace period is a returning client, not a renewal.",
     "<b>Still here at 3 and 6 months</b>: of the coach's new clients since "+fmtDate(S.loggedFrom)+", how many were still clients that long after their first package. Clients still with us count for as long as we have watched them.",
     "<b>New, returning, renewal</b>: a first purchase is New; one more than "+S.grace+" days after the last package ran out is Returning; anything sooner is a Renewal.",
     "Only purchases from "+fmtDate(S.loggedFrom)+" are fully logged, so everything about renewals starts there. Mobile numbers, emails and client names are never read into this page."

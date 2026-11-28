@@ -16,6 +16,7 @@
    Nothing here is written anywhere but the encrypted overview file. */
 
 const DAY_MS = 86400000;
+const ON_TIME_DAYS = 7;   // a renewal is on time up to 7 days after expiry (same as clients-model.mjs)
 const EPOCH = Date.UTC(1899, 11, 30);
 const iso = (n) => new Date(EPOCH + n * DAY_MS).toISOString().slice(0, 10);
 const serial = (s) => Math.round((Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)) - EPOCH) / DAY_MS);
@@ -350,7 +351,7 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
     const ren = mine.filter((x) => x.outcome !== "lost");
     const sizes = {}; for (const c of inner.clients) for (const p of c.pk) if (p.coach === coach && p.date >= year && p.unit !== "Months" && p.size) sizes[p.size] = (sizes[p.size] || 0) + 1;
     const common = Object.keys(sizes).sort((a, b) => sizes[b] - sizes[a])[0];
-    perCoach[coach] = { ...o, early: ren.filter((x) => x.at <= x.E).length, renewals: ren.length,
+    perCoach[coach] = { ...o, early: ren.filter((x) => x.at <= x.E + ON_TIME_DAYS).length, renewals: ren.length,
       stay: stayOf(firstYear.filter((r) => r.coach === coach)), common: common ? +common : null };
   }
   const team = { stay: stayOf(firstYear) };
@@ -391,30 +392,19 @@ export function buildOverview({ inner, periods, links = [], now, cutoffDay, reve
     }
   }
 
-  /* 10. Renewals: on time or after the last paid session ----
-     A renewal is on time when the client trained no session after the last paid session of the
-     package before it and before the day the renewal was bought. Filed in the month the renewal
-     was bought, under the coach of the package that ran out. Only renewals the coach sheets can
-     follow (linked clients, packages inside the sheets' months) are counted; n/N below shows how
-     many that was. */
-  const rt = {}, rtCover = { measured: 0, all: 0, red: 0, misfit: 0 };
-  for (const c of inner.clients) {
-    const own = c.pk.filter((p) => p.date <= today);
-    for (const p of own) if (p.type === "Renewal" && iso(p.date) >= iso(inner.loggedFrom)) rtCover.all++;
-    const d = daysOf.get(c.id); if (!d) continue;
-    const L = ledger(c, d); if (!L) continue;
-    rtCover.misfit += L.misfit;
-    for (let q = 1; q < L.pkgs.length; q++) {
-      const A = L.pkgs[q - 1], Bp = L.pkgs[q];
-      if (Bp.type !== "Renewal" || Bp.date < inner.loggedFrom) continue;
-      // Not used up when the renewal was bought: on time. Used up: any session between its last
-      // session and the purchase day means the client trained unpaid.
-      const lateS = A.last == null || A.last >= Bp.date ? 0 : L.ses.filter(([day]) => day > A.last && day < Bp.date).reduce((t, x) => t + x[1], 0);
-      const coach = A.coach || c.coach || "(no coach)", m = iso(Bp.date).slice(0, 7);
-      const o = (rt[coach] || (rt[coach] = {}))[m] || (rt[coach][m] = { n: 0, ok: 0, red: 0 });
-      o.n++; if (!lateS) o.ok++; if (A.red) { o.red++; rtCover.red++; }
-      rtCover.measured++;
-    }
+  /* 10. Renewals on time ----
+     A renewal is on time when it was bought before the package before it expired, or within
+     ON_TIME_DAYS (7) days after. Every renewal in the Clients file counts (kept with the same
+     coach or moved to another), filed in the month it was bought under the coach of the package
+     that ran out. A client who buys again after the grace period is a returning client, not a
+     renewal, and shows in "still with us" instead. */
+  const rt = {}, rtCover = { measured: 0, all: 0, late: 0 };
+  for (const x of inner.decisions) {
+    if ((x.outcome !== "kept" && x.outcome !== "moved") || x.at == null || x.at < inner.loggedFrom || x.at > today) continue;
+    const coach = x.coach || "(no coach)", m = iso(x.at).slice(0, 7);
+    const o = (rt[coach] || (rt[coach] = {}))[m] || (rt[coach][m] = { n: 0, ok: 0 });
+    o.n++; rtCover.all++; rtCover.measured++;
+    if (x.at <= x.E + ON_TIME_DAYS) o.ok++; else rtCover.late++;
   }
 
   /* 11. Money left on the table ----
