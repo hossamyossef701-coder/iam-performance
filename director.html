@@ -265,7 +265,7 @@ body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
       </div>
     </div>
     <div class="card section">
-      <div class="card-h"><div><div class="k">Salary lost</div><div class="t">Commission lost to sessions cancelled without charge</div></div><span class="unit">AED</span></div>
+      <div class="card-h"><div><div class="k">Lost commission</div><div class="t">Commission lost to sessions cancelled without charge</div></div><span class="unit">AED</span></div>
       <div class="scroll"><table class="kt" id="slTbl"></table></div>
       <div class="card-b" style="padding-top:6px"><p class="note" id="slNote"></p></div>
     </div>
@@ -292,6 +292,10 @@ body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
   </div>
 
   <div id="one">
+    <div class="card section" id="slCard" style="display:none">
+      <div class="card-h"><div><div class="k" id="slK">Lost commission</div><div class="t">Commission lost to sessions cancelled without charge</div></div><span class="unit" id="slU"></span></div>
+      <div class="card-b" id="slB" style="padding-top:4px"></div>
+    </div>
     <div class="card section" id="sandCard">
       <div class="card-h"><div><div class="k">1+1 talking points</div><div class="t" id="sandT"></div></div><span class="unit">open and close on what's going well</span></div>
       <div class="card-b"><div class="sand" id="sand"></div></div>
@@ -305,10 +309,6 @@ body.v-dir .tiles{grid-template-columns:repeat(6,1fr);}
         <div class="card-h"><div><div class="k">Room to grow</div><div class="t">What current clients could add, with no new client</div></div><span class="unit">a month</span></div>
         <div class="card-b"><div class="room" id="room"></div><p class="note" id="roomNote"></p></div>
       </div>
-    </div>
-    <div class="card section" id="slCard" style="display:none">
-      <div class="card-h"><div><div class="k" id="slK">Salary lost</div><div class="t">Commission lost to sessions cancelled without charge</div></div><span class="unit" id="slU"></span></div>
-      <div class="card-b" id="slB" style="padding-top:4px"></div>
     </div>
     <div class="card section">
       <div class="card-h"><div><div class="k">Their clients</div><div class="t">Sessions a week, against what was agreed</div></div><span class="unit">last 8 weeks</span></div>
@@ -676,7 +676,7 @@ function renderSl(c){
   var o=slOf(c), card=$("slCard");
   if(!o){ card.style.display="none"; return; }
   card.style.display="";
-  $("slK").textContent="Salary lost · "+c;
+  $("slK").textContent="Lost commission · "+c;
   $("slU").textContent=slSpan(o)+" · "+o.n+" month"+(o.n>1?"s":"");
   var max=Math.max.apply(null,o.rows.map(function(r){ return r.v||0; }).concat([1]));
   $("slB").innerHTML='<div class="sl-sum"><b>'+C.full(Math.round(o.tot))+' AED</b><span>in total'+(o.now?", "+C.label(o.now.p,true)+" so far included":"")+(o.avg!=null?" · "+C.full(Math.round(o.avg))+" a month on average":"")+"</span></div>"+
